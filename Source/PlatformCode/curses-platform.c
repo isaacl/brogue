@@ -16,7 +16,7 @@ static void gameLoop() {
 	if (!Term.start()) {
 		return;
 	}
-	Term.title("Brogue 1.6.1");
+	Term.title("Brogue 1.6.2");
 	Term.resize(COLS, ROWS);
 
 	rogueMain();
@@ -172,13 +172,17 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInpu
 static void curses_remap(const char *input_name, const char *output_name) {
 }
 
+static boolean modifier_held(int modifier) {
+	return 0;
+}
 
 struct brogueConsole cursesConsole = {
 	gameLoop,
 	curses_pauseForMilliseconds,
 	curses_nextKeyOrMouseEvent,
 	curses_plotChar,
-	curses_remap
+	curses_remap,
+	modifier_held
 };
 #endif
 

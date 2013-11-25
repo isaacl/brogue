@@ -6,6 +6,7 @@ struct brogueConsole {
 	void (*nextKeyOrMouseEvent)(rogueEvent *returnEvent, boolean textInput, boolean colorsDance);
 	void (*plotChar)(uchar, short, short, short, short, short, short, short, short);
 	void (*remap)(const char *, const char *);
+	boolean (*modifierHeld)(int modifier);
 };
 
 void loadKeymap();

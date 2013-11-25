@@ -33,6 +33,7 @@
 extern playerCharacter rogue;
 extern short brogueFontSize;
 extern short mouseX, mouseY;
+extern unsigned long int firstSeed;
 
 typedef struct brogueScoreEntry {
 	long int score;
@@ -52,6 +53,13 @@ void plotChar(uchar inputChar,
 
 void pausingTimerStartsNow() {
 	
+}
+
+boolean shiftKeyIsDown() {
+	return currentConsole.modifierHeld(0);
+}
+boolean controlKeyIsDown() {
+	return currentConsole.modifierHeld(1);
 }
 
 void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance) {
@@ -392,7 +400,7 @@ fileEntry *listFiles(short *fileCount, char **namebuffer) {
 
 // end of file listing
 
-void initializeLaunchArguments(enum NGCommands *command, char *path) {
-	// we've actually already done this
+void initializeLaunchArguments(enum NGCommands *command, char *path, unsigned long *seed) {
+	// we've actually already done this at this point, except for the seed.
 }
 
