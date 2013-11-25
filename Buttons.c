@@ -7,18 +7,18 @@
  *
  *  This file is part of Brogue.
  *
- *  Brogue is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Affero General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or (at your option) any later version.
  *
- *  Brogue is distributed in the hope that it will be useful,
+ *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  GNU Affero General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
+ *  You should have received a copy of the GNU Affero General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "Rogue.h"
@@ -109,7 +109,7 @@ void drawButton(brogueButton *button, enum buttonDrawStates highlight, cellDispl
 				plotCharToBuffer(displayCharacter, button->x + i, button->y, &fColor, &bColor, dbuf);
 				dbuf[button->x + i][button->y].opacity = opacity;
 			} else {
-				plotCharWithColor(displayCharacter, button->x + i, button->y, fColor, bColor);
+				plotCharWithColor(displayCharacter, button->x + i, button->y, &fColor, &bColor);
 			}
 		}
 	}
@@ -332,7 +332,7 @@ short buttonInputLoop(brogueButton *buttons,
 //		for (j=0; j<COLS; j++) {
 //			if (i >= winX		&& i < winX + winWidth
 //				&& j >= winY	&& j < winY + winHeight) {
-//				plotCharWithColor(' ', i, j, white, gray);
+//				plotCharWithColor(' ', i, j, &white, &gray);
 //			}
 //		}
 //	}

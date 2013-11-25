@@ -7,18 +7,18 @@
  *  
  *  This file is part of Brogue.
  *
- *  Brogue is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Affero General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or (at your option) any later version.
  *
- *  Brogue is distributed in the hope that it will be useful,
+ *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  GNU Affero General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
+ *  You should have received a copy of the GNU Affero General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <math.h>
@@ -58,7 +58,7 @@ short randClumpedRange(short lowerBound, short upperBound, short clumpFactor) {
 
 // Get a random int between lowerBound and upperBound, inclusive
 boolean rand_percent(short percent) {
-	return (rand_range(0, 99) < max(0, min(100, percent)));
+	return (rand_range(0, 99) < clamp(percent, 0, 100));
 }
 
 void shuffleList(short *list, short listLength) {
@@ -71,6 +71,13 @@ void shuffleList(short *list, short listLength) {
 			list[i] = buf;
 		}
 	}
+}
+
+void fillSequentialList(short *list, short listLength) {
+    short i;
+    for (i=0; i<listLength; i++) {
+        list[i] = i;
+    }
 }
 
 //typedef unsigned long int  u4;
@@ -163,7 +170,7 @@ int rand_range(int lowerBound, int upperBound) {
 // All RNGs are seeded simultaneously and identically.
 unsigned long seedRandomGenerator(unsigned long seed) {
 	if (seed == 0) {
-		seed = (unsigned long) time(NULL);
+		seed = (unsigned long) time(NULL) - 1352700000;
 	}
 	raninit(&(RNGState[RNG_SUBSTANTIVE]), seed);
 	raninit(&(RNGState[RNG_COSMETIC]), seed);

@@ -7,18 +7,18 @@
  *  
  *  This file is part of Brogue.
  *
- *  Brogue is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Affero General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or (at your option) any later version.
  *
- *  Brogue is distributed in the hope that it will be useful,
+ *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  GNU Affero General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
+ *  You should have received a copy of the GNU Affero General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <math.h>
@@ -89,7 +89,7 @@ short hitProbability(creature *attacker, creature *defender) {
         if ((rogue.weapon->flags & ITEM_RUNIC) && rogue.weapon->enchant2 == W_SLAYING && rogue.weapon->vorpalEnemy == defender->info.monsterID) {
             return 100;
         }
-		accuracy *= pow(WEAPON_ENCHANT_ACCURACY_FACTOR, netEnchant(rogue.weapon));
+		accuracy *= (pow(WEAPON_ENCHANT_ACCURACY_FACTOR, netEnchant(rogue.weapon)) + FLOAT_FUDGE);
 	}
 	
 	hitProbability = accuracy * pow(DEFENSE_FACTOR, defense);
@@ -157,7 +157,7 @@ void monsterShoots(creature *attacker, short targetLoc[2], uchar projChar, color
 //				continue;
 //			}
 			
-			attack(attacker, monst);
+			attack(attacker, monst, false);
 			break;
 		}
 		
@@ -166,7 +166,7 @@ void monsterShoots(creature *attacker, short targetLoc[2], uchar projChar, color
 			foreColor = gray;
 			colorMultiplierFromDungeonLight(x, y, &multColor);
 			applyColorMultiplier(&foreColor, &multColor);
-			plotCharWithColor(projChar, mapToWindowX(x), mapToWindowY(y), *projColor, backColor);
+			plotCharWithColor(projChar, mapToWindowX(x), mapToWindowY(y), projColor, &backColor);
 			
 			if (!fastForward) {
 				fastForward = rogue.playbackFastForward || pauseBrogue(50);
@@ -390,7 +390,7 @@ boolean playerImmuneToMonster(creature *monst) {
 }
 
 void specialHit(creature *attacker, creature *defender, short damage) {
-	short itemCandidates, randItemIndex;
+	short itemCandidates, randItemIndex, stolenQuantity;
 	item *theItem = NULL, *itemFromTopOfStack;
 	char buf[COLS], buf2[COLS], buf3[COLS];
 	
@@ -447,21 +447,28 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 					}
 				}
 				if (theItem) {
-					if (theItem->quantity > 1 && !(theItem->category & WEAPON)) { // Peel off the top item and drop it.
+                    if (theItem->category & WEAPON) { // Monkeys will steal half of a stack of weapons, and one of any other stack.
+                        if (theItem->quantity > 3) {
+                            stolenQuantity = (theItem->quantity + 1) / 2;
+                        } else {
+                            stolenQuantity = theItem->quantity;
+                        }
+                    } else {
+                        stolenQuantity = 1;
+                    }
+					if (stolenQuantity < theItem->quantity) { // Peel off stolen item(s).
 						itemFromTopOfStack = generateItem(ALL_ITEMS, -1);
 						*itemFromTopOfStack = *theItem; // Clone the item.
-						theItem->quantity--;
-						itemFromTopOfStack->quantity = 1;
+						theItem->quantity -= stolenQuantity;
+						itemFromTopOfStack->quantity = stolenQuantity;
 						theItem = itemFromTopOfStack; // Redirect pointer.
 					} else {
 						removeItemFromChain(theItem, packItems);
 					}
-					theItem->flags |= ITEM_NAMED; // Just in case, mostly for debugging situations.
 					theItem->flags &= ~ITEM_PLAYER_AVOIDS; // Explore will seek the item out if it ends up on the floor again.
 					attacker->carriedItem = theItem;
 					attacker->creatureMode = MODE_PERM_FLEEING;
 					attacker->creatureState = MONSTER_FLEEING;
-					chooseNewWanderDestination(attacker);
 					monsterName(buf2, attacker, true);
 					itemName(theItem, buf3, false, true, NULL);
 					sprintf(buf, "%s stole %s!", buf2, buf3);
@@ -493,9 +500,10 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
 		0.16,	// W_SPEED
 		0.06,	// W_QUIETUS
 		0.07,	// W_PARALYSIS
-		0.11,	// W_MULTIPLICITY
+		0.15,	// W_MULTIPLICITY
 		0.14,	// W_SLOWING
 		0.11,	// W_CONFUSION
+        0.15,   // W_FORCE
 		0,		// W_SLAYING
 		0,		// W_MERCY
 		0};		// W_PLENTY
@@ -521,14 +529,14 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
     if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
 		adjustedBaseDamage /= 2; // Normalize as though they attacked once per turn instead of every other turn.
 	}
-    if (theItem->flags & ITEM_ATTACKS_QUICKLY) {
-		adjustedBaseDamage *= 2; // Normalize as though they attacked once per turn instead of twice per turn.
-	}
+//    if (theItem->flags & ITEM_ATTACKS_QUICKLY) {
+//		adjustedBaseDamage *= 2; // Normalize as though they attacked once per turn instead of twice per turn.
+//	} // Testing disabling this for balance reasons...
 	
     modifier = 1.0 - min(0.99, ((float) adjustedBaseDamage) / 18.0);
 	rootChance *= modifier;
 	
-	chance = 100 - (short) (100 * pow(1.0 - rootChance, enchantLevel)); // good runic
+	chance = 100 - (short) (100 * pow(1.0 - rootChance, enchantLevel) + FLOAT_FUDGE); // good runic
 	
 	// Slow weapons get an adjusted chance of 1 - (1-p)^2 to reflect two bites at the apple instead of one.
 	if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
@@ -547,12 +555,12 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
 }
 
 void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
-	char buf[DCOLS*3], monstName[DCOLS], theItemName[DCOLS];
+	char buf[DCOLS*3], buf2[COLS], monstName[DCOLS], theItemName[DCOLS];
 	
 	color *effectColors[NUMBER_WEAPON_RUNIC_KINDS] = {&white, &black,
-		&yellow, &pink, &green, &confusionGasColor, &white, &darkRed, &rainbow};
-	//	W_SPEED, W_QUIETUS, W_PARALYSIS, W_MULTIPLICITY, W_SLOWING, W_CONFUSION, W_SLAYING, W_MERCY, W_PLENTY
-	short chance, i, newLoc[2];
+		&yellow, &pink, &green, &confusionGasColor, NULL, NULL, &darkRed, &rainbow};
+	//	W_SPEED, W_QUIETUS, W_PARALYSIS, W_MULTIPLICITY, W_SLOWING, W_CONFUSION, W_FORCE, W_SLAYING, W_MERCY, W_PLENTY
+	short chance, i, oldLoc[2], newLoc[2];
 	float enchant;
 	enum weaponEnchants enchantType = theItem->enchant2;
 	creature *newMonst;
@@ -578,7 +586,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 	if (!(defender->info.flags & MONST_INANIMATE) && rand_percent(chance)) {
 		if (!(defender->bookkeepingFlags & MONST_SUBMERGED)) {
 			if (enchantType == W_SPEED) {
-				flashMonster(&player, &white, 100);
+                createFlare(player.xLoc, player.yLoc, SCROLL_ENCHANTMENT_LIGHT);
 			} else {
 				flashMonster(defender, effectColors[enchantType], 100);
 			}
@@ -599,7 +607,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				break;
 			case W_SLAYING:
 			case W_QUIETUS:
-				inflictLethalDamage(&player, defender);
+				inflictLethalDamage(defender);
 				sprintf(buf, "%s suddenly dies", monstName);
 				buf[DCOLS] = '\0';
 				combatMessage(buf, messageColorFromVictim(defender));
@@ -622,12 +630,15 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				buf[DCOLS] = '\0';
 				
 				for (i = 0; i < (weaponImageCount(enchant)); i++) {
-					getQualifyingLocNear(newLoc, defender->xLoc, defender->yLoc, true, 0,
-										 T_PATHING_BLOCKER & ~(T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_AUTO_DESCENT),
-										 (HAS_PLAYER | HAS_MONSTER), false, false);
+//					getQualifyingLocNear(newLoc, defender->xLoc, defender->yLoc, true, 0,
+//										 T_PATHING_BLOCKER & ~(T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_AUTO_DESCENT),
+//										 (HAS_PLAYER | HAS_MONSTER), false, false);
 					newMonst = generateMonster(MK_SPECTRAL_IMAGE, true);
-					newMonst->xLoc = newLoc[0];
-					newMonst->yLoc = newLoc[1];
+                    getQualifyingPathLocNear(&(newMonst->xLoc), &(newMonst->yLoc), defender->xLoc, defender->yLoc, true,
+                                             T_DIVIDES_LEVEL & avoidedFlagsForMonster(&(newMonst->info)), HAS_PLAYER,
+                                             avoidedFlagsForMonster(&(newMonst->info)), (HAS_PLAYER | HAS_MONSTER | HAS_UP_STAIRS | HAS_DOWN_STAIRS), false);
+//					newMonst->xLoc = newLoc[0];
+//					newMonst->yLoc = newLoc[1];
 					newMonst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER);
 					newMonst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
 					newMonst->leader = &player;
@@ -684,6 +695,52 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 					buf[DCOLS] = '\0';
 					combatMessage(buf, messageColorFromVictim(defender));
 				}
+				break;
+			case W_FORCE:
+                oldLoc[0] = defender->xLoc;
+                oldLoc[1] = defender->yLoc;
+                newLoc[0] = defender->xLoc + (defender->xLoc - player.xLoc);
+                newLoc[1] = defender->yLoc + (defender->yLoc - player.yLoc);
+				if (canDirectlySeeMonster(defender)
+                    && !cellHasTerrainFlag(newLoc[0], newLoc[1], T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_VISION)
+                    && !(pmap[newLoc[0]][newLoc[1]].flags & (HAS_MONSTER | HAS_PLAYER))) {
+					sprintf(buf, "you launch %s backward with the force of your blow", monstName);
+					buf[DCOLS] = '\0';
+					combatMessage(buf, messageColorFromVictim(defender));
+				}
+                zap(oldLoc, newLoc, BOLT_BLINKING, max(1, netEnchant(theItem) + FLOAT_FUDGE), false);
+                if (!(defender->bookkeepingFlags & MONST_IS_DYING)
+                    && distanceBetween(oldLoc[0], oldLoc[1], defender->xLoc, defender->yLoc) > 0
+                    && distanceBetween(oldLoc[0], oldLoc[1], defender->xLoc, defender->yLoc) < weaponForceDistance(netEnchant(theItem))) {
+                    
+                    if (pmap[defender->xLoc + newLoc[0] - oldLoc[0]][defender->yLoc + newLoc[1] - oldLoc[1]].flags & (HAS_MONSTER | HAS_PLAYER)) {
+                        monsterName(buf2, monsterAtLoc(defender->xLoc + newLoc[0] - oldLoc[0], defender->yLoc + newLoc[1] - oldLoc[1]), true);
+                    } else {
+                        strcpy(buf2, tileCatalog[pmap[defender->xLoc + newLoc[0] - oldLoc[0]][defender->yLoc + newLoc[1] - oldLoc[1]].layers[highestPriorityLayer(defender->xLoc + newLoc[0] - oldLoc[0], defender->yLoc + newLoc[1] - oldLoc[1], true)]].description);
+                    }
+                    
+                    if (!(defender->info.flags & MONST_IMMUNE_TO_WEAPONS)
+                        && inflictDamage(defender, distanceBetween(oldLoc[0], oldLoc[1], defender->xLoc, defender->yLoc), &white)) {
+                        
+                        if (canDirectlySeeMonster(defender)) {
+                            sprintf(buf, "%s %s on impact with %s",
+                                    monstName,
+                                    (defender->info.flags & MONST_INANIMATE) ? "is destroyed" : "dies",
+                                    buf2);
+                            buf[DCOLS] = '\0';
+                            combatMessage(buf, messageColorFromVictim(defender));
+                        }
+                    } else {
+                        moralAttack(&player, defender);
+                        if (canDirectlySeeMonster(defender)) {
+                            sprintf(buf, "%s slams against %s",
+                                    monstName,
+                                    buf2);
+                            buf[DCOLS] = '\0';
+                            combatMessage(buf, messageColorFromVictim(defender));
+                        }
+                    }
+                }
 				break;
 			case W_MERCY:
 				heal(defender, 50);
@@ -808,7 +865,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 					for (i=0; i<8; i++) {
 						if (hitList[i] && !(hitList[i]->bookkeepingFlags & MONST_IS_DYING)) {
 							monsterName(monstName, hitList[i], true);
-							if (inflictDamage(attacker, hitList[i], (*damage + count) / (count + 1), &blue)
+							if (inflictDamage(hitList[i], (*damage + count) / (count + 1), &blue)
 								&& canSeeMonster(hitList[i])) {
                                 
 								sprintf(buf, "%s %s", monstName, ((hitList[i]->info.flags & MONST_INANIMATE) ? "is destroyed" : "dies"));
@@ -839,7 +896,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 		case A_REPRISAL:
 			if (melee && !(attacker->info.flags & MONST_INANIMATE)) {
 				newDamage = max(1, armorReprisalPercent(enchant) * (*damage) / 100); // 5% reprisal per armor level
-				if (inflictDamage(&player, attacker, newDamage, &blue)) {
+				if (inflictDamage(attacker, newDamage, &blue)) {
 					if (canSeeMonster(attacker)) {
 						sprintf(returnString, "your %s pulses and %s drops dead!", armorName, attackerName);
 						runicDiscovered = true;
@@ -910,10 +967,10 @@ void decrementWeaponAutoIDTimer() {
 }
 
 // returns whether the attack hit
-boolean attack(creature *attacker, creature *defender) {
+boolean attack(creature *attacker, creature *defender, boolean lungeAttack) {
 	short damage, transferenceAmount, poisonDamage;
 	char buf[COLS*2], buf2[COLS*2], attackerName[COLS], defenderName[COLS], verb[DCOLS], explicationClause[DCOLS] = "", armorRunicString[DCOLS*3];
-	boolean sneakAttack, defenderWasAsleep, defenderWasParalyzed, degradesAttackerWeapon, sightUnseen, creditWeaponKill;
+	boolean sneakAttack, defenderWasAsleep, defenderWasParalyzed, degradesAttackerWeapon, sightUnseen;
 	
 	if (attacker->info.abilityFlags & MA_KAMIKAZE) {
 		killCreature(attacker, false);
@@ -923,7 +980,6 @@ boolean attack(creature *attacker, creature *defender) {
 	armorRunicString[0] = '\0';
 	
 	poisonDamage = 0;
-    creditWeaponKill = false;
 	
 	degradesAttackerWeapon = (defender->info.flags & MONST_DEFEND_DEGRADE_WEAPON ? true : false);
 	
@@ -963,7 +1019,7 @@ boolean attack(creature *attacker, creature *defender) {
 		return false;
 	}
 	
-	if (sneakAttack || defenderWasAsleep || defenderWasParalyzed || attackHit(attacker, defender)) {
+	if (sneakAttack || defenderWasAsleep || defenderWasParalyzed || lungeAttack || attackHit(attacker, defender)) {
 		// If the attack hit:
 		damage = (defender->info.flags & MONST_IMMUNE_TO_WEAPONS ? 0 : randClump(attacker->info.damage) * monsterDamageAdjustmentAmount(attacker));
 		
@@ -975,6 +1031,8 @@ boolean attack(creature *attacker, creature *defender) {
                     defender->creatureState = MONSTER_TRACKING_SCENT; // Wake up!
                 }
             }
+        }
+        if (sneakAttack || defenderWasAsleep || defenderWasParalyzed || lungeAttack) {
 			damage *= 3; // Treble damage for sneak attacks!
 		}
 		
@@ -998,7 +1056,7 @@ boolean attack(creature *attacker, creature *defender) {
 				transferenceAmount = damage * 9 / 10; // enemies get 90% recovery rate, deal with it
 			}
 
-			attacker->currentHP += min((attacker->info.maxHP - attacker->currentHP), transferenceAmount);
+			attacker->currentHP += transferenceAmount;
 			
 			if (attacker == &player && player.currentHP <= 0) {
 				gameOver("Drained by a cursed ring", true);
@@ -1015,6 +1073,8 @@ boolean attack(creature *attacker, creature *defender) {
 			if (attacker == &player) {
 				rogue.disturbed = true;
 			}
+        } else if (lungeAttack) {
+            strcpy(explicationClause, " with a vicious lunge attack");
 		} else if (defenderWasParalyzed) {
 			sprintf(explicationClause, " while $HESHE %s paralyzed", (defender == &player ? "are" : "is"));
 		} else if (defenderWasAsleep) {
@@ -1033,8 +1093,8 @@ boolean attack(creature *attacker, creature *defender) {
 			damage = 1;
 		}
 		
-		if (inflictDamage(attacker, defender, damage, &red)) { // if the attack killed the defender
-			if (defenderWasAsleep || sneakAttack || defenderWasParalyzed) {
+		if (inflictDamage(defender, damage, &red)) { // if the attack killed the defender
+			if (defenderWasAsleep || sneakAttack || defenderWasParalyzed || lungeAttack) {
 				sprintf(buf, "%s %s %s%s", attackerName,
 						((defender->info.flags & MONST_INANIMATE) ? "destroyed" : "dispatched"),
 						defenderName,
@@ -1091,9 +1151,10 @@ boolean attack(creature *attacker, creature *defender) {
 		}
         
         if (attacker == &player
-            && (defender->bookkeepingFlags & MONST_IS_DYING)) { // ^^ Used to also check that the monster granted experience.
+            && (defender->bookkeepingFlags & MONST_IS_DYING)
+            && (defender->bookkeepingFlags & MONST_HAS_SOUL)) {
             
-            decrementWeaponAutoIDTimer(); // This is primarily for quietus.
+            decrementWeaponAutoIDTimer();
         }
 		
 		if (degradesAttackerWeapon
@@ -1181,6 +1242,9 @@ void displayCombatText() {
 }
 
 void flashMonster(creature *monst, const color *theColor, short strength) {
+    if (!theColor) {
+        return;
+    }
 	if (!(monst->bookkeepingFlags & MONST_WILL_FLASH) || monst->flashStrength < strength) {
 		monst->bookkeepingFlags |= MONST_WILL_FLASH;
 		monst->flashStrength = strength;
@@ -1213,8 +1277,8 @@ boolean anyoneWantABite(creature *decedent) {
 		|| (decedent->info.flags & (MONST_INANIMATE | MONST_IMMOBILE))) {
 		return false;
 	}
-	grid = allocDynamicGrid();
-	fillDynamicGrid(grid, 0);
+	grid = allocGrid();
+	fillGrid(grid, 0);
 	calculateDistances(grid, decedent->xLoc, decedent->yLoc, T_PATHING_BLOCKER, NULL, true, true);
 	for (ally = monsters->nextCreature; ally != NULL; ally = ally->nextCreature) {
 		if (canAbsorb(ally, decedent, grid)) {
@@ -1253,7 +1317,7 @@ boolean anyoneWantABite(creature *decedent) {
 						&& !--randIndex) {
 						ally->absorptionFlags = Fl(i);
 						ally->absorbBehavior = false;
-						freeDynamicGrid(grid);
+						freeGrid(grid);
 						return true;
 					}
 				}
@@ -1262,28 +1326,27 @@ boolean anyoneWantABite(creature *decedent) {
 						&& !--randIndex) {
 						ally->absorptionFlags = Fl(i);
 						ally->absorbBehavior = true;
-						freeDynamicGrid(grid);
+						freeGrid(grid);
 						return true;
 					}
 				}
 			}
 		}
 	}
-	freeDynamicGrid(grid);
+	freeGrid(grid);
 	return false;
 }
 
 #define MIN_FLASH_STRENGTH	50
 
-void inflictLethalDamage(creature *attacker, creature *defender) {
+void inflictLethalDamage(creature *defender) {
     defender->status[STATUS_SHIELDED] = 0;
-	//inflictDamage(attacker, defender, defender->currentHP + (10 * defender->status[STATUS_SHIELDED]), NULL);
-    inflictDamage(attacker, defender, defender->currentHP, NULL);
+    inflictDamage(defender, defender->currentHP, NULL);
 }
 
 // returns true if this was a killing stroke; does NOT free the pointer, but DOES remove it from the monster chain
 // flashColor indicates the color that the damage will cause the creature to flash
-boolean inflictDamage(creature *attacker, creature *defender, short damage, const color *flashColor) {
+boolean inflictDamage(creature *defender, short damage, const color *flashColor) {
 	boolean killed = false;
 	dungeonFeature theBlood;
 	
@@ -1315,7 +1378,6 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, cons
 	
 	if (defender != &player && defender->creatureState == MONSTER_SLEEPING) {
 		wakeUp(defender);
-		chooseNewWanderDestination(defender);
 	}
 	
 	if (defender == &player && rogue.easyMode) {
@@ -1338,7 +1400,6 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, cons
 			&& defender->info.maxHP / 4 >= defender->currentHP) {
 			
 			defender->creatureState = MONSTER_FLEEING;
-			chooseNewWanderDestination(defender);
 		}
 		if (flashColor && damage > 0) {
 			flashMonster(defender, flashColor, MIN_FLASH_STRENGTH + (100 - MIN_FLASH_STRENGTH) * damage / defender->info.maxHP);
