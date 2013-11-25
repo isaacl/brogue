@@ -1,7 +1,7 @@
 
 LIBTCODDIR=src/libtcod-1.5.1
 CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -Isrc/brogue -Isrc/platform -Wall
-RELEASENAME=brogue-1.4.1
+RELEASENAME=brogue-1.4.2
 
 %.o : %.cpp
 	g++ $(CFLAGS) -g -o $@ -c $< 

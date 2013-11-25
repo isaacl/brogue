@@ -364,7 +364,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 		
 		switch (enchantType) {
 			case W_POISON:
-				defender->status.poisoned = max(defender->status.poisoned, max(5, (int) 10 * pow(1.53, enchant - 2)));
+				defender->status.poisoned = max(defender->status.poisoned, max(5, (int) (10 * pow(1.53, enchant - 2))));
 				defender->maxStatus.poisoned = defender->status.poisoned;
 				sprintf(buf, "%s is poisoned", monstName);
 				buf[DCOLS] = '\0';

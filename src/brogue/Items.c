@@ -1299,21 +1299,21 @@ they mean one thing: riches.",
 								break;
 							case A_WISDOM:
 								sprintf(buf2, "When worn, your staffs will recharge at %i%% of their normal rate. (If the %s is enchanted, the rate will increase to %i%% of the normal rate.) ",
-										(int) 100 * pow(1.3, min(27, theItem->enchant1)),
+										(int) (100 * pow(1.3, min(27, theItem->enchant1))),
 										theName,
-										(int) 100 * pow(1.3, min(27, (theItem->enchant1 + 1))));
+										(int) (100 * pow(1.3, min(27, (theItem->enchant1 + 1)))));
 								break;
 							case A_ABSORPTION:
 								sprintf(buf2, "It will reduce the damage of inbound attacks by a random amount between 0 and %i%% of your maximum health. (If the %s is enchanted, this maximum percentage will increase to %i%%.) ",
-										(int) 100 * enchant / player.info.maxHP,
+										(int) (100 * enchant / player.info.maxHP),
 										theName,
-										(int) 100 * (enchant + 1) / player.info.maxHP);
+										(int) (100 * (enchant + 1) / player.info.maxHP));
 								break;
 							case A_REPRISAL:
 								sprintf(buf2, "Any monster who attacks you will itself be wounded by %i%% of the damage that it inflicts. (If the %s is enchanted, this maximum percentage will increase to %i%%.) ",
-										max(10, (int) enchant * 10),
+										max(10, (int) (enchant * 10)),
 										theName,
-										max(10, (int) (enchant + 1) * 10));
+										max(10, (int) ((enchant + 1) * 10)));
 								break;
 							case A_IMMUNITY:
 								sprintf(buf2, "It offers complete protection from any attacking %s. ",
