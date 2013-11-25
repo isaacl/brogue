@@ -203,7 +203,7 @@ void pdsBatchInput(pdsMap *map, short **distanceMap, char passMap[DCOLS][DROWS],
 					link->left = NULL;
 				}
 			} else {
-				if (cellHasTerrainFlag(i, j, OBSTRUCTS_PASSABILITY)) link->cost = PDS_OBSTRUCTION;
+				if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)) link->cost = PDS_OBSTRUCTION;
 				else link->cost = PDS_FORBIDDEN;
 				link->right = NULL;
 				link->left = NULL;
@@ -238,7 +238,11 @@ void dijkstraScan(short **distanceMap, short **costMap, char passMap[DCOLS][DROW
 	pdsBatchOutput(&map, distanceMap);
 }
 
-void calculateDistances(short **distanceMap, short destinationX, short destinationY, unsigned long blockingTerrainFlags, creature *traveler) {
+void calculateDistances(short **distanceMap,
+						short destinationX, short destinationY,
+						unsigned long blockingTerrainFlags,
+						creature *traveler,
+						boolean canUseSecretDoors) {
 	static pdsMap map;
 
 	short i, j;
@@ -246,17 +250,17 @@ void calculateDistances(short **distanceMap, short destinationX, short destinati
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
 			char cost;
-
-			if (cellHasTerrainFlag(i, j, OBSTRUCTS_PASSABILITY)) {
+			if (canUseSecretDoors && pmap[i][j].layers[DUNGEON] == SECRET_DOOR) {
+				cost = 1;
+			} else if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)) {
 				cost = PDS_OBSTRUCTION;
 			} else if ((traveler && traveler == &player && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED)))
-				 || ((traveler && monsterAvoids(traveler, i, j))
-				 || cellHasTerrainFlag(i, j, blockingTerrainFlags))) {
+					   || ((traveler && monsterAvoids(traveler, i, j)) || cellHasTerrainFlag(i, j, blockingTerrainFlags))) {
 				cost = PDS_FORBIDDEN;
 			} else {
 				cost = 1;
 			}
-
+			
 			PDS_CELL(&map, i, j)->cost = cost;
 		}
 	}
@@ -268,7 +272,7 @@ void calculateDistances(short **distanceMap, short destinationX, short destinati
 
 short pathingDistance(short x1, short y1, short x2, short y2, unsigned long blockingTerrainFlags) {
 	short retval, **distanceMap = allocDynamicGrid();
-	calculateDistances(distanceMap, x2, y2, blockingTerrainFlags, NULL);
+	calculateDistances(distanceMap, x2, y2, blockingTerrainFlags, NULL, true);
 	retval = distanceMap[x1][y1];
 	freeDynamicGrid(distanceMap);
 	return retval;

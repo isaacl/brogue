@@ -248,7 +248,7 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 			returnEvent->param2 = y;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
 			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
-			if (x >= 0	&& x < COLS
+			if (x >= 0		&& x < COLS
 				&& y >= 0	&& y < ROWS
 				&& (theEventType != NSMouseMoved || x != mouseX || y != mouseY)) {
 				mouseX = x;

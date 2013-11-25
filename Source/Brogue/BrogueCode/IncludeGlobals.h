@@ -23,11 +23,13 @@
 
 extern tcell tmap[DCOLS][DROWS];						// grids with info about the map
 extern pcell pmap[DCOLS][DROWS];						// grids with info about the map
+extern short **scentMap;
 extern cellDisplayBuffer displayBuffer[COLS][ROWS];
 extern short terrainRandomValues[DCOLS][DROWS][8];
 extern char buffer[DCOLS][DROWS];						// used in cave generation
 extern short **safetyMap;										// used to help monsters flee
 extern short **allySafetyMap;
+extern short **chokeMap;
 
 extern short listOfWallsX[4][DROWS*DCOLS];
 extern short listOfWallsY[4][DROWS*DCOLS];
@@ -38,10 +40,10 @@ extern levelData levels[101];
 extern creature player;
 extern playerCharacter rogue;
 extern creature *monsters;
+extern creature *dormantMonsters;
 extern creature *graveyard;
 extern item *floorItems;
 extern item *packItems;
-extern lightSource *lights;
 extern room *rooms;
 extern waypoint waypoints[MAX_WAYPOINTS];
 extern short numberOfWaypoints;
@@ -76,6 +78,7 @@ extern color gray;
 extern color darkGray;
 extern color black;
 extern color yellow;
+extern color darkYellow;
 extern color teal;
 extern color purple;
 extern color darkPurple;
@@ -125,20 +128,33 @@ extern color memoryColor;
 extern color memoryOverlay;
 extern color magicMapColor;
 extern color clairvoyanceColor;
+extern color omniscienceColor;
 
 extern color colorDim25;
+
+extern color magicMapFlashColor;
 
 extern color blueBar;
 extern color redBar;
 extern color hiliteColor;
+extern color itemBoxColor;
 
-extern color playerInShadow;
-extern color playerInLight;
+extern color playerInShadowColor;
+extern color playerInLightColor;
+extern color playerInDarknessColor;
 
 // other colors
 extern color centipedeColor;
 extern color confusionGasColor;
 extern color lightningColor;
+extern color spectralImageColor;
+
+extern color goodCombatMessageColor;
+extern color badCombatMessageColor;
+extern color advancementMessageColor;
+extern color itemMessageColor;
+
+extern color flavorTextColor;
 
 extern color *dynamicColors[NUMBER_DYNAMIC_COLORS][3];
 
@@ -147,6 +163,8 @@ extern floorTileType tileCatalog[NUMBER_TILETYPES];
 extern dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES];
 
 extern lightSource lightCatalog[NUMBER_LIGHT_KINDS];
+
+extern const blueprint blueprintCatalog[NUMBER_BLUEPRINTS];
 
 extern creatureType monsterCatalog[NUMBER_MONSTER_KINDS];
 extern monsterWords monsterText[NUMBER_MONSTER_KINDS];
