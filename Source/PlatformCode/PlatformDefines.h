@@ -26,3 +26,4 @@
 
 #define BROGUE_LIBTCOD
 #define PLAY_AGAIN_STRING	"Press space to play again."
+

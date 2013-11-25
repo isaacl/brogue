@@ -1,9 +1,7 @@
 LIBTCODDIR=libtcod-1.5.1
 SDLDIR=SDL-1.2.14
-CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -I$(SDLDIR)/include -IBrogueCode -IPlatformCode -Wall
+CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -I$(SDLDIR)/include -IBrogueCode -IPlatformCode -DBROGUE-TCOD -Wall
 
-%.o : %.cpp
-	g++ $(CFLAGS) -O2 -s -o $@ -c $< 
 %.o : %.c
 	gcc $(CFLAGS) -O2 -s -o $@ -c $< 
 
@@ -12,6 +10,7 @@ OBJS=BrogueCode/Architect.o \
 	BrogueCode/Dijkstra.o \
 	BrogueCode/Globals.o \
 	BrogueCode/IO.o \
+	BrogueCode/Buttons.o \
 	BrogueCode/Items.o \
 	BrogueCode/Light.o \
 	BrogueCode/Monsters.o \

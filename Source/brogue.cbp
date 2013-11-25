@@ -13,6 +13,7 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-O2" />
+					<Add option="-DBROGUE_TCOD" />
 					<Add directory="BrogueCode" />
 					<Add directory="PlatformCode" />
 					<Add directory="libtcod-1.5.1\include" />
@@ -29,6 +30,9 @@
 			<Add option="-Wall" />
 		</Compiler>
 		<Unit filename="BrogueCode\Architect.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="BrogueCode\Buttons.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="BrogueCode\Combat.c">
@@ -67,11 +71,14 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="PlatformCode\PlatformDefines.h" />
-		<Unit filename="PlatformCode\RogueDriver.h" />
-		<Unit filename="PlatformCode\SDLMain.h" />
-		<Unit filename="PlatformCode\Viewport.h" />
-		<Unit filename="PlatformCode\main.cpp" />
+		<Unit filename="PlatformCode\main.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="PlatformCode\platform.h" />
 		<Unit filename="PlatformCode\platformdependent.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="PlatformCode\tcod-platform.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="icon.rc">

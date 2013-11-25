@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/21/09.
- *  Copyright 2011. All rights reserved.
+ *  Copyright 2012. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -51,9 +51,9 @@ void logLights() {
 	printf("\n");
 }
 
-void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight) {
+void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight, boolean maintainShadows) {
 	short i, j, k;
-	short colorComponents[3], randComponent, lightMultiplier, thisComponent;
+	short colorComponents[3], randComponent, lightMultiplier;
 	short fadeToPercent;
 	float radius;
 	char grid[DCOLS][DROWS];
@@ -73,7 +73,7 @@ void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight) 
 	
 	// the miner's light does not dispel IS_IN_SHADOW,
 	// so the player can be in shadow despite casting his own light.
-	dispelShadows = !isMinersLight && (colorComponents[0] + colorComponents[1] + colorComponents[2]) > 0;
+	dispelShadows = !maintainShadows && (colorComponents[0] + colorComponents[1] + colorComponents[2]) > 0;
 	
 	fadeToPercent = theLight->radialFadeToPercent;
 	
@@ -92,8 +92,7 @@ void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight) 
 			if (grid[i][j]) {
 				lightMultiplier = 100 - (100 - fadeToPercent) * (sqrt((i-x) * (i-x) + (j-y) * (j-y)) / (radius));
 				for (k=0; k<3; k++) {
-					thisComponent = colorComponents[k] * lightMultiplier / 100;
-					tmap[i][j].light[k] += thisComponent;
+					tmap[i][j].light[k] += colorComponents[k] * lightMultiplier / 100;;
 				}
 				if (dispelShadows) {
 					pmap[i][j].flags &= ~IS_IN_SHADOW;
@@ -130,8 +129,8 @@ void updateMinersLightRadius() {
 		lightRadius = 2;
 	}
 	
-	if (player.status.darkness) {
-		fraction = (float) (0.8 - 0.8 * player.status.darkness / player.maxStatus.darkness);
+	if (player.status[STATUS_DARKNESS]) {
+		fraction = (float) (0.8 - 0.8 * player.status[STATUS_DARKNESS] / player.maxStatus[STATUS_DARKNESS]);
 	} else {
 		fraction = 1;
 	}
@@ -170,7 +169,7 @@ void updateLighting() {
 	enum tileType tile;
 	creature *monst;
 
-	// copy Light over oldLight and then zero out Light.
+	// Copy Light over oldLight and then zero out Light.
 	for (i = 0; i < DCOLS; i++) {
 		for (j = 0; j < DROWS; j++) {
 			for (k=0; k<3; k++) {
@@ -181,13 +180,13 @@ void updateLighting() {
 		}
 	}
 	
-	// go through all glowing tiles
+	// Go through all glowing tiles.
 	for (i = 0; i < DCOLS; i++) {
 		for (j = 0; j < DROWS; j++) {
 			for (layer = 0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
 				tile = pmap[i][j].layers[layer];
 				if (tileCatalog[tile].glowLight) {
-					paintLight(&(lightCatalog[tileCatalog[tile].glowLight]), i, j, false);
+					paintLight(&(lightCatalog[tileCatalog[tile].glowLight]), i, j, false, false);
 				}
 			}
 		}
@@ -196,18 +195,31 @@ void updateLighting() {
 	// Cycle through monsters and paint their lights:
 	CYCLE_MONSTERS_AND_PLAYERS(monst) {	
 		if (monst->info.flags & MONST_INTRINSIC_LIGHT) {
-			paintLight(&lightCatalog[monst->info.intrinsicLightType], monst->xLoc, monst->yLoc, false);
+			paintLight(&lightCatalog[monst->info.intrinsicLightType], monst->xLoc, monst->yLoc, false, false);
 		}
 		
-		if (monst->status.burning && !(monst->info.flags & MONST_FIERY)) {
-			paintLight(&lightCatalog[BURNING_CREATURE_LIGHT], monst->xLoc, monst->yLoc, false);
+		if (monst->status[STATUS_BURNING] && !(monst->info.flags & MONST_FIERY)) {
+			paintLight(&lightCatalog[BURNING_CREATURE_LIGHT], monst->xLoc, monst->yLoc, false, false);
+		}
+		
+		if (player.status[STATUS_TELEPATHIC] && &player != monst && !(monst->info.flags & MONST_INANIMATE)) {
+			paintLight(&lightCatalog[TELEPATHY_LIGHT], monst->xLoc, monst->yLoc, false, true);
+		}
+	}
+	
+	// Also paint telepathy lights for dormant monsters.
+	if (player.status[STATUS_TELEPATHIC]) {
+		for (monst = dormantMonsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
+			if (!(monst->info.flags & MONST_INANIMATE)) {
+				paintLight(&lightCatalog[TELEPATHY_LIGHT], monst->xLoc, monst->yLoc, false, true);
+			}
 		}
 	}
 	
 	updateDisplayDetail();
 	
 	// Miner's light:
-	paintLight(&rogue.minersLight, player.xLoc, player.yLoc, true);
+	paintLight(&rogue.minersLight, player.xLoc, player.yLoc, true, true);
 
 	if (playerInDarkness()) {
 		player.info.foreColor = &playerInDarknessColor;
