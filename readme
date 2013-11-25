@@ -37,13 +37,24 @@ The following render switches are accepted:
 --SDL	force libtcod mode with an SDL renderer (default)
 -gl	force libtcod mode with an OpenGL renderer
 
-The switch that you pass to ./brogue will override the -t it appends in
-terminal mode, so ./brogue -gl will start brogue in the traditional libtcod
-window.
+--
 
-Regrettably, SDL is initialized automatically at present no matter what switch
-you supply, unless bin/brogue has been built without libtcod support.
+Terminal mode uses as many colors as it has available to it.  If you are using
+gnome terminal, you already have 256 color support, but the terminal doesn't
+advertise that fact.  Change the TERM environment variable to tell Brogue that
+you have more than 16 colors:
 
+export TERM=xterm-256color
+
+Converely, if you are using a terminal that has 256 colors but only want to
+use 16:
+
+export TERM=xterm
+
+
+If you are using xterm, read http://push.cx/2008/256-color-xterms-in-ubuntu
+
+--
 
 The Makefile accepts these targets:
 	make tcod
@@ -60,4 +71,18 @@ To produce a distributable tar file, make tar.  To clean (as you must after
 changing headers or before switching targets -- sorry about that), make clean.
 
 make both is the default.
+
+--
+
+libtcod-1.5.1 describes at least two distinct versions.  One was released
+Feb 16, 2012.  This is the version that Brogue expects.  The later version,
+from Aug 29, 2012, is also called 1.5.1, and only that version is now
+available from the libtcod website.  The Brogue source has been modified to
+be compatible with the newer version, but there is a bug in it that keeps
+font resizing from functioning properly.
+
+The upshot is that if you fetch 1.5.1 and build it yourself (making sure
+that the new libtcod.so is in bin), everything should work fine, except
+for font resizing in SDL mode.
+
 

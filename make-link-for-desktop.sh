@@ -4,7 +4,7 @@ sed s?PATH?`pwd`?g > brogue.desktop <<-end
 	[Desktop Entry]
 	Version=1.0
 	Type=Application
-	Name=Brogue 1.6.1
+	Name=Brogue 1.7
 	GenericName=Roguelike
 	Comment=Brave the Dungeons of Doom!
 	Exec=PATH/brogue

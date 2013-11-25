@@ -2,6 +2,12 @@
 #include <ncurses.h>
 #include "term.h"
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+
+// As a rule, everything in term.c is the result of gradual evolutionary
+// change.  It's messy.
 
 #define COLORING(fg,bg) (((fg) & 0x0f) | (((bg) & 0x07) << 4))
 #define COLOR_FG(color,fg) (((fg) & 0x0f) + ((color) & 0x70))
@@ -9,11 +15,46 @@
 #define COLOR_INDEX(color) (1 + ((color)&0x07) + (((color) >> 1) & 0x38))
 #define COLOR_ATTR(color) (COLOR_PAIR(COLOR_INDEX(color)) | (((color)&0x08) ? A_BOLD : 0))
 
+
 static struct { int curses, color; } videomode = { 0, 0 };
 
 static struct { int width, height; } minsize = { 80, 24 };
 
+static void init_coersion();
+
+
+// 256 color mode stuff
+static void initialize_prs();
+
+typedef struct {
+	int r, g, b, idx;
+} intcolor;
+
+struct {
+	intcolor fore, back;
+	int count, next;
+} prs[256];
+
+
+typedef struct {
+	int ch, pair, shuffle;
+	intcolor fore, back;
+} pairmode_cell;
+
+pairmode_cell *cell_buffer;
+
+enum {
+	coerce_16,
+	coerce_256
+} colormode;
+
+int is_xterm;
+
+
+// 
+
 static void preparecolor ( ) {
+	// sixteen color mode colors (we use these in 256-color mode, too)
 	static int pairParts[8] = {
 		COLOR_BLACK, COLOR_RED, COLOR_GREEN, COLOR_YELLOW,
 		COLOR_BLUE, COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE
@@ -28,10 +69,62 @@ static void preparecolor ( ) {
 			);
 		}
 	}
+
+	if (COLORS >= 256) {
+		colormode = coerce_256;
+	}
 }
 
 static void term_title(const char *title) {
-	printf ("\033]2;\n%s\n\007", title); // ESC ]2; title BEL
+	if (is_xterm) {
+		printf ("\033]2;%s\007", title); // ESC ]0; title BEL
+	}
+}
+
+static void term_title_pop() {
+	if (is_xterm) {
+		term_title("Terminal");
+		printf ("\033[22;2t");
+	}
+}
+static void term_title_push() {
+	if (is_xterm) {
+		printf ("\033[23;2t");
+	}
+}
+
+static void term_set_size(int h, int w) {
+	// works in gnome-terminal, but not xterm; causes trouble for maximized windows
+	if (is_xterm) {
+		// first, try resizing the height, in case only that is supported
+		printf ("\033[%dt", (h > 24 ? h : 24));
+
+		// then try resizing both, in case we can
+		printf ("\033[8;%d;%dt", h, w);
+
+		// then refresh so ncurses knows about it 
+		refresh( );
+	}
+}
+
+static void term_show_scrollbar(int show) {
+	// works in xterm, but not gnome-terminal
+	if (is_xterm) {
+		if (show) {
+			printf ("\033[?30h");
+		} else {
+			printf ("\033[?30l");
+		}
+	}
+}
+
+static void term_enable_bracketed_paste( ) {
+	if (is_xterm) {
+		printf ("\033[2004h");
+	}
+	// now pasted text will come in as
+	// \033[200~%s\033[201~
+	// so we can use that to receive seeds or filenames or whatever
 }
 
 static int curses_init( ) {
@@ -44,7 +137,7 @@ static int curses_init( ) {
 		fprintf (stderr, "Your terminal has no color support.\n");
 		return 1;
 	}
-	
+
 	start_color( );
 	clear( );
 	curs_set( 0 );
@@ -70,10 +163,20 @@ static int curses_init( ) {
 
 
 static int term_start() {
-	return curses_init();
+	char *term = getenv("TERM");
+	is_xterm = (strncmp(term, "xterm", 5) == 0) || (strncmp(term, "gnome", 5) == 0);
+
+	term_title_push();
+	term_show_scrollbar(0);
+
+	int ok = curses_init();
+	init_coersion();
+
+	return ok;
 }
 
 static void term_end() {
+	term_title_pop();
 	clear();
 	refresh();
 	endwin();
@@ -118,6 +221,8 @@ CIE ciePalette[16];
 Lab labPalette[16];
 CIE adamsPalette[16];
 
+static CIE white;
+
 static CIE toCIE(fcolor c) {
 	double a = 0.055;
 
@@ -144,8 +249,6 @@ static CIE toCIE(fcolor c) {
 static float Labf(float t) {
 	return t > ((6.0/29.0) * (6.0/29.0) * (6.0/29.0)) ? pow(t, 1.0/3.0) : ((1.0/3.0) * (29.0 / 6.0) * (29.0 / 6.0)) * t + (4.0 / 29.0);
 }
-
-static CIE white;
 
 static Lab toLab(CIE *c) {
 	CIE n = (CIE) {Labf(c->X / white.X), Labf(c->Y / white.Y), Labf(c->Z / white.Z)};
@@ -191,59 +294,82 @@ static float adamsDistance(CIE *v1, CIE *v2) {
 	return sqrt(SQUARE(v2->X - v1->X) + SQUARE(v2->Y - v1->Y) + SQUARE(v2->Z - v1->Z));
 }
 
-static int best (fcolor *fg, fcolor *bg) {
-	// analyze fg & bg for their contrast
-	CIE cieFg = toCIE(*fg);
-	CIE cieBg = toCIE(*bg);
-	Lab labFg = toLab(&cieFg);
-	Lab labBg = toLab(&cieBg);
-	CIE adamsFg = adams(&cieFg);
-	CIE adamsBg = adams(&cieBg);
-	
-	float JND = 2.3; // just-noticeable-difference
-	int areTheSame = CIE76(&labFg, &labBg) <= 2.0 * JND; // a little extra fudge
-	int bestpair = 0;
-	float bestrating = 10000.0;
-
+static void init_coersion() {
 	fcolor sRGB_white = (fcolor) {1, 1, 1};
 	white = toCIE(sRGB_white);
-	int i, j;
 
+	int i;
 	for (i = 0; i < 16; i++) {
 		ciePalette[i] = toCIE(palette[i]);
 		labPalette[i] = toLab(&ciePalette[i]);
 		adamsPalette[i] = adams(&ciePalette[i]);
 	}
 
-	float fgscore[16], bgscore[16];
-
-	for (i = 0; i < 16; i++) {
-		fgscore[i] = 0.0;
-		fgscore[i] += CIE76(labPalette + i, &labFg);
-		//fgscore[i] += CIExyY(ciePalette + i, &cieFg);
-		//fgscore[i] += 50 * adamsDistance(adamsPalette + i, &adamsFg);
-
-		bgscore[i] = 0.0;
-		bgscore[i] += CIE76(labPalette + i, &labBg);
-		//bgscore[i] += CIExyY(ciePalette + i, &cieBg);
-		//bgscore[i] += 50 * adamsDistance(adamsPalette + i, &adamsBg);
+	if (colormode == coerce_256) {
+		initialize_prs();
 	}
 
+	cell_buffer = 0;
+}
+
+static int best (fcolor *fg, fcolor *bg) {
+	// analyze fg & bg for their contrast
+	CIE cieFg = toCIE(*fg);
+	CIE cieBg = toCIE(*bg);
+	Lab labFg = toLab(&cieFg);
+	Lab labBg = toLab(&cieBg);
+	// CIE adamsFg = adams(&cieFg);
+	// CIE adamsBg = adams(&cieBg);
+	
+	float JND = 2.3; // just-noticeable-difference
+	int areTheSame = CIE76(&labFg, &labBg) <= 2.0 * JND; // a little extra fudge
+
+	float big = 100000000;
+	int fg1 = 0, fg2 = 0, bg1 = 0, bg2 = 0;
+	float fg1_score = big, fg2_score = big;
+	float bg1_score = big, bg2_score = big;
+
+	int i;
+
 	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 16; j++) {
-			if ((i == j && !areTheSame)) continue;
-			// if (j == 8) continue; // for terms with no bright black
+		float s = CIE76(labPalette + i, &labBg);
 
-			// float rating = closeness(ciePalette + i, &cieBg) + closeness(ciePalette + j, &cieFg);
-			float rating = fgscore[j] + bgscore[i];
-
-			if (rating < bestrating) {
-				bestpair = COLORING(j, i);
-				bestrating = rating;
+		if (s < bg2_score) {
+			if (s < bg1_score) {
+				bg2 = bg1; bg1 = i;
+				bg2_score = bg1_score; bg1_score = s;
+			} else {
+				bg2 = i; bg2_score = s;
 			}
 		}
 	}
-	return bestpair;
+
+	if (areTheSame) {
+		return COLORING(bg1, bg1);
+	}
+
+	for (i = 0; i < 16; i++) {
+		float s = CIE76(labPalette + i, &labFg);
+
+		if (s < fg2_score) {
+			if (s < fg1_score) {
+				fg2 = fg1; fg1 = i;
+				fg2_score = fg1_score; fg1_score = s;
+			} else {
+				fg2 = i; fg2_score = s;
+			}
+		}
+	}
+
+	if (fg1 != bg1) {
+		return COLORING (fg1, bg1);
+	} else {
+		if (fg1_score + bg2_score < fg2_score + bg1_score) {
+			return COLORING(fg1, bg2);
+		} else {
+			return COLORING(fg2, bg1);
+		}
+	}
 }
 
 static int coerce (fcolor *color, float dark, float saturation, float brightcut, float grey) {
@@ -269,11 +395,173 @@ static int coerce_color (fcolor *fg, fcolor *bg) {
 	return COLORING(f, b);
 }
 
+
+
+
+static void initialize_prs() {
+	int i;
+	for (i = 16; i < 255; i++) {
+		prs[i].next = i + 1;
+	}
+	prs[0].next = 16;
+	prs[1].next = 0;
+	prs[255].next = 0;
+}
+
+static void coerce_colorcube (fcolor *f, intcolor *c) {
+	// 0-15 are the standard ANSI colors
+	// 16-231 are a 6x6x6 RGB color cube given by ((36 * r) + (6 * g) + b + 16) with r,g,b in [0..5]
+	// 232-255 are a greyscale ramp without black and white.
+
+	float sat = 0.2, bright = 0.6, contrast = 6.3;
+	
+	float rf = bright + f->r * contrast,
+	    gf = bright + f->g * contrast,
+	    bf = bright + f->b * contrast;
+
+	if (rf < gf && rf < bf) rf -= sat * ((gf < bf ? bf : gf) - rf);
+	else if (gf < bf && gf < rf) gf -= sat * ((rf < bf ? bf : rf) - gf);
+	else if (bf < gf && bf < rf) bf -= sat * ((gf < rf ? rf : gf) - bf);
+
+	int r = rf, g = gf, b = bf;
+	r = r < 0 ? 0 : r > 5 ? 5 : r;
+	g = g < 0 ? 0 : g > 5 ? 5 : g;
+	b = b < 0 ? 0 : b > 5 ? 5 : b;
+	
+	c->r = r;
+	c->g = g;
+	c->b = b;
+	c->idx = ((36 * r) + (6 * g) + b + 16);
+}
+
+static int intcolor_distance (intcolor *a, intcolor *b) {
+	return
+		(a->r - b->r) * (a->r - b->r)
+		+ (a->g - b->g) * (a->g - b->g)
+		+ (a->b - b->b) * (a->b - b->b);
+}
+
+static int coerce_prs (intcolor *fg, intcolor *bg) {
+	// search for an exact match in the list
+	int pair;
+	pair = prs[1].next;
+	while (pair) {
+		if (prs[pair].fore.idx == fg->idx && prs[pair].back.idx == bg->idx) {
+			// perfect.
+			prs[pair].count++;
+			return pair;
+		}
+		pair = prs[pair].next;
+	}
+	
+	// no exact match? try to insert it as a new one
+	pair = prs[0].next;
+	if (pair) {
+		// there's room!
+
+		// remove
+		prs[0].next = prs[pair].next;
+
+		// insert at the front
+		prs[pair].next = prs[1].next;
+		prs[1].next = pair;
+		
+		// initialize it
+		prs[pair].fore = *fg;
+		prs[pair].back = *bg;
+		prs[pair].count = 1;
+
+		init_pair(pair, fg->idx, bg->idx);
+		
+		return pair;
+	}
+	
+	// search for an approximate match in the list
+	int bestpair = 0, bestscore = 2 * 3 * 6 * 6; // naive distance metric for now
+	pair = prs[1].next;
+	while (pair) {
+		int delta = intcolor_distance(&prs[pair].fore, fg) + intcolor_distance(&prs[pair].back, bg);
+		if (delta < bestscore) {
+			bestscore = delta;
+			bestpair = pair;
+			if (delta == 1) break; // as good as it gets without being exact!
+		}
+		pair = prs[pair].next;
+	}
+
+	prs[bestpair].count++;
+	return bestpair;
+}
+
+static void buffer_plot(int ch, int x, int y, fcolor *fg, fcolor *bg) {
+	// int pair = 256 + x + y * minsize.width;
+	// intcolor cube_fg, cube_bg;
+	// coerce_colorcube(fg, &cube_fg), 
+	// coerce_colorcube(bg, &cube_bg);
+
+	// pair = cube_bg.idx;
+	// cube_fg = cube_bg;
+
+
+	// init_pair(pair, cube_fg.idx, cube_bg.idx);
+
+	// return pair;
+
+	intcolor cube_fg, cube_bg;
+
+	coerce_colorcube(fg, &cube_fg);
+	coerce_colorcube(bg, &cube_bg);
+
+	int cell = x + y * minsize.width;
+	cell_buffer[cell].ch = ch;
+	cell_buffer[cell].pair = -1;
+	cell_buffer[cell].fore = cube_fg;
+	cell_buffer[cell].back = cube_bg;
+}
+
+static void buffer_render_256() {
+	// build a new palette
+	initialize_prs();
+
+	int length = minsize.width * minsize.height;
+	int i, idx, x, y;
+
+	for (i = 0; i < length; i++) {
+		cell_buffer[i].shuffle = i;
+	}
+	for (i = length - 1; i >= 0; i--) {
+		// int roll = i == 0 ? 0 : rand() % i;
+		// idx = cell_buffer[roll].shuffle;
+		
+		// cell_buffer[roll].shuffle = cell_buffer[i].shuffle;
+		idx = i;
+
+		int pair = coerce_prs(&cell_buffer[idx].fore, &cell_buffer[idx].back);
+		cell_buffer[idx].pair = pair;
+	}
+
+	// render it all!
+	i = 0;
+	for (y = 0; y < minsize.height; y++) {
+		move(y, 0);
+		for (x = 0; x < minsize.width; x++) {
+			color_set(cell_buffer[i].pair, NULL);
+			addch(cell_buffer[i].ch);
+			i++;
+		}
+	}
+}
+
 static void term_mvaddch(int x, int y, int ch, fcolor *fg, fcolor *bg) {
-	// int c = coerce_color(fg, bg);
-	int c = best(fg, bg);
-	attrset(COLOR_ATTR(c));
-	mvaddch(y, x, ch);
+	if (x < 0 || y < 0 || x >= minsize.width || y >= minsize.height) return;
+
+	if (colormode == coerce_16) {
+		int c = best(fg, bg);
+		attrset(COLOR_ATTR(c));
+		mvaddch(y, x, ch);
+	} else {
+		buffer_plot(ch, x, y, fg, bg);
+	}
 }
 
 static void term_refresh() {
@@ -301,6 +589,12 @@ static void term_refresh() {
 			palette[i].b = b * .001;
 		}
 	}
+
+
+	if (colormode == coerce_256) {
+		buffer_render_256();
+	}
+
 	refresh();
 }
 
@@ -357,7 +651,6 @@ static void ensure_size( ) {
 
 	getmaxyx(stdscr, Term.height, Term.width);
 	if (Term.height < h || Term.width < w) {
-		// resize_term(h, w);
 		getmaxyx(stdscr, Term.height, Term.width);
 		nodelay(stdscr, FALSE);
 		while (Term.height < h || Term.width < w) {
@@ -372,11 +665,13 @@ static void ensure_size( ) {
 			attrset(COLOR_ATTR(7));
 			mvprintw(3,0,"Press ctrl-c at any time to quit.\n");
 #ifdef BROGUE_TCOD
-			mvprintw(5,0,"To use libtcod, start the game with the -gl or -s.\n\n");
+			mvprintw(5,0,"To use libtcod, start the game with the -gl or --SDL.\n\n");
 #endif
 
 			printw("Width:  %d/%d\n", Term.width, w);
 			printw("Height: %d/%d\n", Term.height, h);
+
+			mvprintw(10, 0, "Colors (pairs): %d (%d)\n", COLORS, COLOR_PAIRS);
 			
 			getch();
 			getmaxyx(stdscr, Term.height, Term.width);
@@ -390,7 +685,29 @@ static void ensure_size( ) {
 static void term_resize(int w, int h) {
 	minsize.width = w;
 	minsize.height = h;
+
+	// try to set the terminal size if the terminal will let us:
+	term_set_size(h, w);
+	// (this works in gnome-terminal, but causes trouble for curses on maximized windows.)
+
+	// now make sure it worked, and ask the user to resize the terminal if it didn't
 	ensure_size();
+
+
+	// make a new cell buffer
+
+	if (cell_buffer) free(cell_buffer);
+	cell_buffer = malloc(sizeof(pairmode_cell) * w * h);
+	// add error checking
+	int i;
+
+	for (i = 0; i < w * h; i++) {
+		// I guess we could just zero it all, hmm
+		cell_buffer[i].ch = 0;
+		cell_buffer[i].pair = 0;
+		cell_buffer[i].fore.idx = 0;
+		cell_buffer[i].back.idx = 0;
+	}
 }
 
 static void term_wait(int ms) {

@@ -16,7 +16,7 @@ static void gameLoop() {
 	if (!Term.start()) {
 		return;
 	}
-	Term.title("Brogue 1.6.2");
+	Term.title("Brogue 1.7");
 	Term.resize(COLS, ROWS);
 
 	rogueMain();
@@ -64,13 +64,18 @@ static void curses_plotChar(uchar ch,
 	case UP_TRIANGLE_CHAR: ch = '^'; break;
 	case DOWN_TRIANGLE_CHAR: ch = 'v'; break;
 
-	case OMEGA_CHAR: ch = 'w'; break;
+	case CHARM_CHAR: ch = '7'; break;
+
+	case OMEGA_CHAR: ch = '<'; break;
 	case THETA_CHAR: ch = '0'; break;
 	case LAMDA_CHAR: ch = '^'; break;
 	case KOPPA_CHAR: ch = '0'; break;
 
 	case LOZENGE_CHAR: ch = 'o'; break;
 	case CROSS_PRODUCT_CHAR: ch = 'x'; break;
+
+	case STATUE_CHAR: ch = '5'; break;
+	case UNICORN_CHAR: ch = 'U'; break;
 	}
 	#endif
 	

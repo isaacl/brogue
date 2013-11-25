@@ -45,6 +45,7 @@ extern creature *dormantMonsters;
 extern creature *graveyard;
 extern item *floorItems;
 extern item *packItems;
+extern item *monsterItemsHopper;
 extern room *rooms;
 extern waypoint waypoints[MAX_WAYPOINTS];
 extern short numberOfWaypoints;
@@ -56,7 +57,6 @@ extern char combatText[COLS];
 short messageArchivePosition;
 char messageArchive[MESSAGE_ARCHIVE_LINES][COLS*2];
 
-extern long levelPoints[MAX_EXP_LEVEL];
 extern char currentFilePath[BROGUE_FILENAME_MAX];
 extern unsigned long randomNumbersGenerated;
 
@@ -153,6 +153,7 @@ extern color hiliteColor;
 extern color interfaceBoxColor;
 extern color interfaceButtonColor;
 
+extern color playerInvisibleColor;
 extern color playerInShadowColor;
 extern color playerInLightColor;
 extern color playerInDarknessColor;
@@ -217,6 +218,7 @@ extern itemTable potionTable[NUMBER_POTION_KINDS];
 extern itemTable wandTable[NUMBER_WAND_KINDS];
 extern itemTable staffTable[NUMBER_STAFF_KINDS];
 extern itemTable ringTable[NUMBER_RING_KINDS];
+extern itemTable charmTable[NUMBER_CHARM_KINDS];
 extern const char weaponRunicNames[NUMBER_WEAPON_RUNIC_KINDS][30];
 
 extern const char armorRunicNames[NUMBER_ARMOR_ENCHANT_KINDS][30];
