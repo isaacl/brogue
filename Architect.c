@@ -25,8 +25,9 @@
 #include "IncludeGlobals.h"
 
 short topBlobMinX, topBlobMinY, blobWidth, blobHeight;
-
 levelSpecProfile levelSpec;
+
+unsigned long wallNum;
 
 boolean checkLoopiness(short x, short y) {
 	boolean inString;
@@ -38,7 +39,7 @@ boolean checkLoopiness(short x, short y) {
 		return false;
 	}
 	
-	// find a closed neighbor to start on
+	// find an unloopy neighbor to start on
 	for (sdir = 0; sdir < 8; sdir++) {
 		newX = x + cDirs[sdir][0];
 		newY = y + cDirs[sdir][1];
@@ -75,14 +76,17 @@ boolean checkLoopiness(short x, short y) {
 			inString = false;
 		}
 	}
-	if (numStrings == 1 && maxStringLength <= 3) {
+	if (inString && currentStringLength > maxStringLength) {
+		maxStringLength = currentStringLength;
+	}
+	if (numStrings == 1 && maxStringLength <= 4) {
 		pmap[x][y].flags &= ~IN_LOOP;
 		
 		for (dir = 0; dir < 8; dir++) {
 			newX = x + cDirs[dir][0];
 			newY = y + cDirs[dir][1];
 			if (coordinatesAreInMap(newX, newY)) {
-				//checkLoopiness(newX, newY);
+				checkLoopiness(newX, newY);
 			}
 		}
 		return true;
@@ -91,35 +95,100 @@ boolean checkLoopiness(short x, short y) {
 	}
 }
 
-void findLoops() {
-	short i, j;
-	boolean madeChange;
+void auditLoop(short x, short y, char grid[DCOLS][DROWS]) {
+	short dir, newX, newY;
+	if (coordinatesAreInMap(x, y)
+		&& !grid[x][y]
+		&& !(pmap[x][y].flags & IN_LOOP)) {
+		
+		grid[x][y] = true;
+		for (dir = 0; dir < 8; dir++) {
+			newX = x + nbDirs[dir][0];
+			newY = y + nbDirs[dir][1];
+			if (coordinatesAreInMap(newX, newY)) {
+				auditLoop(newX, newY, grid);
+			}
+		}
+	}
+}
+
+// locates all loops and chokepoints
+void analyzeMap() {
+	short i, j, dir, newX, newY, oldX, oldY, passableArcCount;
+	char grid[DCOLS][DROWS], passMap[DCOLS][DROWS];
+	boolean designationSurvives;
+	const short cDirs[8][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
+	
+	// first find all of the loops
+	rogue.staleLoopMap = false;
 	
 	for(i=0; i<DCOLS; i++) {
-		for(j=0; j<DROWS; j++) {	
+		for(j=0; j<DROWS; j++) {
 			if (cellHasTerrainFlag(i, j, PATHING_BLOCKER)
 				&& !cellHasTerrainFlag(i, j, IS_SECRET)) {
 				pmap[i][j].flags &= ~IN_LOOP;
+				passMap[i][j] = false;
 			} else {
 				pmap[i][j].flags |= IN_LOOP;
+				passMap[i][j] = true;
 			}
 		}
 	}
 	
-	do {
-		madeChange = false;
-		
-		for(i=0; i<DCOLS; i++) {
-			for(j=0; j<DROWS; j++) {
-				if (checkLoopiness(i, j)) {
-					madeChange = true;
-//					displayLevel();
-//					displayLoops();
-//					pauseBrogue(1);
+	for(i=0; i<DCOLS; i++) {
+		for(j=0; j<DROWS; j++) {
+			checkLoopiness(i, j);
+		}
+	}
+	
+	// remove extraneous loop markings
+	zeroOutGrid(grid);
+	auditLoop(0, 0, grid);
+	
+	for(i=0; i<DCOLS; i++) {
+		for(j=0; j<DROWS; j++) {
+			if (pmap[i][j].flags & IN_LOOP) {
+				designationSurvives = false;
+				for (dir = 0; dir < 8; dir++) {
+					newX = i + nbDirs[dir][0];
+					newY = j + nbDirs[dir][1];
+					if (coordinatesAreInMap(newX, newY)
+						&& !grid[newX][newY]
+						&& !(pmap[newX][newY].flags & IN_LOOP)) {
+						designationSurvives = true;
+						break;
+					}
+				}
+				if (!designationSurvives) {
+					grid[i][j] = true;
+					pmap[i][j].flags &= ~IN_LOOP;
 				}
 			}
 		}
-	} while (madeChange);
+	}
+	
+	// done finding loops; now flag chokepoints
+	for(i=0; i<DCOLS; i++) {
+		for(j=0; j<DROWS; j++) {
+			pmap[i][j].flags &= ~IS_CHOKEPOINT;
+			if (passMap[i][j] && !(pmap[i][j].flags & IN_LOOP)) {
+				passableArcCount = 0;
+				for (dir = 0; dir < 8; dir++) {
+					oldX = i + cDirs[(dir + 7) % 8][0];
+					oldY = j + cDirs[(dir + 7) % 8][1];
+					newX = i + cDirs[dir][0];
+					newY = j + cDirs[dir][1];
+					if ((coordinatesAreInMap(newX, newY) && passMap[newX][newY])
+						!= (coordinatesAreInMap(oldX, oldY) && passMap[oldX][oldY])) {
+						if (++passableArcCount > 2) {
+							pmap[i][j].flags |= IS_CHOKEPOINT;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void digDungeon() {
@@ -139,13 +208,27 @@ void digDungeon() {
 	boolean roomWasPlaced = true;
 	boolean diagonalCornerRemoved;
 	boolean foundExposure;
-	room *builtRoom = NULL, *fromRoom = NULL, *seedRoom;
+	room *builtRoom = NULL, *fromRoom = NULL;
+	
+	topBlobMinX = topBlobMinY = blobWidth = blobHeight = 0;
 	
 	rogue.scentTurnNumber = 10000;
 	
-	for ( i=0; i<4; i++) {
+	for (i=0; i<4; i++) {
 		numberOfWalls[i] = -1;
 	}
+	for (i=0; i<4; i++) {
+		for (j=0; j<DCOLS*DROWS; j++) {
+			listOfWallsX[i][j] = 0;
+			listOfWallsY[i][j] = 0;
+		}
+	}
+	
+#ifdef AUDIT_RNG
+	char RNGMessage[100];
+	sprintf(RNGMessage, "\n\n\nDigging dungeon level %i:\n", rogue.depthLevel);
+	RNGLog(RNGMessage);
+#endif
 	
 	// Clear level and fill with granite
 	for( i=0; i<DCOLS; i++ ) {
@@ -159,6 +242,7 @@ void digDungeon() {
 			pmap[i][j].flags = 0;
 			tmap[i][j].scent = 0;
 			pmap[i][j].volume = 0;
+			tmap[i][j].connected = 0;
 		}
 	}
 	
@@ -189,7 +273,7 @@ void digDungeon() {
 		roomY = rand_range(1, DROWS - roomHeight - 1);
 		carveRectangle(roomX, roomY, roomWidth, roomHeight);
 		markRectangle(roomX, roomY, roomWidth, roomHeight);
-		seedRoom = allocateRoom(roomX, roomY, roomWidth, roomHeight, 0, 0, 0, 0);
+		allocateRoom(roomX, roomY, roomWidth, roomHeight, 0, 0, 0, 0);
 	}
 	
 	numberOfRooms = 1;
@@ -363,7 +447,8 @@ void digDungeon() {
 							x2 = i + (1-k);
 							y1 = j + 1;
 						}
-						if (tileCatalog[pmap[x1][y1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY) {
+						if ((tileCatalog[pmap[x1][y1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
+							&& (tileCatalog[pmap[x2][y1].layers[LIQUID]].flags & PATHING_BLOCKER)) {
 							pmap[x1][y1].layers[LIQUID] = pmap[x2][y1].layers[LIQUID];
 						}
 						pmap[x1][y1].layers[DUNGEON] = FLOOR;
@@ -422,19 +507,33 @@ void digDungeon() {
 			}
 		}
 	}
-	//findLoops();
+	analyzeMap();
 }
 
 // Scans from the top-left to the bottom-right looking for a good place to build a bridge.
 // If it finds one, it builds a bridge there, halts and returns true.
 boolean buildABridge() {
-	short i, j, k, l;
+	short i, j, k, l, i2, j2, nCols[DCOLS], nRows[DROWS];
+	short bridgeRatioX, bridgeRatioY;
 	boolean foundExposure;
 	
-	for (i=1; i<DCOLS-1; i++) {
-		for (j=1; j<DROWS-1; j++) {
-			if (!cellHasTerrainFlag(i, j, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))
-				&& (pmap[i][j].layers[LIQUID] != BRIDGE || rand_percent(15))) {
+	bridgeRatioX = 100 + (100 + 100 * rogue.depthLevel / 9) * rand_range(10, 20) / 10;
+	bridgeRatioY = 100 + (400 + 100 * rogue.depthLevel / 18) * rand_range(10, 20) / 10;
+	
+	for (i=0; i<DCOLS; i++) {
+		nCols[i] = i;
+	}
+	for (i=0; i<DROWS; i++) {
+		nRows[i] = i;
+	}
+	shuffleList(nCols, DCOLS);
+	shuffleList(nRows, DROWS);
+	
+	for (i2=1; i2<DCOLS-1; i2++) {
+		i = nCols[i2];
+		for (j2=1; j2<DROWS-1; j2++) {
+			j = nRows[j2];
+			if (!cellHasTerrainFlag(i, j, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))) {
 				
 				// try a horizontal bridge
 				foundExposure = false;
@@ -454,7 +553,7 @@ boolean buildABridge() {
 					&& (k - i > 3)
 					&& foundExposure
 					&& !cellHasTerrainFlag(k, j, OBSTRUCTS_PASSABILITY | CAN_BE_BRIDGED)
-					&& pathingDistance(i, j, k, j, PATHING_BLOCKER) / (k - i) > 2) {
+					&& 100 * pathingDistance(i, j, k, j, PATHING_BLOCKER) / (k - i) > bridgeRatioX) {
 					for (l=i+1; l < k; l++) {
 						pmap[l][j].layers[LIQUID] = BRIDGE;
 					}
@@ -481,7 +580,7 @@ boolean buildABridge() {
 					&& (k - j > 3)
 					&& foundExposure
 					&& !cellHasTerrainFlag(i, k, OBSTRUCTS_PASSABILITY | CAN_BE_BRIDGED)
-					&& pathingDistance(i, j, i, k, PATHING_BLOCKER) / (k - j) > 5) {
+					&& 100 * pathingDistance(i, j, i, k, PATHING_BLOCKER) / (k - j) > bridgeRatioY) {
 					for (l=j+1; l < k; l++) {
 						pmap[i][l].layers[LIQUID] = BRIDGE;
 					}
@@ -625,7 +724,7 @@ void setUpWaypoints() {
 	// Instead, randomly choose N passable points from around the map, compute FOV for them,
 	// and add all the FOV maps. So it's really a map of how many of these random points are visible
 	// from any particular cell -- a monte carlo equivalent which proportionately approaches the right answer
-	// as N->infty.
+	// as N->infty. I use N=200.
 	
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
@@ -839,6 +938,7 @@ room *allocateRoom(short roomX, short roomY, short width, short height,
 				   short roomX2, short roomY2, short width2, short height2) {
 	room *theRoom;
 	theRoom = (room *) malloc( sizeof(room) );
+	memset(theRoom, '\0', sizeof(room) );
 	theRoom->nextRoom = rooms->nextRoom;
 	rooms->nextRoom = theRoom;
 	theRoom->numberOfSiblings = 0;
@@ -878,8 +978,18 @@ room *attemptRoom(short doorCandidateX, short doorCandidateY,
 	
 	// roomX2, roomY2, roomWidth2 and roomHeight2 are for cross-shaped rooms
 	short i, roomX, roomY, roomWidth, roomHeight, roomX2, roomY2, roomWidth2, roomHeight2, newDoorX, newDoorY;
-	
 	room *builtRoom, *nextRoom;
+	
+	roomX		= 0;
+	roomY		= 0;
+	roomX2		= 0;
+	roomY2		= 0;
+	roomWidth	= 0;
+	roomWidth2	= 0;
+	roomHeight	= 0;
+	roomHeight2	= 0;
+	newDoorX	= 0;
+	newDoorY	= 0;
 	
 	// Try numAttempts times to place a room adjacent to the previous one with the door candidate joining them.
 	for(i=0; i<numAttempts; i++) {
@@ -1095,6 +1205,10 @@ void markRectangle(short roomX, short roomY, short roomWidth, short roomHeight) 
 }
 
 void addWallToList(short direction, short xLoc, short yLoc) {
+	wallNum++;
+//	if (rogue.depthLevel == 4 && wallNum == 630) {
+//		printf("\n%lu Adding a wall: direction %i at (%i, %i).", wallNum++, direction, xLoc, yLoc);
+//	}
 	numberOfWalls[direction]++;
 	listOfWallsX[direction][numberOfWalls[direction]] = xLoc;
 	listOfWallsY[direction][numberOfWalls[direction]] = yLoc;
@@ -1129,6 +1243,7 @@ short distanceBetweenRooms(room *fromRoom, room *toRoom) {
 void removeWallFromList(short direction, short xLoc, short yLoc) {
 	int i;
 	boolean locatedTheWall = false;
+	
 	for (i=0; i<numberOfWalls[direction]; i++) {
 		if (listOfWallsX[direction][i] == xLoc && listOfWallsY[direction][i] == yLoc) {
 			locatedTheWall = true;
@@ -1140,7 +1255,9 @@ void removeWallFromList(short direction, short xLoc, short yLoc) {
 			listOfWallsX[direction][i] = listOfWallsX[direction][i + 1];
 			listOfWallsY[direction][i] = listOfWallsY[direction][i + 1];
 		}
+		
 		numberOfWalls[direction]--;
+		
 	} else {
 		//DEBUG printf("Failed to remove wall at %i, %i", xLoc, yLoc);
 	}
@@ -1154,8 +1271,15 @@ void cellularAutomata(short minBlobWidth, short minBlobHeight,
 	short i, j, k, l, neighborCount, tempX, tempY;
 	short blobNumber, blobSize, topBlobSize, topBlobNumber;
 	short topBlobMaxX, topBlobMaxY;
-	short buffer2[maxBlobWidth][maxBlobHeight]; // buffer[][] is already a global short array
+	//short buffer2[maxBlobWidth][maxBlobHeight]; // buffer[][] is already a global short array
+	char buffer2[DCOLS][DROWS]; // buffer[][] is already a global short array
 	boolean foundACellThisLine;
+	
+	for( i=0; i<DCOLS; i++ ) {
+		for( j=0; j<DROWS; j++ ) {	
+			buffer2[i][j] = 0; // prophylactic
+		}
+	}
 	
 	// Generate caves until they satisfy the MIN_CAVE_WIDTH and MIN_CAVE_HEIGHT restraints
 	do {
@@ -1183,29 +1307,30 @@ void cellularAutomata(short minBlobWidth, short minBlobHeight,
 			}
 		}
 		
-		// DEBUG logBuffer(buffer);
+		//printf("\nRandom starting grid:\n");
+		//logBuffer(buffer);
 		
-		// Four iterations of automata
-		for (k=0; k<4; k++) {
+		// Five iterations of automata
+		for (k=0; k<5; k++) {
+			
+			// copy buffer into buffer2
 			for( i=0; i<maxBlobWidth; i++ ) {
 				for( j=0; j<maxBlobHeight; j++ ) {	
 					buffer2[i][j] = buffer[i][j];
 				}
 			}
 			
+			//logBuffer(buffer2);
+			
 			for( i=0; i<maxBlobWidth; i++ ) {
 				for( j=0; j<maxBlobHeight; j++ ) {
 					neighborCount = 0;
 					for (l=0; l<8; l++) {
 						tempX = i + nbDirs[l][0];
-						if (tempX < 0 || tempX > maxBlobWidth) {
-							break;
-						}
 						tempY = j + nbDirs[l][1];
-						if (tempY < 0 || tempY > maxBlobHeight) {
-							break;
-						}
-						if (buffer2[tempX][tempY] == 1) { // floor
+						if (tempX >= 0 && tempX < maxBlobWidth
+							&& tempY >= 0 && tempY < maxBlobHeight
+							&& buffer2[tempX][tempY] == 1) { // floor
 							neighborCount++;
 						}
 					}
@@ -1218,10 +1343,10 @@ void cellularAutomata(short minBlobWidth, short minBlobHeight,
 					}
 				}
 			}
-			// DEBUG logBuffer(buffer);
+			//logBuffer(buffer);
 		}
 		
-		// DEBUG logBuffer();
+		//logBuffer(buffer);
 		
 		// Fill each blob with its own number, starting with 2 (since 1 means floor), and keeping track of the biggest:
 		for( i=0; i<maxBlobWidth; i++ ) {
@@ -1309,7 +1434,9 @@ void cellularAutomata(short minBlobWidth, short minBlobHeight,
 void generateCave() {
 	short i, j, k;
 	short roomX, roomY;
-	room *theRoom;
+	short bufferX, bufferY, dungeonX, dungeonY;
+	
+	bufferX = bufferY = dungeonX = dungeonY = 0; // prophylactic
 	
 	cellularAutomata(CAVE_MIN_WIDTH, CAVE_MIN_HEIGHT, DCOLS - 2, DROWS - 2, 55, "ffffffttt", "ffffttttt");
 	
@@ -1318,7 +1445,6 @@ void generateCave() {
 	roomY = rand_range(1, DROWS - blobHeight - 1);
 	
 	// and copy it to tmap[][]
-	short bufferX, bufferY, dungeonX, dungeonY;
 	
 	for( i = 0; i < blobWidth; i++ ) {
 		for( j=0; j < blobHeight; j++ ) {
@@ -1333,8 +1459,8 @@ void generateCave() {
 	}
 	
 	// Mark the edges as walls
-	for( i=0; i< blobWidth; i++ ) {
-		for( j=0; j< blobHeight; j++ ) {
+	for( i=0; i < blobWidth; i++ ) {
+		for( j=0; j < blobHeight; j++ ) {
 			bufferX = i + topBlobMinX;
 			bufferY = j + topBlobMinY;
 			dungeonX = i + roomX;
@@ -1346,11 +1472,17 @@ void generateCave() {
 						addWallToList(LEFT, dungeonX-1, dungeonY);
 					}
 				}
+				//				if (dungeonX < DCOLS && pmap[dungeonX+1][dungeonY].layers[DUNGEON] == GRANITE) {
+				//					pmap[dungeonX+1][dungeonY].layers[DUNGEON] = RIGHT_WALL;
+				//					addWallToList(RIGHT, dungeonX+1, dungeonY);
+				//					if (dungeonX < DCOLS - ROOM_MIN_WIDTH) {
+				//						addWallToList(LEFT, dungeonX-1, dungeonY);
+				//					}
+				//				}
 				if (dungeonX < DCOLS && pmap[dungeonX+1][dungeonY].layers[DUNGEON] == GRANITE) {
 					pmap[dungeonX+1][dungeonY].layers[DUNGEON] = RIGHT_WALL;
-					addWallToList(RIGHT, dungeonX+1, dungeonY);
 					if (dungeonX < DCOLS - ROOM_MIN_WIDTH) {
-						addWallToList(LEFT, dungeonX-1, dungeonY);
+						addWallToList(RIGHT, dungeonX+1, dungeonY);
 					}
 				}
 				if (dungeonY > 0 && pmap[dungeonX][dungeonY-1].layers[DUNGEON] == GRANITE) {
@@ -1383,7 +1515,7 @@ void generateCave() {
 		}
 	}
 	
-	theRoom = allocateRoom(roomX, roomY, blobWidth, blobHeight, 0, 0, 0, 0);
+	allocateRoom(roomX, roomY, blobWidth, blobHeight, 0, 0, 0, 0);
 }
 
 // Marks a cell as being a member of blobNumber, then recursively iterates through the rest of the blob
@@ -1589,6 +1721,12 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 					pmap[i][j].flags |= CAUGHT_FIRE_THIS_TURN;
 				}
 				
+				if ((tileCatalog[pmap[i][j].layers[layer]].flags & PATHING_BLOCKER)
+					!= (tileCatalog[surfaceTileType].flags & PATHING_BLOCKER)) {
+					
+					rogue.staleLoopMap = true;
+				}
+				
 				pmap[i][j].layers[layer] = surfaceTileType;
 				
 				if (refresh) {
@@ -1596,7 +1734,7 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 					if (player.xLoc == i && player.yLoc == j && !player.status.levitating) {
 						message(tileFlavor(player.xLoc, player.yLoc), false, false);
 					}
-					if (pmap[i][j].flags & (HAS_MONSTER | HAS_PLAYER)) {
+					if (pmap[i][j].flags & (HAS_MONSTER)) {
 						monst = monsterAtLoc(i, j);
 						applyInstantTileEffectsToCreature(monst);
 						if (rogue.gameHasEnded) {
@@ -1618,9 +1756,8 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 	}
 }
 
-void spawnMapDF(short x, short y, enum dungeonLayers layer, enum tileType surfaceTileType,
-				enum tileType propagationTerrain, boolean requirePropTerrain, short startProb,
-				short probDec, char spawnMap[DCOLS][DROWS]) {
+void spawnMapDF(short x, short y, enum tileType propagationTerrain, boolean requirePropTerrain,
+				short startProb, short probDec, char spawnMap[DCOLS][DROWS]) {
 	
 	short i, j, dir, t, x2, y2;
 	boolean madeChange;
@@ -1673,94 +1810,36 @@ void spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refresh
 		pmap[x][y].layers[GAS] = feat->tile;
 	} else {
 		zeroOutGrid(blockingMap);
-		spawnMapDF(x, y, feat->layer, feat->tile,
-						  feat->propagationTerrain,
-						  false,
-						  randClump(feat->startProbability),
-						  randClump(feat->probabilityDecrement),
-						  blockingMap);
+		spawnMapDF(x, y,
+				   feat->propagationTerrain,
+				   false,
+				   randClump(feat->startProbability),
+				   randClump(feat->probabilityDecrement),
+				   blockingMap);
 		if (!blocking || levelIsConnectedWithBlockingMap(blockingMap)) {
 			fillSpawnMap(feat->layer, feat->tile, blockingMap, refreshCell);
 		}		
 	}
-	if (feat->subsequentDF) {
-		spawnDungeonFeature(x, y, &dungeonFeatureCatalog[feat->subsequentDF], refreshCell);
-	}
-	if (tileCatalog[feat->tile].flags & (IS_DEEP_WATER | LAVA_INSTA_DEATH | TRAP_DESCENT)) {
-		updateMapToShore();
+	if (cellHasTerrainFlag(player.xLoc, player.yLoc, TRAP_DESCENT) && refreshCell) {
+		if (feat->subsequentDF) {
+			spawnDungeonFeature(x, y, &dungeonFeatureCatalog[feat->subsequentDF], refreshCell);
+		}
+		applyInstantTileEffectsToCreature(&player);
+	} else {
+		if (refreshCell && (tileCatalog[feat->tile].flags & IS_FIRE)) {
+			applyInstantTileEffectsToCreature(&player);
+		}
+		if (rogue.gameHasEnded) {
+			return;
+		}
+		if (feat->subsequentDF) {
+			spawnDungeonFeature(x, y, &dungeonFeatureCatalog[feat->subsequentDF], refreshCell);
+		}
+		if (tileCatalog[feat->tile].flags & (IS_DEEP_WATER | LAVA_INSTA_DEATH | TRAP_DESCENT)) {
+			updateMapToShore();
+		}
 	}
 }
-
-/*void spawnSurfaceEffect(short x, short y, enum dungeonLayers layer, enum tileType surfaceTileType,
-						enum tileType propagationTerrain, boolean requirePropTerrain, short startProbability,
-						short probabilityDecrement, char spawnMap[DCOLS][DROWS], boolean refreshCell) {
-	short i, x2, y2, dirs[4];
-	creature *monst;
-	item *theItem;
-	
-	if (rogue.gameHasEnded) {
-		return;
-	}
-	if (tileCatalog[pmap[x][y].layers[layer]].drawPriority >= tileCatalog[surfaceTileType].drawPriority
-		&& pmap[x][y].layers[layer] != surfaceTileType
-		&& (!spawnMap || !spawnMap[x][y])
-		&& (layer != SURFACE || (!cellHasTerrainFlag(x, y, OBSTRUCTS_SURFACE_EFFECTS)))
-		&& (refreshCell || pmap[x][y].layers[LIQUID] == NOTHING) ) {
-		if (spawnMap) {
-			spawnMap[x][y] = 1;
-		} else {
-			if (tileCatalog[surfaceTileType].flags & IS_FIRE && !(tileCatalog[pmap[x][y].layers[layer]].flags & IS_FIRE)) {
-				pmap[x][y].flags |= CAUGHT_FIRE_THIS_TURN;
-			}
-			if (layer != SURFACE
-				|| tileCatalog[pmap[x][y].layers[highestPriorityLayer(x, y, true)]].drawPriority >= tileCatalog[surfaceTileType].drawPriority) {
-				pmap[x][y].layers[layer] = surfaceTileType;
-			}
-			
-			if (refreshCell) {
-				if (pmap[x][y].flags & (HAS_MONSTER | HAS_PLAYER)) {
-					monst = monsterAtLoc(x, y);
-					applyInstantTileEffectsToCreature(monst);
-					if (rogue.gameHasEnded) {
-						return;
-					}
-				}
-				
-				if (tileCatalog[surfaceTileType].flags & IS_FIRE) {
-					if (pmap[x][y].flags & HAS_ITEM) {
-						for (theItem = floorItems->nextItem; theItem->xLoc != x || theItem->yLoc != y; theItem = theItem->nextItem);
-						if (theItem->flags & ITEM_FLAMMABLE) {
-							burnItem(theItem);
-						}
-					}
-				}
-			}
-		}
-		
-		if (refreshCell) {
-			refreshDungeonCell(x, y);
-			if (player.xLoc == x && player.yLoc == y && !player.status.levitating) {
-				message(tileFlavor(player.xLoc, player.yLoc), false, false);
-			}
-		}
-	}
-	for (i=0; i<4; i++) {
-		dirs[i] = i;
-	}
-	shuffleList(dirs, 4);
-	for (i=0; i<4; i++) {
-		x2 = x + nbDirs[dirs[i]][0];
-		y2 = y + nbDirs[dirs[i]][1];
-		if (coordinatesAreInMap(x2, y2)
-			&& ((startProbability / max(probabilityDecrement, 1) < 5) || pmap[x2][y2].layers[layer] != surfaceTileType)
-			&& (!requirePropTerrain || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
-			&& (!cellHasTerrainFlag(x2, y2, OBSTRUCTS_SURFACE_EFFECTS) || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
-			&& rand_percent(startProbability)) {
-			spawnSurfaceEffect(x2, y2, layer, surfaceTileType, propagationTerrain, requirePropTerrain,
-							   startProbability - probabilityDecrement, probabilityDecrement, spawnMap, refreshCell);
-		}
-	}
-}*/
 
 void restoreMonster(creature *monst, short **mapToStairs, short **mapToPit) {
 	short i, *x, *y, loc[2], dir, turnCount;
@@ -1851,7 +1930,7 @@ void restoreItem(item *theItem) {
 }
 
 // Places the player, monsters, items and stairs.
-void initializeLevel(short oldLevelNumber, short stairDirection) {
+void initializeLevel(short stairDirection) {
 	short upLoc[2], downLoc[2], **mapToStairs, **mapToPit;
 	creature *monst;
 	item *theItem, *prevItem;

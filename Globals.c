@@ -30,10 +30,11 @@ cellDisplayBuffer displayBuffer[COLS][ROWS];	// used to optimize plotCharWithCol
 short terrainRandomValues[DCOLS][DROWS][8];
 char buffer[DCOLS][DROWS];						// used in cave generation
 short **safetyMap;								// used to help monsters flee
+short **allySafetyMap;							// used to help allies flee
 short listOfWallsX[4][DROWS*DCOLS];
 short listOfWallsY[4][DROWS*DCOLS];
 short numberOfWalls[4];
-short nbDirs[8][2] = {{0,-1},{0,1},{-1,0},{1,0},{-1,-1},{-1,1},{1,-1},{1,1}};
+const short nbDirs[8][2] = {{0,-1},{0,1},{-1,0},{1,0},{-1,-1},{-1,1},{1,-1},{1,1}};
 short numberOfRooms;
 short numberOfWaypoints;
 levelData levels[101];
@@ -51,8 +52,22 @@ char displayedMessage[MESSAGE_LINES][COLS];
 boolean messageConfirmed[3];
 char combatText[COLS];
 short brogueCursorX, brogueCursorY;
+char currentFilePath[FILENAME_MAX];
 
-long levelPoints[MAX_EXP_LEVEL] = {
+#ifdef AUDIT_RNG
+FILE *RNGLogFile;
+#endif
+
+unsigned char inputRecordBuffer[INPUT_RECORD_BUFFER + 10];
+unsigned short locationInRecordingBuffer;
+unsigned long randomNumbersGenerated;
+unsigned long positionInPlaybackFile;
+unsigned long lengthOfPlaybackFile;
+unsigned long recordingLocation;
+unsigned long maxLevelChanges;
+char annotationPathname[FILENAME_MAX];	// pathname of annotation file
+
+const long levelPoints[MAX_EXP_LEVEL] = {
 	10L,		// level 2
 	20L,		// level 3
 	40L,		// level 4
@@ -79,151 +94,170 @@ long levelPoints[MAX_EXP_LEVEL] = {
 #pragma mark Colors
 //								Red		Green	Blue	RedRand	GreenRand	BlueRand	Rand	Dances?
 // basic colors
-color white =					{100,	100,	100,	0,		0,			0,			0,		false};
-color gray =					{50,	50,		50,		0,		0,			0,			0,		false};
-color darkGray =				{30,	30,		30,		0,		0,			0,			0,		false};
-color black =					{0,		0,		0,		0,		0,			0,			0,		false};
-color yellow =					{100,	100,	0,		0,		0,			0,			0,		false};
-color teal =					{30,	100,	100,	0,		0,			0,			0,		false};
-color purple =					{100,	0,		100,	0,		0,			0,			0,		false};
-color darkPurple =				{50,	0,		50,		0,		0,			0,			0,		false};
-color brown =					{60,	40,		0,		0,		0,			0,			0,		false};
-color green =					{0,		100,	0,		0,		0,			0,			0,		false};
-color darkGreen =				{0,		50,		0,		0,		0,			0,			0,		false};
-color orange =					{100,	50,		0,		0,		0,			0,			0,		false};
-color darkOrange =				{50,	25,		0,		0,		0,			0,			0,		false};
-color blue =					{0,		0,		100,	0,		0,			0,			0,		false};
-color darkBlue =				{0,		0,		50,		0,		0,			0,			0,		false};
-color lightblue =				{40,	40,		100,	0,		0,			0,			0,		false};
-color pink =					{100,	60,		66,		0,		0,			0,			0,		false};
-color red  =					{100,	0,		0,		0,		0,			0,			0,		false};
-color darkRed =					{50,	0,		0,		0,		0,			0,			0,		false};
-color tanColor =				{80,	67,		15,		0,		0,			0,			0,		false};
+const color white =					{100,	100,	100,	0,		0,			0,			0,		false};
+const color gray =					{50,	50,		50,		0,		0,			0,			0,		false};
+const color darkGray =				{30,	30,		30,		0,		0,			0,			0,		false};
+const color black =					{0,		0,		0,		0,		0,			0,			0,		false};
+const color yellow =				{100,	100,	0,		0,		0,			0,			0,		false};
+const color teal =					{30,	100,	100,	0,		0,			0,			0,		false};
+const color purple =				{100,	0,		100,	0,		0,			0,			0,		false};
+const color darkPurple =			{50,	0,		50,		0,		0,			0,			0,		false};
+const color brown =					{60,	40,		0,		0,		0,			0,			0,		false};
+const color green =					{0,		100,	0,		0,		0,			0,			0,		false};
+const color darkGreen =				{0,		50,		0,		0,		0,			0,			0,		false};
+const color orange =				{100,	50,		0,		0,		0,			0,			0,		false};
+const color darkOrange =			{50,	25,		0,		0,		0,			0,			0,		false};
+const color blue =					{0,		0,		100,	0,		0,			0,			0,		false};
+const color darkBlue =				{0,		0,		50,		0,		0,			0,			0,		false};
+const color lightblue =				{40,	40,		100,	0,		0,			0,			0,		false};
+const color pink =					{100,	60,		66,		0,		0,			0,			0,		false};
+const color red  =					{100,	0,		0,		0,		0,			0,			0,		false};
+const color darkRed =				{50,	0,		0,		0,		0,			0,			0,		false};
+const color tanColor =				{80,	67,		15,		0,		0,			0,			0,		false};
 
 // bolt colors
-color rainbow =					{-70,	-70,	-70,	170,	170,		170,		0,		true};
-//color rainbow =					{0,		0,		0,		75,		75,			75,			0,		true};
-color discordColor =			{25,	0,		25,		66,		0,			0,			0,		true};
-color poisonColor =				{0,		0,		0,		10,		50,			10,			0,		true};
-color beckonColor =				{10,	10,		10,		5,		5,			5,			50,		true};
-color invulnerabilityColor =	{25,	0,		25,		0,		0,			66,			0,		true};
+const color rainbow =				{-70,	-70,	-70,	170,	170,		170,		0,		true};
+const color discordColor =			{25,	0,		25,		66,		0,			0,			0,		true};
+const color poisonColor =			{0,		0,		0,		10,		50,			10,			0,		true};
+const color beckonColor =			{10,	10,		10,		5,		5,			5,			50,		true};
+const color invulnerabilityColor =	{25,	0,		25,		0,		0,			66,			0,		true};
+const color dominationColor =		{0,		0,		100,	80,		25,			0,			0,		true};
 
 // tile colors
-color undiscoveredColor =		{0,		0,		0,		0,		0,			0,			0,		false};
+const color undiscoveredColor =		{0,		0,		0,		0,		0,			0,			0,		false};
 
-color wallForeColor =			{7,		7,		7,		3,		3,			3,			0,		false};
-color wallBackColor; // set on each level as a weighted average of the two following colors depending on depth
-color wallBackColorStart =		{40,	40,		40,		25,		0,			0,			20,		false};
-color wallBackColorEnd =		{40,	30,		35,		0,		20,			30,			10,		false};
-color graniteBackColor =		{10,	10,		10,		0,		0,			0,			0,		false};
-color floorForeColor =			{30,	30,		30,		0,		0,			0,			35,		false};
-color floorBackColor =			{2,		2,		10,		2,		2,			0,			0,		false};
-color doorForeColor =			{70,	35,		15,		0,		0,			0,			0,		false};
-color doorBackColor =			{30,	10,		5,		0,		0,			0,			0,		false};
-color bridgeFrontColor =		{50,	18,		18,		18,		7,			2,			0,		false};
-color bridgeBackColor =			{18,	5,		3,		5,		2,			1,			0,		false};
+const color wallForeColor =			{7,		7,		7,		3,		3,			3,			0,		false};
+color wallBackColor;
+const color wallBackColorStart =	{40,	40,		40,		25,		0,			0,			20,		false};
+const color wallBackColorEnd =		{40,	30,		35,		0,		20,			30,			10,		false};
+const color graniteBackColor =		{10,	10,		10,		0,		0,			0,			0,		false};
+const color floorForeColor =		{30,	30,		30,		0,		0,			0,			35,		false};
+color floorBackColor;
+const color floorBackColorStart =	{2,		2,		10,		2,		2,			0,			0,		false};
+const color floorBackColorEnd =		{5,		5,		5,		2,		2,			0,			0,		false};
+const color doorForeColor =			{70,	35,		15,		0,		0,			0,			0,		false};
+const color doorBackColor =			{30,	10,		5,		0,		0,			0,			0,		false};
+const color bridgeFrontColor =		{50,	18,		18,		18,		7,			2,			0,		false};
+const color bridgeBackColor =		{18,	5,		3,		5,		2,			1,			0,		false};
 
-color deepWaterForeColor =		{5,		5,		40,		0,		0,			10,			10,		true};
-color deepWaterBackColor =		{5,		5,		55,		5,		5,			10,			10,		true};
-color shallowWaterForeColor =	{40,	40,		90,		0,		0,			10,			10,		true};
-color shallowWaterBackColor =	{30,	30,		80,		0,		0,			10,			10,		true};
-color mudForeColor =			{15,	10,		5,		5,		5,			0,			0,		false};
-color mudBackColor =			{30,	20,		10,		5,		5,			0,			0,		false};
-color chasmForeColor =			{7,		7,		15,		4,		4,			8,			0,		false};
-color chasmEdgeBackColor =		{5,		5,		25,		2,		2,			2,			0,		false};
-color fireForeColor =			{70,	20,		0,		15,		10,			0,			0,		true};
-color lavaForeColor =			{20,	20,		20,		100,	10,			0,			0,		true};
-color brimstoneForeColor =		{100,	50,		10,		0,		50,			40,			0,		true};
-color brimstoneBackColor =		{18,	12,		9,		0,		0,			5,			0,		false};
-//color brimstoneBackColor =		{37,	23,		18,		0,		0,			10,			0,		false};
-//color brimstoneBackColor =		{0,		0,		0,		10,		0,			0,			0,		true};
+const color deepWaterForeColor =	{5,		5,		40,		0,		0,			10,			10,		true};
+color deepWaterBackColor;
+const color deepWaterBackColorStart = {5,	5,		55,		5,		5,			10,			10,		true};
+const color deepWaterBackColorEnd =	{5,		5,		45,		2,		2,			5,			5,		true};
+const color shallowWaterForeColor =	{40,	40,		90,		0,		0,			10,			10,		true};
+color shallowWaterBackColor;
+const color shallowWaterBackColorStart ={30,30,		80,		0,		0,			10,			10,		true};
+const color shallowWaterBackColorEnd ={20,	20,		60,		0,		0,			5,			5,		true};
+const color mudForeColor =			{15,	10,		5,		5,		5,			0,			0,		false};
+const color mudBackColor =			{30,	20,		10,		5,		5,			0,			0,		false};
+const color chasmForeColor =		{7,		7,		15,		4,		4,			8,			0,		false};
+color chasmEdgeBackColor;// =	{5,		5,		25,		2,		2,			2,			0,		false};
+const color chasmEdgeBackColorStart =	{5,		5,		25,		2,		2,			2,			0,		false};
+const color chasmEdgeBackColorEnd =	{8,		8,		20,		2,		2,			2,			0,		false};
+const color fireForeColor =			{70,	20,		0,		15,		10,			0,			0,		true};
+const color lavaForeColor =			{20,	20,		20,		100,	10,			0,			0,		true};
+const color brimstoneForeColor =	{100,	50,		10,		0,		50,			40,			0,		true};
+const color brimstoneBackColor =	{18,	12,		9,		0,		0,			5,			0,		false};
 
-color lavaBackColor =			{70,	20,		0,		15,		10,			0,			0,		true};
-color acidBackColor =			{20,	70,		30,		5,		15,			10,			0,		true};
+const color lavaBackColor =			{70,	20,		0,		15,		10,			0,			0,		true};
+const color acidBackColor =			{20,	70,		30,		5,		15,			10,			0,		true};
 
-color lightningColor =			{60,	80,		90,		40,		20,			10,			0,		true};
-color fungusLightColor =		{2,		11,		11,		4,		3,			3,			0,		true};
-color lavaLightColor =			{47,	13,		0,		10,		7,			0,			0,		true};
-color deepWaterLightColor =		{10,	30,		100,	0,		30,			100,		0,		true};
+const color lightningColor =		{60,	80,		90,		40,		20,			10,			0,		true};
+const color fungusLightColor =		{2,		11,		11,		4,		3,			3,			0,		true};
+const color lavaLightColor =		{47,	13,		0,		10,		7,			0,			0,		true};
+const color deepWaterLightColor =	{10,	30,		100,	0,		30,			100,		0,		true};
 
-color grassColor =				{15,	40,		15,		15,		50,			15,			10,		false};
-color fungusColor =				{15,	50,		50,		0,		25,			0,			30,		true};
-color foliageColor =			{25,	100,	25,		15,		0,			15,			0,		false};
-color ashForeColor =			{20,	20,		20,		0,		0,			0,			20,		false};
-color bonesForeColor =			{80,	80,		50,		5,		5,			35,			5,		false};
-color ectoplasmColor =			{45,	20,		55,		25,		0,			25,			5,		false};
-color forceFieldColor =			{0,		25,		25,		0,		25,			25,			0,		true};
-color wallCrystalColor =		{40,	40,		60,		20,		20,			40,			0,		true};
-color lichenColor =				{50,	5,		25,		10,		0,			5,			0,		true};
+const color grassColor =			{15,	40,		15,		15,		50,			15,			10,		false};
+const color fungusColor =			{15,	50,		50,		0,		25,			0,			30,		true};
+const color foliageColor =			{25,	100,	25,		15,		0,			15,			0,		false};
+const color ashForeColor =			{20,	20,		20,		0,		0,			0,			20,		false};
+const color bonesForeColor =		{80,	80,		50,		5,		5,			35,			5,		false};
+const color ectoplasmColor =		{45,	20,		55,		25,		0,			25,			5,		false};
+const color forceFieldColor =		{0,		25,		25,		0,		25,			25,			0,		true};
+const color wallCrystalColor =		{40,	40,		60,		20,		20,			40,			0,		true};
+const color lichenColor =			{50,	5,		25,		10,		0,			5,			0,		true};
 
 // monster colors
-color goblinColor =				{40,	30,		20,		0,		0,			0,			0,		false};
-color jackalColor =				{60,	42,		27,		0,		0,			0,			0,		false};
-color ogreColor =				{60,	25,		25,		0,		0,			0,			0,		false};
-color eelColor =				{30,	12,		12,		0,		0,			0,			0,		false};
-color goblinConjurerColor =		{67,	10,		100,	0,		0,			0,			0,		false};
-color spectralBladeColor =		{20,	20,		50,		0,		0,			50,			70,		true};
-color toadColor =				{40,	65,		30,		0,		0,			0,			0,		false};
-color trollColor =				{40,	60,		15,		0,		0,			0,			0,		false};
-color centipedeColor =			{75,	25,		85,		0,		0,			0,			0,		false};
-color dragonColor =				{20,	80,		15,		0,		0,			0,			0,		false};
-color krakenColor =				{100,	55,		55,		0,		0,			0,			0,		false};
-color salamanderColor =			{40,	10,		0,		8,		5,			0,			0,		true};
-color gorgonColor =				{100,	0,		50,		0,		0,			0,			0,		false};
-color pixieColor =				{60,	60,		60,		40,		40,			40,			0,		true};
-color darPriestessColor =		{0,		50,		50,		0,		0,			0,			0,		false};
-color darMageColor =			{50,	50,		0,		0,		0,			0,			0,		false};
-color wraithColor =				{66,	66,		25,		0,		0,			0,			0,		false};
-color pinkJellyColor =			{100,	40,		40,		5,		5,			5,			20,		true};
+const color goblinColor =			{40,	30,		20,		0,		0,			0,			0,		false};
+const color jackalColor =			{60,	42,		27,		0,		0,			0,			0,		false};
+const color ogreColor =				{60,	25,		25,		0,		0,			0,			0,		false};
+const color eelColor =				{30,	12,		12,		0,		0,			0,			0,		false};
+const color goblinConjurerColor =	{67,	10,		100,	0,		0,			0,			0,		false};
+const color spectralBladeColor =	{20,	20,		50,		0,		0,			50,			70,		true};
+const color toadColor =				{40,	65,		30,		0,		0,			0,			0,		false};
+const color trollColor =			{40,	60,		15,		0,		0,			0,			0,		false};
+const color centipedeColor =		{75,	25,		85,		0,		0,			0,			0,		false};
+const color dragonColor =			{20,	80,		15,		0,		0,			0,			0,		false};
+const color krakenColor =			{100,	55,		55,		0,		0,			0,			0,		false};
+const color salamanderColor =		{40,	10,		0,		8,		5,			0,			0,		true};
+const color gorgonColor =			{100,	0,		50,		0,		0,			0,			0,		false};
+const color pixieColor =			{60,	60,		60,		40,		40,			40,			0,		true};
+const color darPriestessColor =		{0,		50,		50,		0,		0,			0,			0,		false};
+const color darMageColor =			{50,	50,		0,		0,		0,			0,			0,		false};
+const color wraithColor =			{66,	66,		25,		0,		0,			0,			0,		false};
+const color pinkJellyColor =		{100,	40,		40,		5,		5,			5,			20,		true};
 
 // light colors
 color minersLightColor; // set on each level as a weighted average of the two following colors depending on depth
-color minersLightEndColor =		{60,	60,		90,		0,		0,			0,			0,		false};
-color minersLightStartColor =	{180,	180,	180,	0,		0,			0,			0,		false};
-color torchLightColor =			{90,	50,		30,		0,		20,			10,			0,		true};
-color magicLightColor =			{60,	60,		100,	40,		40,			0,			0,		true};
-color burningLightColor =		{100,	10,		10,		0,		20,			5,			0,		true};
-color wispLightColor =			{50,	66,		100,	33,		10,			0,			0,		true};
-color ectoplasmLightColor =		{23,	10,		28,		13,		0,			13,			3,		false};
-color explosionColor =			{10,	8,		2,		0,		2,			2,			0,		true};
-color lichLightColor =			{-50,	80,		30,		0,		0,			20,			0,		true};
-color forceFieldLightColor =	{10,	10,		10,		0,		50,			50,			0,		true};
-color crystalWallLightColor =	{10,	10,		10,		0,		0,			50,			0,		true};
-color sunLightColor =			{100,	100,	75,		0,		0,			0,			0,		false};
-color fungusForestLightColor =	{30,	40,		60,		0,		0,			0,			40,		true};
-color fungusTrampledLightColor ={10,	10,		10,		0,		50,			50,			0,		true};
-color redFlashColor =			{100,	10,		10,		0,		0,			0,			0,		false};
-color darknessColor =			{-10,	-10,	-10,	0,		0,			0,			0,		false};
+const color minersLightEndColor =	{60,	60,		90,		0,		0,			0,			0,		false};
+const color minersLightStartColor =	{180,	180,	180,	0,		0,			0,			0,		false};
+const color torchLightColor =		{90,	50,		30,		0,		20,			10,			0,		true};
+const color burningLightColor =		{100,	10,		10,		0,		20,			5,			0,		true};
+const color wispLightColor =		{50,	66,		100,	33,		10,			0,			0,		true};
+const color ectoplasmLightColor =	{23,	10,		28,		13,		0,			13,			3,		false};
+const color explosionColor =		{10,	8,		2,		0,		2,			2,			0,		true};
+const color dartFlashColor =		{500,	500,	500,	0,		2,			2,			0,		true};
+const color lichLightColor =		{-50,	80,		30,		0,		0,			20,			0,		true};
+const color forceFieldLightColor =	{10,	10,		10,		0,		50,			50,			0,		true};
+const color crystalWallLightColor =	{10,	10,		10,		0,		0,			50,			0,		true};
+const color sunLightColor =			{100,	100,	75,		0,		0,			0,			0,		false};
+const color fungusForestLightColor ={30,	40,		60,		0,		0,			0,			40,		true};
+const color fungusTrampledLightColor ={10,	10,		10,		0,		50,			50,			0,		true};
+const color redFlashColor =			{100,	10,		10,		0,		0,			0,			0,		false};
+const color darknessColor =			{-10,	-10,	-10,	0,		0,			0,			0,		false};
 
 // color multipliers
-color colorDim25 =				{25,	25,		25,		25,		25,			25,			25,		false};
-color memoryColor =				{15,	15,		60,		20,		20,			20,			0,		false};
-color memoryOverlay =			{25,	25,		50,		0,		0,			0,			0,		false};
-color magicMapColor =			{30,	10,		30,		30,		10,			30,			0,		false};
-color clairvoyanceColor =		{50,	90,		50,		20,		40,			20,			0,		false};
+const color colorDim25 =			{25,	25,		25,		25,		25,			25,			25,		false};
+const color memoryColor =			{15,	15,		60,		20,		20,			20,			0,		false};
+const color memoryOverlay =			{25,	25,		50,		0,		0,			0,			0,		false};
+//const color magicMapColor =			{30,	10,		30,		30,		10,			30,			0,		false};
+const color magicMapColor =			{60,	20,		60,		60,		20,			60,			0,		false};
+const color clairvoyanceColor =		{50,	90,		50,		20,		40,			20,			0,		false};
 
 // blood colors
-color humanBloodColor =			{60,	20,		10,		15,		0,			0,			15,		false};
-color insectBloodColor =		{10,	60,		20,		0,		15,			0,			15,		false};
-color vomitColor =				{60,	50,		5,		0,		15,			15,			0,		false};
-color urineColor =				{70,	70,		40,		0,		0,			0,			10,		false};
-color methaneColor =			{45,	60,		15,		0,		0,			0,			0,		false};
+const color humanBloodColor =		{60,	20,		10,		15,		0,			0,			15,		false};
+const color insectBloodColor =		{10,	60,		20,		0,		15,			0,			15,		false};
+const color vomitColor =			{60,	50,		5,		0,		15,			15,			0,		false};
+const color urineColor =			{70,	70,		40,		0,		0,			0,			10,		false};
+const color methaneColor =			{45,	60,		15,		0,		0,			0,			0,		false};
 
 // gas colors
-color poisonGasColor =			{75,	25,		85,		0,		0,			0,			0,		false};
-color confusionGasColor =		{50,	50,		50,		40,		40,			40,			0,		true};
+const color poisonGasColor =		{75,	25,		85,		0,		0,			0,			0,		false};
+const color confusionGasColor =		{50,	50,		50,		40,		40,			40,			0,		true};
 
 // interface colors
-color blueBar =					{10,	10,		75,		0,		0,			0,			0,		false};
-color redBar =					{75,	10,		10,		0,		0,			0,			0,		false};
-color hiliteColor =				{100,	100,	0,		0,		0,			0,			0,		false};
+const color blueBar =				{10,	10,		75,		0,		0,			0,			0,		false};
+const color redBar =				{75,	10,		10,		0,		0,			0,			0,		false};
+const color hiliteColor =			{100,	100,	0,		0,		0,			0,			0,		false};
 
-color playerInLight =			{100,	100,	50,		0,		0,			0,			0,		false};
-color playerInShadow =			{75,	75,		100,	0,		0,			0,			0,		false};
+const color playerInLight =			{100,	100,	50,		0,		0,			0,			0,		false};
+const color playerInShadow =		{75,	75,		100,	0,		0,			0,			0,		false};
+
+#pragma mark Dynamic color references
+
+const color *dynamicColors[NUMBER_DYNAMIC_COLORS][3] = {
+	// used color			shallow color				deep color
+	{&minersLightColor,		&minersLightStartColor,		&minersLightEndColor},
+	{&wallBackColor,		&wallBackColorStart,		&wallBackColorEnd},
+	{&deepWaterBackColor,	&deepWaterBackColorStart,	&deepWaterBackColorEnd},
+	{&shallowWaterBackColor, &shallowWaterBackColorStart, &shallowWaterBackColorEnd},
+	{&floorBackColor,		&floorBackColorStart,		&floorBackColorEnd},
+	{&chasmEdgeBackColor,	&chasmEdgeBackColorStart,	&chasmEdgeBackColorEnd},
+};
 
 #pragma mark Terrain definitions
 
-floorTileType tileCatalog[NUMBER_TILETYPES] = {
+const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	
 	// note that promoteChance is in hundredths of a percent per turn
 	
@@ -238,7 +272,7 @@ floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(OBSTRUCTS_EVERYTHING | STAND_IN_TILE),															"a stone wall",			""},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(OBSTRUCTS_EVERYTHING | STAND_IN_TILE),															"a stone wall",			""},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(OBSTRUCTS_EVERYTHING | STAND_IN_TILE),															"a stone wall",			""},
-	{DOOR_CHAR,		&doorForeColor,			&doorBackColor,			25,	50,	DF_EMBERS,		0,			DF_OPEN_DOOR,	0,				NO_LIGHT,		(OBSTRUCTS_VISION | OBSTRUCTS_ITEMS | OBSTRUCTS_SCENT | OBSTRUCTS_GAS | IS_FLAMMABLE | VANISHES_UPON_PROMOTION | PROMOTES_ON_STEP | STAND_IN_TILE), "a wooden door",	"you pass through the doorway."},
+	{DOOR_CHAR,		&doorForeColor,			&doorBackColor,			25,	50,	DF_EMBERS,		0,			DF_OPEN_DOOR,	0,				NO_LIGHT,		(OBSTRUCTS_VISION | OBSTRUCTS_SCENT | OBSTRUCTS_GAS | IS_FLAMMABLE | VANISHES_UPON_PROMOTION | PROMOTES_ON_STEP | STAND_IN_TILE), "a wooden door",	"you pass through the doorway."},
 	{DOOR_CHAR,		&doorForeColor,			&doorBackColor,			25,	50,	DF_EMBERS,		0,			DF_CLOSED_DOOR,	10000,			NO_LIGHT,		(IS_FLAMMABLE | VANISHES_UPON_PROMOTION | STAND_IN_TILE),										"an open door",			"you pass through the doorway."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	50,	DF_EMBERS,		DF_SHOW_DOOR,0,				0,				NO_LIGHT,		(OBSTRUCTS_EVERYTHING | IS_SECRET | IS_FLAMMABLE | VANISHES_UPON_PROMOTION | STAND_IN_TILE),	"a stone wall",			"you pass through the doorway."},
 	{DOWN_CHAR,		&yellow,				&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(PERMITS_DESCENT | OBSTRUCTS_ITEMS | OBSTRUCTS_SURFACE_EFFECTS),								"a downward staircase",	"stairs spiral downward into the depths."},
@@ -273,14 +307,16 @@ floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{ASH_CHAR,		&brimstoneForeColor,	&brimstoneBackColor,	40, 0,	DF_INERT_BRIMSTONE,	0,		DF_ACTIVE_BRIMSTONE, 800,		NO_LIGHT,		(SPONTANEOUSLY_IGNITES | OBSTRUCTS_SCENT),														"hissing brimstone",	"the jagged brimstone hisses and spits ominously as it crunches under your feet."},
 	{FLOOR_CHAR,	&ashForeColor,			0,						55,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																								"the obsidian ground",	"the ground has fused into obsidian."},
 	{BRIDGE_CHAR,	&bridgeFrontColor,		&bridgeBackColor,		20,	50,	DF_BRIDGE_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | VANISHES_UPON_PROMOTION),														"a rickety rope bridge","a rickety rope bridge creaks underfoot."},
-	{BRIDGE_CHAR,	&bridgeFrontColor,		&bridgeBackColor,		20,	50,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE),																					"a rickety rope bridge","a rickety rope bridge is staked to the edge of the chasm."},
+	{BRIDGE_CHAR,	&bridgeFrontColor,		&bridgeBackColor,		20,	50,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | VANISHES_UPON_PROMOTION),														"a rickety rope bridge","a rickety rope bridge is staked to the edge of the chasm."},
 	
 	// surface layer
+	{CHASM_CHAR,	&chasmForeColor,		&black,					15,	0,	DF_PLAIN_FIRE,	0,			DF_HOLE_DRAIN,	-1000,			NO_LIGHT,		(EXTINGUISHES_FIRE | OBSTRUCTS_SCENT | TRAP_DESCENT | STAND_IN_TILE | VANISHES_UPON_PROMOTION),	"a hole",				"you plunge downward into the hole!"},
+	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	53,	0,	DF_PLAIN_FIRE,	0,			0,				-500,			NO_LIGHT,		(VANISHES_UPON_PROMOTION),																		"translucent ground",	"chilly gusts of air blow upward through the translucent floor."},
 	{WATER_CHAR,	&deepWaterForeColor,	&deepWaterBackColor,	50,	100,DF_STEAM_ACCUMULATION,	0,	DF_FLOOD_DRAIN,	-200,			NO_LIGHT,		(EXTINGUISHES_FIRE | IS_FLAMMABLE | VANISHES_UPON_PROMOTION | IS_DEEP_WATER | OBSTRUCTS_SCENT | ALLOWS_SUBMERGING | STAND_IN_TILE), "sloshing water", "roiling water floods the room."},
-	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	53,	0,	DF_STEAM_ACCUMULATION,	0,	DF_PUDDLE,		-100,			NO_LIGHT,		(EXTINGUISHES_FIRE | VANISHES_UPON_PROMOTION | ALLOWS_SUBMERGING | STAND_IN_TILE),				"shallow water", "knee-deep water drains slowly into holes in the floor."},
-	{GRASS_CHAR,	&grassColor,			0,						60,	15,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | STAND_IN_TILE),																	"grass-like fungus",	"grass-like fungus crunches underfoot."},
-	{GRASS_CHAR,	&fungusColor,			0,						60,	10,	DF_PLAIN_FIRE,	0,			0,				0,				FUNGUS_LIGHT,	(GLOWS | IS_FLAMMABLE | STAND_IN_TILE),															"luminescent fungus",	"luminescent fungus casts a pale, eerie glow."},
-	{GRASS_CHAR,	&lichenColor,			0,						60,	50,	DF_PLAIN_FIRE,	0,			DF_LICHEN_GROW,	10000,			NO_LIGHT,		(CAUSES_POISON | IS_FLAMMABLE | STAND_IN_TILE),													"deadly lichen",		"venomous barbs cover the quivering tendrils of this fast-growing lichen."},
+	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	53,	0,	DF_STEAM_ACCUMULATION,	0,	DF_PUDDLE,		-100,			NO_LIGHT,		(EXTINGUISHES_FIRE | VANISHES_UPON_PROMOTION | ALLOWS_SUBMERGING | STAND_IN_TILE),				"shallow water",		"knee-deep water drains slowly into holes in the floor."},
+	{GRASS_CHAR,	&grassColor,			0,						60,	15,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | STAND_IN_TILE | VANISHES_UPON_PROMOTION),										"grass-like fungus",	"grass-like fungus crunches underfoot."},
+	{GRASS_CHAR,	&fungusColor,			0,						60,	10,	DF_PLAIN_FIRE,	0,			0,				0,				FUNGUS_LIGHT,	(GLOWS | IS_FLAMMABLE | STAND_IN_TILE | VANISHES_UPON_PROMOTION),								"luminescent fungus",	"luminescent fungus casts a pale, eerie glow."},
+	{GRASS_CHAR,	&lichenColor,			0,						60,	50,	DF_PLAIN_FIRE,	0,			DF_LICHEN_GROW,	10000,			NO_LIGHT,		(CAUSES_POISON | IS_FLAMMABLE | STAND_IN_TILE | VANISHES_UPON_PROMOTION),						"deadly lichen",		"venomous barbs cover the quivering tendrils of this fast-growing lichen."},
 	{FLOOR_CHAR,	&humanBloodColor,		0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(STAND_IN_TILE),																				"a pool of blood",		"the floor is splattered with blood."},
 	{FLOOR_CHAR,	&insectBloodColor,		0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(STAND_IN_TILE),																				"a pool of green blood", "the floor is splattered with green blood."},
 	{FLOOR_CHAR,	&poisonGasColor,		0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(STAND_IN_TILE),																				"a pool of purple blood", "the floor is splattered with purple blood."},
@@ -293,7 +329,7 @@ floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{BONES_CHAR,	&gray,					0,						70,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																								"a pile of rubble",		"rocky rubble covers the ground."},
 	{FLOOR_CHAR,	&ectoplasmColor,		0,						70,	0,	DF_PLAIN_FIRE,	0,			0,				0,				ECTOPLASM_LIGHT,(GLOWS | STAND_IN_TILE),																		"ectoplasmic residue",	"a thick, glowing substance has congealed on the ground."},
 	{ASH_CHAR,		&fireForeColor,			0,						70,	0,	DF_PLAIN_FIRE,	0,			DF_ASH,			300,			EMBER_LIGHT,	(GLOWS | VANISHES_UPON_PROMOTION | STAND_IN_TILE),												"sputtering embers",	"sputtering embers cover the ground."},
-	{WEB_CHAR,		&white,					0,						20,	100,DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(ENTANGLES | IS_FLAMMABLE | STAND_IN_TILE),														"a thick spiderweb",	"thick, sticky spiderwebs fill the area."},
+	{WEB_CHAR,		&white,					0,						20,	100,DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(ENTANGLES | IS_FLAMMABLE | STAND_IN_TILE | VANISHES_UPON_PROMOTION),							"a thick spiderweb",	"thick, sticky spiderwebs fill the area."},
 	{FOLIAGE_CHAR,	&foliageColor,			0,						30,	15,	DF_PLAIN_FIRE,	0,			DF_TRAMPLED_FOLIAGE,	0,		NO_LIGHT,		(OBSTRUCTS_VISION | OBSTRUCTS_SCENT | PROMOTES_ON_STEP | VANISHES_UPON_PROMOTION | IS_FLAMMABLE | STAND_IN_TILE),"dense foliage", "dense foliage fills the area, thriving on what sunlight trickles in."},
 	{T_FOLIAGE_CHAR,&foliageColor,			0,						60,	15,	DF_PLAIN_FIRE,	0,			DF_FOLIAGE_REGROW,		100,	NO_LIGHT,		(VANISHES_UPON_PROMOTION | IS_FLAMMABLE | GLOWS),												"trampled foliage",		"dense foliage fills the area, thriving on what sunlight trickles in."},
 	{FOLIAGE_CHAR,	&fungusForestLightColor,0,						30,	15,	DF_PLAIN_FIRE,	0,			DF_TRAMPLED_FUNGUS_FOREST,	0,	FUNGUS_FOREST_LIGHT,(OBSTRUCTS_VISION | OBSTRUCTS_SCENT | PROMOTES_ON_STEP | VANISHES_UPON_PROMOTION | IS_FLAMMABLE | STAND_IN_TILE | GLOWS),"a luminescent fungal forest", "luminescent fungal growth fills the area, groping upward from the rich soil."},
@@ -310,26 +346,27 @@ floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	
 	// fire tiles
 	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	0,				0,			DF_EMBERS,		500,			FIRE_LIGHT,		(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION | STAND_IN_TILE),									"billowing flames",		"flames billow upward."},
-	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	0,				0,			0,				2500,			BRIMSTONE_FIRE_LIGHT,(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION | STAND_IN_TILE),								"sulfurous flames",	"sulfurous flames leap from the unstable bed of brimstone."},
+	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	0,				0,			0,				2500,			BRIMSTONE_FIRE_LIGHT,(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION | STAND_IN_TILE),								"sulfurous flames",		"sulfurous flames leap from the unstable bed of brimstone."},
 	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	0,				0,			DF_OBSIDIAN,	200,			FIRE_LIGHT,		(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION) | STAND_IN_TILE,									"oily dragonfire",		"oily dragonfire eats at the floor."},
 	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	NOTHING,		0,			NOTHING,		8000,			FIRE_LIGHT,		(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION) | STAND_IN_TILE,									"a cloud of burning gas", "flammable gas fills the air with flame."},
 	{FIRE_CHAR,		&yellow,				0,						10,	0,	0,				0,			DF_GAS_FIRE,	10000,			EXPLOSION_LIGHT,(IS_FIRE | GLOWS | CAUSES_EXPLOSIVE_DAMAGE) | STAND_IN_TILE,									"a violent explosion",	"the force of the explosion slams into you."},
+	{FIRE_CHAR,		&white,					0,						10,	0,	0,				0,			0,				10000,			INCENDIARY_DART_LIGHT ,(IS_FIRE | GLOWS | VANISHES_UPON_PROMOTION | STAND_IN_TILE),								"a flash of fire",		"flames burst out of the incendiary dart."},
 	
 	// gas layer
-	{	' ',		0,						&poisonGasColor,		15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES | CAUSES_DAMAGE | STAND_IN_TILE),				"a cloud of caustic gas", "you can feel the purple gas eating at your flesh."},
-	{	' ',		0,						&confusionGasColor,		15,	100,DF_GAS_FIRE,	0,			0,				0,				CONFUSION_GAS_LIGHT,(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_CONFUSION | GLOWS | STAND_IN_TILE), "a cloud of confusion gas", "the rainbow-colored gas tickles your brain."},
-	{	' ',		0,						&vomitColor,			15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_NAUSEA | STAND_IN_TILE),		"a cloud of putrescence", "the stench of rotting flesh is overpowering."},
-	{	' ',		0,						&pink,					15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_PARALYSIS | STAND_IN_TILE),		"a cloud of paralytic gas", "the pale gas causes your muscles to stiffen."},
-	{	' ',		0,						&methaneColor,			15,	100,DF_EXPLOSION_FIRE,0,		0,				0,				NO_LIGHT,		(IS_FLAMMABLE | STAND_IN_TILE),													"a cloud of flammable gas",	"the smell of flammable swamp gas fills the air."},
-	{	' ',		0,						&white,					15,	0,	DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(CAUSES_DAMAGE | GAS_DISSIPATES_QUICKLY | STAND_IN_TILE),						"a cloud of scalding steam", "scalding steam fills the air!"},
-	
+	{	' ',		0,						&poisonGasColor,		15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES | CAUSES_DAMAGE | STAND_IN_TILE),								"a cloud of caustic gas", "you can feel the purple gas eating at your flesh."},
+	{	' ',		0,						&confusionGasColor,		15,	100,DF_GAS_FIRE,	0,			0,				0,				CONFUSION_GAS_LIGHT,(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_CONFUSION | GLOWS | STAND_IN_TILE),			"a cloud of confusion gas", "the rainbow-colored gas tickles your brain."},
+	{	' ',		0,						&vomitColor,			15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_NAUSEA | STAND_IN_TILE),						"a cloud of putrescence", "the stench of rotting flesh is overpowering."},
+	{	' ',		0,						&pink,					15,	100,DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(IS_FLAMMABLE | GAS_DISSIPATES_QUICKLY | CAUSES_PARALYSIS | STAND_IN_TILE),						"a cloud of paralytic gas", "the pale gas causes your muscles to stiffen."},
+	{	' ',		0,						&methaneColor,			15,	100,DF_EXPLOSION_FIRE,0,		0,				0,				NO_LIGHT,		(IS_FLAMMABLE | STAND_IN_TILE),																	"a cloud of flammable gas",	"the smell of flammable swamp gas fills the air."},
+	{	' ',		0,						&white,					15,	0,	DF_GAS_FIRE,	0,			0,				0,				NO_LIGHT,		(CAUSES_DAMAGE | GAS_DISSIPATES_QUICKLY | STAND_IN_TILE),										"a cloud of scalding steam", "scalding steam fills the air!"},
+	{	' ',		0,						0,						15,	0,	DF_GAS_FIRE,	0,			0,				0,				NEGATIVE_LIGHT,	(GLOWS | STAND_IN_TILE),																		"a cloud of supernatural darkness", "everything is obscured by a cloud of supernatural darkness."},
 };
 
 #pragma mark Dungeon Feature definitions
 
 // Features in the gas layer use the startprob as volume, ignore probdecr, and spawn in only a single point.
 // Intercepts and slopes are in units of 0.01.
-dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
+const dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	// tileType			layer		startProb		probDecr.	restricted	propTerrain	subseqDF	foundation	>Depth	<Depth	freq	minIncp	minSlope	maxNumber
 	{0}, // nothing
 	{GRANITE,			DUNGEON,	{80, 80,1},		{70,70,1},	false,	0,			0,				FLOOR,		1,		100,	60,		100,	0,			4},
@@ -356,7 +393,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	// misc. liquids
 	{MUD,				LIQUID,		{65,80,1},		{4,6,1},	false,	0,			0,				FLOOR,		1,		100,	30,		0,		0,			5},
 	{SUNLIGHT_POOL,		LIQUID,		{50, 80, 2},	{5, 6, 1},	false,	0,			0,				FLOOR,		0,		5,		15,		500,	-150,		10},
-	{DARKNESS_PATCH,	LIQUID,		{50, 80, 2},	{5, 6, 1},	false,	0,			0,				FLOOR,		1,		15,		15,		500,	-50,		10},
+	{DARKNESS_PATCH,	LIQUID,		{50, 80, 2},	{10, 12, 1},false,	0,			0,				FLOOR,		1,		15,		15,		500,	-50,		10},
 	
 	// Dungeon features spawned during gameplay:
 	
@@ -364,7 +401,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{DOOR,				DUNGEON,	{0,0,1},		{0,0,1},	false},
 	{GAS_TRAP_POISON,	DUNGEON,	{0,0,1},		{0,0,1},	false},
 	{GAS_TRAP_PARALYSIS,DUNGEON,	{0,0,1},		{0,0,1},	false},
-	{CHASM_EDGE,		LIQUID,		{100,100,1},	{100,100,1},false,	0,			DF_SHOW_TRAPDOOR},
+	{CHASM_EDGE,		LIQUID,		{100,100,1},	{100,100,1},false,	0,	DF_SHOW_TRAPDOOR},
 	{TRAP_DOOR,			LIQUID,		{0,0,1},		{0,0,1},	false},
 	{GAS_TRAP_CONFUSION,DUNGEON,	{0,0,1},		{0,0,1},	false},
 	{FLAMETHROWER,		DUNGEON,	{0,0,1},		{0,0,1},	false},
@@ -398,7 +435,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{ASH,				SURFACE,	{0,0,1},		{0,0,0},	false},
 	{ECTOPLASM,			SURFACE,	{0,0,1},		{0,0,1},	false},
 	{FORCEFIELD,		SURFACE,	{100,100,1},	{50,50,1},	false},
-	{LICHEN,			SURFACE,	{1,1,1},		{100,100,1},false},
+	{LICHEN,			SURFACE,	{2,2,1},		{100,100,1},false},
 	{LICHEN,			SURFACE,	{70,70,1},		{60,60,1},	false},
 	
 	// foliage
@@ -419,6 +456,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{PLAIN_FIRE,		SURFACE,	{0,0,1},		{0,0,0},	false},
 	{GAS_FIRE,			SURFACE,	{0,0,1},		{0,0,0},	false},
 	{GAS_EXPLOSION,		SURFACE,	{50,75,1},		{10,25,1},	false},
+	{DART_EXPLOSION,	SURFACE,	{0,0,1},		{0,0,0},	false},
 	{BRIMSTONE_FIRE,	SURFACE,	{0,0,1},		{0,0,0},	false},
 	{CHASM,				LIQUID,		{0,0,1},		{0,0,0},	false,	0,			DF_PLAIN_FIRE},
 	{PLAIN_FIRE,		SURFACE,	{100,100,1},	{25,50,1},	false},
@@ -427,6 +465,9 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{FLOOD_WATER_SHALLOW, SURFACE,	{225,225,1},	{25,50,1},	false,	0,			DF_FLOOD_2},
 	{FLOOD_WATER_DEEP, SURFACE,		{175,175,1},	{25,50,1},	false},
 	{FLOOD_WATER_SHALLOW, SURFACE,	{10,15,1},		{25,25,1},	false},
+	{HOLE_EDGE,			SURFACE,	{300,300,1},	{100,100,1},false,	0,			DF_HOLE_2},
+	{HOLE,				SURFACE,	{200,200,1},	{100,100,1},false},
+	{HOLE_EDGE,			SURFACE,	{0,0,1},		{0,0,0},	false},
 	
 	// gas trap/potion effects
 	{POISON_GAS,		GAS,		{1000,1000,1},	{0,0,0},	false},
@@ -434,39 +475,40 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{CONFUSION_GAS,		GAS,		{1000,1000,1},	{0,0,0},	false},
 	{CONFUSION_GAS,		GAS,		{300,300,1},	{0,0,0},	false},
 	{METHANE_GAS,		GAS,		{10000,10000,1},{0,0,0},	false},
+	{DARKNESS_CLOUD,	GAS,		{500,500,1},	{0,0,0},	false},
 };
 
 #pragma mark Light definitions
 
-lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
-	{0},																	// NO_LIGHT
-	{&minersLightColor,		{0, 0, 1},			10000,	35,		true},		// miners light
-	{&burningLightColor,	{8, 8, 1},			500,	60,		false},		// burning creature light
-	{&magicLightColor,		{DCOLS, DCOLS, 1},	200,	50,		true},		// staff of lighting light
-	{&wispLightColor,		{5, 9, 1},			500,	0,		false},		// will-o'-the-wisp light
-	{&fireForeColor,		{5, 6, 1},			500,	0,		false},		// salamander glow
-	{&pink,					{6, 6, 1},			500,	0,		true},		// imp light
-	{&pixieColor,			{4, 6, 1},			500,	50,		false},		// pixie light
-	{&lichLightColor,		{15, 15, 1},		100,	0,		false},		// lich light
-	{&lightningColor,		{2, 2, 1},			100,	35,		false},		// lightning turret light
-	{&lightningColor,		{3, 3, 1},			10000,	0,		false},		// bolt glow
+// radius is in units of 0.01
+const lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
+	{0},																		// NO_LIGHT
+	{&minersLightColor,		{0, 0, 1},				10000,	35,		true},		// miners light
+	{&burningLightColor,	{800, 800, 1},			500,	60,		false},		// burning creature light
+	{&wispLightColor,		{500, 900, 1},			500,	0,		false},		// will-o'-the-wisp light
+	{&fireForeColor,		{500, 600, 1},			500,	0,		false},		// salamander glow
+	{&pink,					{600, 600, 1},			500,	0,		true},		// imp light
+	{&pixieColor,			{400, 600, 1},			500,	50,		false},		// pixie light
+	{&lichLightColor,		{1500, 1500, 1},		100,	0,		false},		// lich light
+	{&lightningColor,		{200, 200, 1},			100,	35,		false},		// lightning turret light
+	{&lightningColor,		{300, 300, 1},			10000,	0,		false},		// bolt glow
 	
 	// glowing terrain:
-	{&torchLightColor,		{10, 10, 1},		500,	50,		false},		// torch
-	{&lavaLightColor,		{3, 3, 1},			125,	50,		false},		// lava
-	{&sunLightColor,		{2, 2, 1},			100,	25,		true},		// sunlight
-	{&darknessColor,		{2, 2, 1},			100,	0,		true},		// darkness
-	{&fungusLightColor,		{3, 3, 1},			100,	50,		false},		// luminescent fungus
-	{&fungusForestLightColor,{5, 5, 1},			200,	50,		false},		// luminescent forest
-	{&ectoplasmColor,		{2, 2, 1},			100,	50,		false},		// ectoplasm
-	{&lavaLightColor,		{2, 2, 1},			200,	50,		false},		// embers
-	{&lavaLightColor,		{5, 10, 1},			300,	0,		false},		// fire
-	{&lavaLightColor,		{2, 3, 1},			100,	0,		false},		// brimstone fire
-	{&explosionColor,		{DCOLS,DCOLS,1},	10000,	100,	false},		// explosions
-	{&confusionGasColor,	{3, 3, 1},			100,	100,	false},		// confusion gas
-	{&forceFieldLightColor,	{2, 2, 1},			200,	50,		false},		// forcefield
-	{&crystalWallLightColor,{3, 5, 1},			250,	50,		false},		// crystal wall
-	
+	{&torchLightColor,		{1000, 1000, 1},		500,	50,		false},		// torch
+	{&lavaLightColor,		{300, 300, 1},			125,	50,		false},		// lava
+	{&sunLightColor,		{200, 200, 1},			100,	25,		true},		// sunlight
+	{&darknessColor,		{500, 500, 1},			2000,	0,		true},		// darkness
+	{&fungusLightColor,		{300, 300, 1},			100,	50,		false},		// luminescent fungus
+	{&fungusForestLightColor,{500, 500, 1},			200,	50,		false},		// luminescent forest
+	{&ectoplasmColor,		{200, 200, 1},			100,	50,		false},		// ectoplasm
+	{&lavaLightColor,		{200, 200, 1},			200,	50,		false},		// embers
+	{&lavaLightColor,		{500, 1000, 1},			300,	0,		false},		// fire
+	{&lavaLightColor,		{200, 300, 1},			100,	0,		false},		// brimstone fire
+	{&explosionColor,		{DCOLS*100,DCOLS*100,1},10000,	100,	false},		// explosions
+	{&dartFlashColor,		{15*100,15*100,1},		10000,	0,		false},		// incendiary darts
+	{&confusionGasColor,	{300, 300, 1},			100,	100,	false},		// confusion gas
+	{&forceFieldLightColor,	{200, 200, 1},			200,	50,		false},		// forcefield
+	{&crystalWallLightColor,{300, 500, 1},			250,	50,		false},		// crystal wall
 };
 
 #pragma mark Monster definitions
@@ -480,18 +522,18 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0, "kobold",		'k',	&goblinColor,	2,		5,		0,		80,		{1, 3, 1},		20,	30,		30,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0},
 	{0,	"jackal",		'j',	&jackalColor,	3,		7,		0,		70,		{1, 4, 1},		20,	50,		50,		50,		100,	DF_HUMAN_BLOOD,	0,		1,		DF_URINE},
 	{0,	"eel",			'e',	&eelColor,		15,		18,		20,		100,	{2, 9, 2},		5,	DCOLS,	20,		50,		100,	NOTHING,		0,		0,		0,
-		(MONST_RESTRICTED_TO_LIQUID | MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_FLITS | MONST_NEVER_SLEEPS)},
+		(MONST_RESTRICTED_TO_LIQUID | MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_FLITS | MONST_NEVER_SLEEPS | MONST_WILL_NOT_USE_STAIRS)},
 	{0,	"monkey",		'm',	&ogreColor,		3,		12,		17,		100,	{1, 3, 1},		20,	DCOLS,	100,	100,	100,	DF_HUMAN_BLOOD,	0,		1,		DF_URINE,
 		(0), (MA_HIT_STEAL_FLEE)},
-	{0, "bloat",		'b',	&poisonGasColor,15,		7,		0,		100,	{0, 0, 0},		5,	DCOLS,	100,	100,	100,	DF_PURPLE_BLOOD,0,		0,		DF_BLOAT_DEATH,
+	{0, "bloat",		'b',	&poisonGasColor,15,		4,		0,		100,	{0, 0, 0},		5,	DCOLS,	100,	100,	100,	DF_PURPLE_BLOOD,0,		0,		DF_BLOAT_DEATH,
 		(MONST_FLIES | MONST_FLITS), (MA_KAMIKAZE | MA_DF_ON_DEATH)},
 	{0, "goblin",		'g',	&goblinColor,	5,		15,		10,		70,		{2, 6, 1},		20,	30,		20,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0},
-	{0, "goblin conjurer",'g',	&goblinConjurerColor, 15, 15,	10,		70,		{2, 4, 1},		20,	30,		20,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
-		(MONST_MAINTAINS_DISTANCE | MONST_CAST_SPELLS_SLOWLY | MONST_CARRY_ITEM_25), (MA_CAST_SUMMON)},
+	{0, "goblin conjurer",'g',	&goblinConjurerColor, 15, 7,	10,		70,		{2, 4, 1},		20,	30,		20,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
+		(MONST_MAINTAINS_DISTANCE | MONST_CAST_SPELLS_SLOWLY | MONST_CARRY_ITEM_25 | MONST_WILL_NOT_USE_STAIRS), (MA_CAST_SUMMON)},
 	{0, "goblin totem",	TOTEM_CHAR,	&orange,	15,		30,		0,		0,		{0, 0, 0},		0,	DCOLS,	200,	100,	300,	DF_RUBBLE_BLOOD,IMP_LIGHT,0,	0,
-		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING), (MA_CAST_HASTE | MA_CAST_SPARK)},
+		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING | MONST_WILL_NOT_USE_STAIRS), (MA_CAST_HASTE | MA_CAST_SPARK)},
 	{0, "spectral blade",WEAPON_CHAR, &spectralBladeColor, 5, 1, 0,		150,	{1, 1, 1},		0,	50,		50,		50,		100,	NOTHING,		0,		0,		0,
-		(MONST_INANIMATE | MONST_NEVER_SLEEPS | MONST_FLIES)},
+		(MONST_INANIMATE | MONST_NEVER_SLEEPS | MONST_FLIES | MONST_WILL_NOT_USE_STAIRS)},
 	{0, "pink jelly",	'J',	&pinkJellyColor,10,		10,		0,		100,	{1, 3, 1},		0,	20,		20,		100,	100,	DF_PURPLE_BLOOD,0,		0,		0,
 		(MONST_NEVER_SLEEPS), (MA_CLONE_SELF_ON_DEFEND)},
 	{0, "toad",			't',	&toadColor,		5,		18,		0,		90,		{1, 4, 1},		10,	15,		15,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
@@ -502,13 +544,13 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 		(MONST_TURRET), (MA_ATTACKS_FROM_DISTANCE)},
 	{0, "acid mound",	'a',	&acidBackColor,	12,		15,		10,		70,		{1, 3, 1},		5,	15,		15,		100,	100,	DF_ACID_BLOOD,	0,		0,		0,
 		(MONST_DEFEND_DEGRADE_WEAPON), (MA_HIT_DEGRADE_ARMOR)},
-	{0, "centipede",	'c',	&centipedeColor,10,		20,		20,		80,		{1, 5, 1},		20,	20,		50,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
-		(0), (MA_HIT_SAP_STRENGTH)},
+	{0, "centipede",	'c',	&centipedeColor,10,		20,		20,		80,		{1, 15, 1},		20,	20,		50,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
+		(0), (MA_POISONS)},
 	{0,	"ogre",			'O',	&ogreColor,		50,		55,		80,		125,	{4, 18, 4},		20,	30,		30,		100,	200,	DF_HUMAN_BLOOD,	0,		0,		0,			(0)},
 	{0,	"bog monster",	'B',	&krakenColor,	50,		55,		80,		5000,	{3, 4, 1},		3,	30,		30,		200,	100,	NOTHING,		0,		0,		0,
 		(MONST_RESTRICTED_TO_LIQUID | MONST_SUBMERGES | MONST_FLITS | MONST_FLEES_NEAR_DEATH), (MA_SEIZES)},
 	{0, "ogre totem",	TOTEM_CHAR,	&green,		100,	70,		0,		0,		{0, 0, 0},		0,	DCOLS,	200,	100,	400,	DF_RUBBLE_BLOOD,LICH_LIGHT,0,	0,
-		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING), (MA_CAST_HEAL | MA_CAST_SLOW)},
+		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING | MONST_WILL_NOT_USE_STAIRS), (MA_CAST_HEAL | MA_CAST_SLOW)},
 	{0, "spider",		's',	&white,			60,		20,		90,		90,		{1, 10, 1},		20,	50,		20,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
 		(MONST_IMMUNE_TO_WEBS | MONST_CAST_SPELLS_SLOWLY), (MA_SHOOTS_WEBS | MA_POISONS)},
 	{0, "spark turret", TURRET_CHAR, &lightningColor, 70,80,	0,		100,	{0, 0, 0},		0,	DCOLS,	50,		100,	150,	NOTHING,		SPARK_TURRET_LIGHT,	0,	0,
@@ -536,17 +578,17 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0, "acid turret", TURRET_CHAR,	&darkGreen,	120,	35,		0,		250,	{1, 2, 1},		0,	DCOLS,	50,		100,	250,	NOTHING,		0,		0,		0,
 		(MONST_TURRET), (MA_ATTACKS_FROM_DISTANCE | MA_HIT_DEGRADE_ARMOR)},
 	{0,	"kraken",		'K',	&krakenColor,	200,	120,	0,		150,	{10, 25, 3},	1,	DCOLS,	20,		50,		100,	NOTHING,		0,		0,		0,
-		(MONST_RESTRICTED_TO_LIQUID | MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_FLITS | MONST_NEVER_SLEEPS | MONST_FLEES_NEAR_DEATH), (MA_SEIZES)},
+		(MONST_RESTRICTED_TO_LIQUID | MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_FLITS | MONST_NEVER_SLEEPS | MONST_FLEES_NEAR_DEATH | MONST_WILL_NOT_USE_STAIRS), (MA_SEIZES)},
 	{0,	"lich",			'L',	&white,			250,	35,		100,	175,	{1, 7, 1},		0,	DCOLS,	100,	100,	100,	DF_ASH_BLOOD,	LICH_LIGHT,	0,	0,
 		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25 | MONST_INTRINSIC_LIGHT), (MA_CAST_SUMMON | MA_CAST_FIRE)},
 	{0, "pixie",		'p',	&pixieColor,	150,	10,		120,	100,	{1, 3, 1},		20,	100,	100,	50,		100,	DF_GREEN_BLOOD,	PIXIE_LIGHT, 0,	0,
 		(MONST_MAINTAINS_DISTANCE | MONST_INTRINSIC_LIGHT | MONST_FLIES | MONST_FLITS), (MA_CAST_SPARK | MA_CAST_SLOW | MA_CAST_CANCEL | MA_CAST_DISCORD)},
 	{0,	"phantom",		'P',	&ectoplasmColor,180,	35,		100,	160,	{8, 22, 4},		0,	30,		30,		50,		200,	DF_ECTOPLASM_BLOOD,	0,	2,		DF_ECTOPLASM_DROPLET,
 		(MONST_INVISIBLE | MONST_FLITS | MONST_FLIES | MONST_IMMUNE_TO_WEBS)},
-	{0, "dart turret", TURRET_CHAR,	&darkPurple,150,	40,		0,		150,	{1, 2, 1},		0,	DCOLS,	50,		100,	250,	NOTHING,		0,		0,		0,
-		(MONST_TURRET), (MA_ATTACKS_FROM_DISTANCE | MA_HIT_SAP_STRENGTH)},
-	{0, "imp",			'i',	&pink,			150,	35,		110,	225,	{3, 10, 2},		10,	10,		15,		50,		100,	DF_GREEN_BLOOD,	IMP_LIGHT,	0,	0,
-		(MONST_TELEPORTS | MONST_INTRINSIC_LIGHT), (MA_HIT_STEAL_FLEE)},
+	{0, "flame turret", TURRET_CHAR,	&lavaForeColor,150,	40,	0,		150,	{1, 2, 1},		0,	DCOLS,	50,		100,	250,	NOTHING,		LAVA_LIGHT,	0,	0,
+		(MONST_TURRET | MONST_INTRINSIC_LIGHT), (MA_CAST_FIRE)},
+	{0, "imp",			'i',	&pink,			150,	35,		110,	225,	{3, 10, 2},		10,	10,		15,		100,	100,	DF_GREEN_BLOOD,	IMP_LIGHT,	0,	0,
+		(MONST_INTRINSIC_LIGHT), (MA_HIT_STEAL_FLEE | MA_CAST_BLINK)},
 	{0,	"fury",			'f',	&darkRed,		50,		19,		110,	200,	{4, 13, 4},		20,	40,		30,		50,		100,	DF_HUMAN_BLOOD,	0,		0,		0,
 		(MONST_NEVER_SLEEPS | MONST_FLIES)},
 	{0, "revenant",		'R',	&ectoplasmColor,300,	20,		0,		200,	{5, 30, 5},		0,	DCOLS,	20,		100,	100,	DF_ECTOPLASM_BLOOD,	0,	0,		0,
@@ -560,154 +602,199 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 
 #pragma mark Monster words
 
-monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
+const monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
 	{"A sturdy adventurer in an unforgiving land.",
 		"you",
+		"studying", "Studying",
 		{"hit", {0}}},
 	{"The rat is a scavenger of the shallows, perpetually in search of decaying animal matter.",
 		"it",
+		"gnawing at", "Eating",
 		{"scratches", "bites", {0}}},
 	{"The kobold is a lizardlike humanoid of the upper dungeon, usually not noted for its intelligence.",
 		"it",
+		"poking at", "Examining",
 		{"clubs", "bashes", {0}}},
 	{"The jackal prowls the caverns for intruders to rend with its powerful jaws.",
 		"it",
+		"tearing at", "Eating",
 		{"claws", "bites", "mauls", {0}}},
 	{"The eel slips silently through the subterranean lake, waiting for unsuspecting prey to set foot in its dark waters.",
 		"it",
+		"eating", "Eating",
 		{"shocks", "bites", {0}}},
 	{"Mischievous trickster that it is, the monkey lives to steal shiny trinkets from adventurers -- though it will never lay a hand on cursed items.",
 		"it",
+		"examining", "Examining",
 		{"tweaks", "bites", "punches", {0}}},
 	{"A bladder of deadly gas buoys the bloat through the air, its thin veinous membrane ready to rupture at the slightest stress.",
 		"it",
+		"gazing at", "Gazing",
 		{"bumps", {0}},
 		"bursts, leaving behind an expanding cloud of caustic gas!"},
 	{"A filthy little primate, the tribalistic goblin often travels in packs and carries a makeshift stone blade.",
 		"it",
+		"chanting over", "Chanting",
 		{"slashes", "cuts", "stabs", {0}}},
 	{"This goblin is covered with glowing sigils that pulse with power. It can call into existence phantom blades to attack its foes.",
 		"it",
+		"performing a ritual on", "Performing ritual",
 		{"thumps", "whacks", "wallops", {0}},
 		{0},
 		"gestures ominously!"},
 	{"Goblins have created this makeshift totem and imbued it with a shamanistic power.",
 		"it",
+		"gazing at", "Gazing",
 		{"hits", {0}}},
 	{"Eldritch forces have coalesced to form this flickering, ethereal weapon.",
 		"it",
+		"gazing at", "Gazing",
 		{"nicks",  {0}}},
-	{"This writhing mass of poisonous pink goo slips across the ground in search of a warm meal.",
+	{"This mass of poisonous pink goo slips across the ground in search of a warm meal.",
 		"it",
+		"absorbing", "Feeding",
 		{"smears", "slimes", "drenches"}},
 	{"The enormous, warty toad secretes a powerful hallucinogenic slime to befuddle the senses of any creatures that come in contact with it.",
 		"it",
+		"eating", "Eating",
 		{"slimes", "slams", {0}}},
 	{"Often hunting in packs, leathery wings and keen senses guide the vampire bat unerringly to its prey.",
 		"it",
+		"draining", "Feeding",
 		{"nips", "bites", {0}}},
 	{"A mechanical contraption embedded in the wall, the spring-loaded arrow turret will fire volley after volley of arrows at intruders.",
 		"it",
+		"gazing at", "Gazing",
 		{"shoots", {0}}},
 	{"The acid mound squelches softly across the ground, leaving a trail of acidic goo in its path.",
 		"it",
+		"liquefying", "Feeding",
 		{"slimes", "douses", "drenches", {0}}},
-	{"This monstrous centipede contains a horrible venom that can permanently sap the strength of its prey.",
+	{"This monstrous centipede's incisors are imbued with a horrible venom that will slowly kill its prey.",
 		"it",
+		"eating", "Eating",
 		{"pricks", "stings", {0}}},
 	{"This lumbering creature carries an enormous club that it can swing with incredible force.",
 		"he",
+		"examining", "Studying",
 		{"cudgels", "clubs", "batters", {0}}},
-	{"The horrifying bog monster dwells beneath the surface of mud-filled bogs. When its prey ventures into the mud, the bog monster will ensnare the unsuspecting victim with its pale tentacles and squeeze its life away.",
+	{"The horrifying bog monster dwells beneath the surface of mud-filled swamps. When its prey ventures into the mud, the bog monster will ensnare the unsuspecting victim with its pale tentacles and squeeze its life away.",
 		"it",
+		"draining", "Feeding",
 		{"squeezes", "strangles", "crushes", {0}}},
 	{"Ancient ogres versed in the eldritch arts have assembled this totem and imbued it with occult power.",
 		"it",
+		"gazing at", "Gazing",
 		{"hits", {0}}},
 	{"The spider's red eyes pierce the darkness in search of enemies to ensnare with its projectile webs and dissolve with deadly poison.",
 		"it",
+		"draining", "Feeding",
 		{"bites", "stings", {0}}},
 	{"This contraption pulses with electrical charge that its embedded crystals and magical sigils can direct at intruders in deadly arcs.",
 		"it",
+		"gazing at", "Gazing",
 		{"shocks", {0}}},
 	{"An ethereal blue flame dances through the air, flickering and pulsing in time to an otherworldly beat.",
 		"it",
+		"consuming", "Feeding",
 		{"scorches", "burns", {0}}},
 	{"The wraith's hollow eye sockets stare hungrily at the world from its emaciated frame, and its long, bloodstained nails grope ceaselessly at the air for a fresh victim.",
 		"it",
+		"devouring", "Feeding",
 		{"clutches", "claws", "bites", {0}}},
 	{"The zombie is the accursed product of a long-forgotten ritual. Its perpetually decaying flesh releases a putrid and flammable stench that will induce violent nausea in any who inhale it. ",
 		"it",
+		"rending", "Eating",
 		{"hits", "bites", {0}}},
 	{"An enormous, disfigured creature covered in phlegm and warts, the troll regenerates very quickly and attacks with astonishing strength. Many adventures have ended in its misshapen hands.",
 		"he",
+		"eating", "Eating",
 		{"cudgels", "clubs", "bludgeons", "pummels", "batters"}},
 	{"This ogre is bent with age, but what it has lost in physical strength, it has more than gained in occult power.",
 		"he",
+		"performing a ritual on", "Performing ritual",
 		{"cudgels", "clubs", {0}},
 		{0},
 		"chants in a harsh, gutteral tongue!"},
 	{"The serpentine naga live beneath the subterranean waters and emerge to attack unsuspecting adventurers.",
 		"she",
+		"studying", "Studying",
 		{"claws", "bites", "tail-whips", {0}}},
 	{"A serpent wreathed in flames and carrying a burning lash, salamanders dwell in lakes of fire and emerge when they sense a nearby victim, leaving behind a trail of glowing embers.",
 		"it",
+		"studying", "Studying",
 		{"claws", "whips", "lashes", {0}}},
 	{"An elf of the deep, the dar blademaster leaps toward his enemies with frightening speed to engage in deadly swordplay.",
 		"he",
+		"studying", "Studying",
 		{"grazes", "cuts", "slices", "slashes", "stabs"}},
 	{"The dar priestess carries a host of religious relics that jangle as she walks and glow faintly with arcane power.",
 		"she",
+		"praying over", "Praying",
 		{"cuts", "slices", {0}}},
 	{"The dar battlemage's eyes glow an angry shade of scarlet, and her hands radiate an occult heat.",
 		"she",
+		"transmuting", "Transmuting",
 		{"cuts", {0}}},
 	{"Half man and half horse, the centaur carries an enormous bow and quiver of arrows -- hunter and steed fused into a single creature.",
 		"he",
+		"studying", "Studying",
 		{"shoots", {0}}},
 	{"A green-flecked nozzle is embedded in the wall, ready to spew a stream of corrosive acid at intruders.",
 		"he",
+		"gazing at", "Gazing",
 		{"douses", "drenches", {0}}},
 	{"This gargantuan, pale nightmare of the watery depths will emerge to ensnare and devour any creature foolish enough to set foot into its lake.",
 		"it",
+		"devouring", "Feeding",
 		{"slaps", "smites", "batters", {0}}},
 	{"The desiccated form of a long-dead sorcerer animated by terrible rage and lust for power, the lich commands the obedience of the infernal planes and their foul inhabitants.",
 		"it",
+		"enchanting", "Enchanting",
 		{"touches", {0}},
 		{0},
 		"rasps a terrifying incantation!"},
 	{"A peculiar airborne nymph, the pixie can cause all manner of trouble with a variety of spells. What it lacks in physical endurance, it makes up for with its wealth of mischievous magical abilities.",
 		"she",
+		"sprinkling dust on", "Dusting",
 		{"pokes", {0}}},
 	{"A silhouette of mournful rage against an empty backdrop, the phantom slips through the dungeon invisibly in clear air, leaving behind glowing droplets of ectoplasm and the terrified cries of its unsuspecting victims.",
 		"it",
+		"permeating", "Permeating",
 		{"hits", {0}}},
-	{"This contraption is loaded with small darts, each of which is imbued with a deadly strength-draining toxin.",
+	{"This infernal contraption aims short blasts of deadly flame at intruders.",
 		"it",
+		"incinerating", "Incinerating",
 		{"pricks", {0}}},
 	{"This trickster demon moves with astonishing speed and delights in stealing from its enemies and teleporting away.",
 		"it",
+		"dissecting", "Dissecting",
 		{"slices", "cuts", {0}}},
 	{"A creature of inchoate rage made flesh, the fury's moist wings beat loudly in the darkness.",
 		"she",
+		"flagellating", "Flagellating",
 		{"drubs", "fustigates", "castigates", {0}}},
 	{"This unholy specter from the abyss stalks the deep places of the earth without fear, impervious to all conventional attacks.",
 		"it",
+		"desecrating", "Desecrating",
 		{"hits", {0}}},
-	{"This seething, towering nightmare of fleshy tentacles slinks through the bowels of the world. Its incredible strength and regeneration make it one of the most fearsome creatures of the dungeon",
+	{"This seething, towering nightmare of fleshy tentacles slinks through the bowels of the world. Its incredible strength and regeneration make it one of the most fearsome creatures of the dungeon.",
 		"it",
+		"sucking on", "Consuming",
 		{"slaps", "batters", "crushes", {0}}},
 	{"A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but its stone form can sustain an incredible amount of damage before being reduced to rubble.",
 		"it",
+		"cradling", "Cradling",
 		{"backhands", "punches", "kicks", {0}}},
-	{"An ancient serpent of the deepest places, the dragon's immense form belies its lightning-quick speed and testifies to its breathtaking strength. An undying furnace of white-hot flames burns eternally within its scaly hide, and few could withstand a single moment under its infernal lash.",
+	{"An ancient serpent of the world's deepest places, the dragon's immense form belies its lightning-quick speed and testifies to its breathtaking strength. An undying furnace of white-hot flames burns eternally within its scaly hide, and few could withstand a single moment under its infernal lash.",
 		"it",
+		"consuming", "Consuming",
 		{"claws", "bites", {0}}},
 };
 
 #pragma mark Monster Horde definitions
 
-hordeType hordeCatalog[NUMBER_HORDES] = {
+const hordeType hordeCatalog[NUMBER_HORDES] = {
 	// leader		#members	member list								member numbers					minL	maxL	freq	spawnsIn	flags
 	{MK_RAT,			0,		{0},									{{0}},							1,		5,		10},
 	{MK_KOBOLD,			0,		{0},									{{0}},							1,		6,		10},
@@ -768,7 +855,7 @@ hordeType hordeCatalog[NUMBER_HORDES] = {
 	
 	// summons
 	{MK_GOBLIN_CONJURER,1,		{MK_SPECTRAL_BLADE},					{{3, 5, 1}},					0,		0,		10,		0,			HORDE_IS_SUMMONED | HORDE_DIES_ON_LEADER_DEATH},
-	{MK_OGRE_SHAMAN,	1,		{MK_OGRE},								{{1, 3, 1}},					0,		0,		10,		0,			HORDE_IS_SUMMONED},
+	{MK_OGRE_SHAMAN,	1,		{MK_OGRE},								{{1, 1, 1}},					0,		0,		10,		0,			HORDE_IS_SUMMONED},
 	{MK_LICH,			1,		{MK_PHANTOM},							{{2, 3, 1}},					0,		0,		10,		0,			HORDE_IS_SUMMONED},
 	{MK_LICH,			1,		{MK_FURY},								{{2, 3, 1}},					0,		0,		10,		0,			HORDE_IS_SUMMONED},
 	
@@ -796,7 +883,7 @@ hordeType hordeCatalog[NUMBER_HORDES] = {
 
 // LEVELS
 
-levelProfile levelProfileCatalog[NUMBER_LEVEL_PROFILES] = {
+const levelProfile levelProfileCatalog[NUMBER_LEVEL_PROFILES] = {
 	//cave?		cross?	corrid?	door?	maxRms	maxLoops
 	{33,		100,	80,		60,		99,		30},
 };
@@ -807,7 +894,7 @@ levelProfile levelProfileCatalog[NUMBER_LEVEL_PROFILES] = {
 
 char itemTitles[NUMBER_SCROLL_KINDS][30];
 
-char titlePhonemes[NUMBER_TITLE_PHONEMES][30] = {
+const char titlePhonemes[NUMBER_TITLE_PHONEMES][30] = {
 	"glorp",
 	"snarg",
 	"gana",
@@ -827,7 +914,9 @@ char titlePhonemes[NUMBER_TITLE_PHONEMES][30] = {
 	"porta"
 };
 
-char itemColors[NUMBER_ITEM_COLORS][30] = {
+char itemColors[NUMBER_ITEM_COLORS][30];
+
+const char itemColorsRef[NUMBER_ITEM_COLORS][30] = {
 	"crimson",
 	"scarlet",
 	"orange",
@@ -851,7 +940,9 @@ char itemColors[NUMBER_ITEM_COLORS][30] = {
 	"black"
 };
 
-char itemWoods[NUMBER_ITEM_WOODS][30] = {
+char itemWoods[NUMBER_ITEM_WOODS][30];
+
+const char itemWoodsRef[NUMBER_ITEM_WOODS][30] = {
 	"teak",
 	"oak",
 	"redwood",
@@ -872,7 +963,9 @@ char itemWoods[NUMBER_ITEM_WOODS][30] = {
 	"yew"
 };
 
-char itemMetals[NUMBER_ITEM_METALS][30] = {
+char itemMetals[NUMBER_ITEM_METALS][30];
+
+const char itemMetalsRef[NUMBER_ITEM_METALS][30] = {
 	"bronze",
 	"steel",
 	"brass",
@@ -884,7 +977,9 @@ char itemMetals[NUMBER_ITEM_METALS][30] = {
 	"titanium",
 };
 
-char itemGems[NUMBER_ITEM_GEMS][30] = {
+char itemGems[NUMBER_ITEM_GEMS][30];
+
+const char itemGemsRef[NUMBER_ITEM_GEMS][30] = {
 	"diamond",
 	"opal",
 	"garnet",
@@ -916,42 +1011,42 @@ char itemGems[NUMBER_ITEM_GEMS][30] = {
 //	randomRange range;
 //} itemTable;
 
-itemTable foodTable[NUMBER_FOOD_KINDS] = {
+const itemTable foodTable[NUMBER_FOOD_KINDS] = {
 	{"ration of food",	"", "", 3, 25,	1800, {0,0,0}, true, false},
 	{"mango",			"", "", 1, 15,	1550, {0,0,0}, true, false}
 };
 
-itemTable weaponTable[NUMBER_WEAPON_KINDS] = {
-	{"dagger",				"", "", 10, 100,		2,	{2,	5,	1}, true, false},	// avg dmg 3.5
+const itemTable weaponTable[NUMBER_WEAPON_KINDS] = {
+	{"dagger",				"", "", 10, 100,		10,	{2,	5,	1}, true, false},	// avg dmg 3.5
 	{"short sword",			"", "", 10, 300,		12, {2,	8,	2}, true, false},	// avg dmg 5
 	{"mace",				"", "", 10,	500,		14, {3,	12, 2}, true, false},	// avg dmg 7.5
 	{"long sword",			"", "", 10, 700,		16, {3,	20, 3}, true, false},	// avg dmg 11.5
 	{"two-handed sword",	"", "", 10, 1200,		19, {5,	30, 4}, true, false},	// avg dmg 17.5
-	{"dart",				"", "",	5,	15,			0,	{1,	3,	1},	true, false},	// avg dmg 2
-	{"shuriken",			"", "",	10, 25,			5,	{2,	5,	1}, true, false},	// avg dmg 3.5
+	{"dart",				"", "",	0,	15,			10,	{1,	3,	1},	true, false},	// avg dmg 2
+	{"incendiary dart",		"", "",	10, 25,			12,	{1,	2,	1}, true, false},	// avg dmg 1.5
 	{"javelin",				"", "",	10, 40,			15,	{3, 11, 3},	true, false}	// avg dmg 7
 };
 
-itemTable armorTable[NUMBER_ARMOR_KINDS] = {
-	{"leather armor",	"", "", 10,	250,		0,	{30,30,0},		true, false},
+const itemTable armorTable[NUMBER_ARMOR_KINDS] = {
+	{"leather armor",	"", "", 10,	250,		10,	{30,30,0},		true, false},
 	{"scale mail",		"", "", 10, 350,		12, {40,40,0},		true, false},
 	{"chain mail",		"", "", 10, 500,		13, {50,50,0},		true, false},
 	{"banded mail",		"", "", 10, 800,		15, {70,70,0},		true, false},
 	{"splint mail",		"", "", 10, 1000,		17, {90,90,0},		true, false},
-	{"plate mail",		"", "", 10, 1300,		19, {120,120,0},	true, false}
+	{"plate armor",		"", "", 10, 1300,		19, {120,120,0},	true, false}
 };
 
 itemTable scrollTable[NUMBER_SCROLL_KINDS] = {
 	{"identify",			itemTitles[0], "",	30,	100,	0,{0,0,0}, false, false},
 	{"teleportation",		itemTitles[1], "",	10,	500,	0,{0,0,0}, false, false},
 	{"remove curse",		itemTitles[2], "",	15,	150,	0,{0,0,0}, false, false},
-	{"enchanting",			itemTitles[3], "",	0,	525,	0,{0,0,0}, false, false}, // frequency dynamically adjusted
-	{"protect armor",		itemTitles[4], "",	10,	400,	0,{0,0,0}, false, false},
-	{"protect weapon",		itemTitles[5], "",	10,	375,	0,{0,0,0}, false, false},
-	{"magic mapping",		itemTitles[6], "",	12,	500,	0,{0,0,0}, false, false},
-	{"aggravate monsters",	itemTitles[7], "",	15,	50,		0,{0,0,0}, false, false},
-	{"summon monsters",		itemTitles[8], "",	10,	175,	0,{0,0,0}, false, false},
-	{"darkness",			itemTitles[9], "",	7,	30,		0,{0,0,0}, false, false},
+	{"enchanting",			itemTitles[3], "",	0,	525,	0,{0,0,0}, false, false}, // frequency is dynamically adjusted
+	{"recharging",			itemTitles[4], "",	12,	375,	0,{0,0,0}, false, false},
+	{"protect armor",		itemTitles[5], "",	10,	400,	0,{0,0,0}, false, false},
+	{"protect weapon",		itemTitles[6], "",	10,	400,	0,{0,0,0}, false, false},
+	{"magic mapping",		itemTitles[7], "",	12,	500,	0,{0,0,0}, false, false},
+	{"aggravate monsters",	itemTitles[8], "",	15,	50,		0,{0,0,0}, false, false},
+	{"summon monsters",		itemTitles[9], "",	10,	175,	0,{0,0,0}, false, false},
 	{"cause fear",			itemTitles[10], "",	10,	500,	0,{0,0,0}, false, false},
 	{"sanctuary",			itemTitles[11], "",	5,	850,	0,{0,0,0}, false, false}
 };
@@ -965,14 +1060,14 @@ itemTable potionTable[NUMBER_POTION_KINDS] = {
 	{"detect magic",		itemColors[5], "",	20,	300,	0,{0,0,0}, false, false},
 	{"speed",				itemColors[6], "",	10,	500,	0,{0,0,0}, false, false},
 	{"fire immunity",		itemColors[7], "",	15,	500,	0,{0,0,0}, false, false},
-	{"gain strength",		itemColors[8], "",	0,	400,	0,{0,0,0}, false, false}, // frequency dynamically adjusted
-	{"restore strength",	itemColors[9], "",	20,	200,	0,{0,0,0}, false, false},
-	{"weakness",			itemColors[10], "",	15,	50,		0,{0,0,0}, false, false},
-	{"poisonous gas",		itemColors[11], "",	15,	200,	0,{0,0,0}, false, false},
-	{"paralysis",			itemColors[12], "",	10, 250,	0,{0,0,0}, false, false},
-	{"hallucination",		itemColors[13], "",	10,	500,	0,{0,0,0}, false, false},
-	{"confusion",			itemColors[14], "",	15,	450,	0,{0,0,0}, false, false},
-	{"incineration",		itemColors[15], "",	15,	500,	0,{0,0,0}, false, false},
+	{"strength",			itemColors[8], "",	0,	400,	0,{0,0,0}, false, false}, // frequency is dynamically adjusted
+	{"poisonous gas",		itemColors[9], "",	15,	200,	0,{0,0,0}, false, false},
+	{"paralysis",			itemColors[10], "",	10, 250,	0,{0,0,0}, false, false},
+	{"hallucination",		itemColors[11], "",	10,	500,	0,{0,0,0}, false, false},
+	{"confusion",			itemColors[12], "",	15,	450,	0,{0,0,0}, false, false},
+	{"incineration",		itemColors[13], "",	15,	500,	0,{0,0,0}, false, false},
+	{"darkness",			itemColors[14], "",	7,	30,		0,{0,0,0}, false, false},
+	{"descent",				itemColors[15], "",	15,	500,	0,{0,0,0}, false, false},
 	{"creeping death",		itemColors[16], "",	7,	450,	0,{0,0,0}, false, false},
 };
 
@@ -980,10 +1075,11 @@ itemTable wandTable[NUMBER_WAND_KINDS] = {
 	{"teleportation",	itemMetals[0], "",	1,	800,	0,{2,5,1}, false, false},
 	{"beckoning",		itemMetals[1], "",	1,	500,	0,{2,4,1}, false, false},
 	{"slowness",		itemMetals[2], "",	1,	800,	0,{2,5,1}, false, false},
-	{"plenty",			itemMetals[3], "",	1,	10,		0,{2,4,1}, false, false},
+	{"plenty",			itemMetals[3], "",	1,	700,	0,{2,4,1}, false, false},
 	{"polymorphism",	itemMetals[4], "",	1,	700,	0,{3,5,1}, false, false},
-	{"invisibility",	itemMetals[5], "",	1,	10,		0,{3,5,1}, false, false},
+	{"invisibility",	itemMetals[5], "",	1,	100,	0,{3,5,1}, false, false},
 	{"cancellation",	itemMetals[6], "",	1,	550,	0,{4,6,1}, false, false},
+	{"domination",		itemMetals[7], "",	1,	1000,	0,{1,2,1}, false, false},
 };
 
 itemTable staffTable[NUMBER_STAFF_KINDS] = {
@@ -997,9 +1093,10 @@ itemTable staffTable[NUMBER_STAFF_KINDS] = {
 	{"haste",			itemWoods[7], "",	2,	1000,	0,{2,4,1}, false, false},
 	{"obstruction",		itemWoods[8], "",	2,	1000,	0,{2,4,1}, false, false},
 	{"discord",			itemWoods[9], "",	2,	1000,	0,{2,4,1}, false, false},
+	{"conjuration",		itemWoods[10],"",	2,	1000,	0,{2,4,1}, false, false},
 };
 
-color *boltColors[NUMBER_BOLT_KINDS] = {
+const color *boltColors[NUMBER_BOLT_KINDS] = {
 	&blue,				// teleport other
 	&beckonColor,		// beckoning
 	&green,				// slow
@@ -1007,6 +1104,7 @@ color *boltColors[NUMBER_BOLT_KINDS] = {
 	&purple,			// polymorph
 	&darkBlue,			// invisibility
 	&pink,				// cancellation
+	&dominationColor,	// domination
 	&lightningColor,	// lightning
 	&fireForeColor,		// fire
 	&poisonColor,		// poison
@@ -1017,6 +1115,7 @@ color *boltColors[NUMBER_BOLT_KINDS] = {
 	&orange,			// haste
 	&forceFieldColor,	// obstruction
 	&discordColor,		// discord
+	&spectralBladeColor,// conjuration
 };
 
 itemTable ringTable[NUMBER_RING_KINDS] = {
@@ -1024,14 +1123,14 @@ itemTable ringTable[NUMBER_RING_KINDS] = {
 	{"stealth",			itemGems[1], "",	1,	800,	0,{1,3,1}, false, false},
 	{"regeneration",	itemGems[2], "",	1,	750,	0,{1,3,1}, false, false},
 	{"transference",	itemGems[3], "",	1,	750,	0,{1,3,1}, false, false},
-	{"perception",		itemGems[4], "",	1,	600,	0,{1,3,1}, false, false},
+	{"light",			itemGems[4], "",	1,	600,	0,{1,3,1}, false, false},
 	{"awareness",		itemGems[5], "",	1,	700,	0,{1,3,1}, false, false},
 	{"reflection",		itemGems[6], "",	1,	700,	0,{1,3,1}, false, false},
 };
 
 #pragma mark Miscellaneous definitions
 
-short goodItems[NUMBER_GOOD_ITEMS][2] = {
+const short goodItems[NUMBER_GOOD_ITEMS][2] = {
 	{WEAPON,	TWO_HANDED_SWORD},
 	{ARMOR,		PLATE_MAIL},
 	{STAFF,		STAFF_LIGHTNING},
@@ -1043,11 +1142,11 @@ short goodItems[NUMBER_GOOD_ITEMS][2] = {
 	{RING,		RING_CLAIRVOYANCE},
 	{RING,		RING_REGENERATION},
 	{RING,		RING_TRANSFERENCE},
-	{RING,		RING_PERCEPTION},
+	{RING,		RING_LIGHT},
 	{RING,		RING_AWARENESS},
 };
 
-char monsterBehaviorFlagDescriptions[32][COLS] = {
+const char monsterBehaviorFlagDescriptions[32][COLS] = {
 	"is invisible",								// MONST_INVISIBLE
 	"is an inanimate object",					// MONST_INANIMATE
 	"cannot move",								// MONST_IMMOBILE
@@ -1074,10 +1173,10 @@ char monsterBehaviorFlagDescriptions[32][COLS] = {
 	"can teleport when fleeing",				// MONST_TELEPORTS
 };
 
-char monsterAbilityFlagDescriptions[32][COLS] = {
+const char monsterAbilityFlagDescriptions[32][COLS] = {
 	"can induce hallucinations",				// MA_HIT_HALLUCINATE
 	"can steal items",							// MA_HIT_STEAL_FLEE
-	"can sap strength",							// MA_HIT_SAP_STRENGTH
+	"",											// unused
 	"corrodes armor upon hitting",				// MA_HIT_DEGRADE_ARMOR
 	"can heal its allies",						// MA_CAST_HEAL
 	"can haste its allies",						// MA_CAST_HASTE
@@ -1098,7 +1197,7 @@ char monsterAbilityFlagDescriptions[32][COLS] = {
 	"dies when attacking",						// MA_KAMIKAZE
 };
 
-char monsterBookkeepingFlagDescriptions[32][COLS] = {
+const char monsterBookkeepingFlagDescriptions[32][COLS] = {
 	"",											// MONST_WAS_VISIBLE
 	"",											// MONST_ADDED_TO_STATS_BAR
 	"",											// MONST_PREPLACED
@@ -1109,7 +1208,7 @@ char monsterBookkeepingFlagDescriptions[32][COLS] = {
 	"",											// MONST_FOLLOWER
 	"",											// MONST_CAPTIVE
 	"has been immobilized",						// MONST_SEIZED
-	"is holding prey immobile",					// MONST_SEIZING
+	"is currently holding prey immobile",		// MONST_SEIZING
 	"is submerged",								// MONST_SUBMERGED
 	"",											// MONST_JUST_SUMMONED
 	"",											// MONST_WILL_FLASH
