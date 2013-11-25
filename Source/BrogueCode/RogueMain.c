@@ -357,6 +357,7 @@ void initializeRogue(unsigned long seed) {
 	rogue.previousHealthPercent = 100;
 	player.creatureState = MONSTER_ALLY;
 	player.ticksUntilTurn = 0;
+    player.mutationIndex = -1;
 	
 	rogue.depthLevel = 1;
     rogue.deepestLevel = 1;
@@ -548,6 +549,11 @@ void initializeRogue(unsigned long seed) {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
+		theItem = generateItem(CHARM, CHARM_TELEPORTATION);
+        theItem->enchant1 = 15;
+		identify(theItem);
+		theItem = addItemToPack(theItem);
+		
 //		short i;
 //		for (i=0; i < NUMBER_CHARM_KINDS && i < 4; i++) {
 //			theItem = generateItem(CHARM, i);
@@ -583,6 +589,8 @@ void startLevel(short oldLevelNumber, short stairDirection) {
     if (oldLevelNumber == DEEPEST_LEVEL && stairDirection != -1) {
         return;
     }
+    
+    synchronizePlayerTimeState();
 	
 	rogue.cursorLoc[0] = -1;
 	rogue.cursorLoc[1] = -1;
@@ -629,7 +637,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 					&& !monst->status[STATUS_PARALYZED]
 					&& mapToStairs[monst->xLoc][monst->yLoc] < 30000) {
 					
-					monst->status[STATUS_ENTERS_LEVEL_IN] = max(1, mapToStairs[monst->xLoc][monst->yLoc] * monst->movementSpeed / 100);
+					monst->status[STATUS_ENTERS_LEVEL_IN] = max(1, mapToStairs[monst->xLoc][monst->yLoc] * monst->movementSpeed / 100 + 1);
 					switch (stairDirection) {
 						case 1:
 							monst->bookkeepingFlags |= MONST_APPROACHING_DOWNSTAIRS;
@@ -1004,6 +1012,8 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 	rogueHighScoresEntry theEntry;
 	cellDisplayBuffer dbuf[COLS][ROWS];
 	boolean playback;
+	rogueEvent theEvent;
+    item *theItem;
 	
 	rogue.autoPlayingLevel = false;
 	
@@ -1021,7 +1031,32 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 		if (!D_IMMORTAL) {
 			rogue.playbackMode = false;
 		}
-		messageWithColor("You die...", &badMessageColor, true);
+        strcpy(buf, "You die...");
+        encodeMessageColor(buf, strlen(buf), &veryDarkGray);
+        strcat(buf, " (press 'i' to view your inventory)");
+		messageWithColor(buf, &badMessageColor, false);
+        displayMoreSignWithoutWaitingForAcknowledgment();
+        
+        do {
+            nextBrogueEvent(&theEvent, false, false, false);
+            if (theEvent.eventType == KEYSTROKE
+                && theEvent.param1 != ACKNOWLEDGE_KEY
+                && theEvent.param1 != ESCAPE_KEY
+                && theEvent.param1 != INVENTORY_KEY) {
+                
+                flashTemporaryAlert(" -- Press space or click to continue, or press 'i' to view inventory -- ", 1500);
+            } else if (theEvent.eventType == KEYSTROKE && theEvent.param1 == INVENTORY_KEY) {
+                for (theItem = packItems->nextItem; theItem != NULL; theItem = theItem->nextItem) {
+                    identify(theItem);
+                    theItem->flags &= ~ITEM_MAGIC_DETECTED;
+                }
+                displayInventory(ALL_ITEMS, 0, 0, true, false);
+            }
+        } while (!(theEvent.eventType == KEYSTROKE && (theEvent.param1 == ACKNOWLEDGE_KEY || theEvent.param1 == ESCAPE_KEY)
+                   || theEvent.eventType == MOUSE_UP));
+        
+        confirmMessages();
+        
 		rogue.playbackMode = playback;
 	}
     
@@ -1053,7 +1088,7 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 		sprintf(buf, "%s on level %i%s.", killedBy, rogue.depthLevel,
 				(numberOfMatchingPackItems(AMULET, 0, 0, false) > 0 ? ", amulet in hand" : ""));
 	} else {
-		sprintf(buf, "Killed by a%s %s on level %i%s.", (isVowel(killedBy) ? "n" : ""), killedBy,
+		sprintf(buf, "Killed by a%s %s on level %i%s.", (isVowelish(killedBy) ? "n" : ""), killedBy,
 				rogue.depthLevel, (numberOfMatchingPackItems(AMULET, 0, 0, false) > 0 ? ", amulet in hand" : ""));
 	}
 	
@@ -1092,17 +1127,17 @@ void victory(boolean superVictory) {
 	
 	deleteMessages();
     if (superVictory) {
-        message("Light streams through the portal, and you are teleported out of the dungeon.", false);
+        message(    "Light streams through the portal, and you are teleported out of the dungeon.", false);
         copyDisplayBuffer(dbuf, displayBuffer);
         funkyFade(dbuf, &superVictoryColor, 0, 120, mapToWindowX(player.xLoc), mapToWindowY(player.yLoc), false);
         displayMoreSign();
-        printString("Congratulations; you have transcended the Dungeons of Doom!               ", mapToWindowX(0), mapToWindowY(-1), &black, &white, 0);
+        printString("Congratulations; you have transcended the Dungeons of Doom!                 ", mapToWindowX(0), mapToWindowY(-1), &black, &white, 0);
         displayMoreSign();
         clearDisplayBuffer(dbuf);
         deleteMessages();
         strcpy(displayedMessage[0], "You retire in splendor, forever renowned for your remarkable triumph.     ");
     } else {
-        message("You are bathed in sunlight as you throw open the heavy doors.", false);
+        message(    "You are bathed in sunlight as you throw open the heavy doors.", false);
         copyDisplayBuffer(dbuf, displayBuffer);
         funkyFade(dbuf, &white, 0, 100, mapToWindowX(player.xLoc), mapToWindowY(player.yLoc), false);
         displayMoreSign();

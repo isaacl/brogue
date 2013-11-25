@@ -84,12 +84,18 @@ short hitProbability(creature *attacker, creature *defender) {
 	if (defender->status[STATUS_STUCK] || (defender->bookkeepingFlags & MONST_CAPTIVE)) {
 		return 100;
 	}
+    
+    if ((defender->bookkeepingFlags & MONST_SEIZED)
+        && (attacker->bookkeepingFlags & MONST_SEIZING)) {
+        
+        return 100;
+    }
 	
 	if (attacker == &player && rogue.weapon) {
         if ((rogue.weapon->flags & ITEM_RUNIC) && rogue.weapon->enchant2 == W_SLAYING && rogue.weapon->vorpalEnemy == defender->info.monsterID) {
             return 100;
         }
-		accuracy *= (pow(WEAPON_ENCHANT_ACCURACY_FACTOR, netEnchant(rogue.weapon)) + FLOAT_FUDGE);
+		accuracy = (double) player.info.accuracy * pow(WEAPON_ENCHANT_ACCURACY_FACTOR, netEnchant(rogue.weapon) + FLOAT_FUDGE);
 	}
 	
 	hitProbability = accuracy * pow(DEFENSE_FACTOR, defense);
@@ -400,8 +406,7 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 	
 	// Special hits that can affect only the player:
 	if (defender == &player) {
-		
-		if (playerImmuneToMonster(attacker)) {
+        if (playerImmuneToMonster(attacker)) {
 			return;
 		}
 		
@@ -484,7 +489,7 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 		if (!defender->status[STATUS_POISONED]) {
 			defender->maxStatus[STATUS_POISONED] = 0;
 		}
-		defender->status[STATUS_POISONED] = max(defender->status[STATUS_POISONED], damage);
+		defender->status[STATUS_POISONED] += damage;
 		defender->maxStatus[STATUS_POISONED] = defender->info.maxHP;
 	}
 	if ((attacker->info.abilityFlags & MA_CAUSES_WEAKNESS)
@@ -633,13 +638,13 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 //					getQualifyingLocNear(newLoc, defender->xLoc, defender->yLoc, true, 0,
 //										 T_PATHING_BLOCKER & ~(T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_AUTO_DESCENT),
 //										 (HAS_PLAYER | HAS_MONSTER), false, false);
-					newMonst = generateMonster(MK_SPECTRAL_IMAGE, true);
+					newMonst = generateMonster(MK_SPECTRAL_IMAGE, true, false);
                     getQualifyingPathLocNear(&(newMonst->xLoc), &(newMonst->yLoc), defender->xLoc, defender->yLoc, true,
                                              T_DIVIDES_LEVEL & avoidedFlagsForMonster(&(newMonst->info)), HAS_PLAYER,
                                              avoidedFlagsForMonster(&(newMonst->info)), (HAS_PLAYER | HAS_MONSTER | HAS_UP_STAIRS | HAS_DOWN_STAIRS), false);
 //					newMonst->xLoc = newLoc[0];
 //					newMonst->yLoc = newLoc[1];
-					newMonst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER);
+					newMonst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER | MONST_TELEPATHICALLY_REVEALED);
 					newMonst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
 					newMonst->leader = &player;
 					newMonst->creatureState = MONSTER_ALLY;
@@ -676,6 +681,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 					pmap[newMonst->xLoc][newMonst->yLoc].flags |= HAS_MONSTER;
 					fadeInMonster(newMonst);
 				}
+                updateVision(true);
 				
 				message(buf, false);
 				break;
@@ -804,7 +810,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 			if (melee && !(attacker->info.flags & MONST_INANIMATE) && rand_percent(33)) {
 				for (i = 0; i < armorImageCount(enchant); i++) {
 					monst = cloneMonster(attacker, false, true);
-					monst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER);
+					monst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER | MONST_TELEPATHICALLY_REVEALED);
 					monst->info.flags |= MONST_DIES_IF_NEGATED;
 					monst->bookkeepingFlags &= ~(MONST_JUST_SUMMONED | MONST_SEIZED | MONST_SEIZING);
 					monst->info.abilityFlags &= ~MA_CAST_SUMMON; // No summoning by spectral images. Gotta draw the line!
@@ -835,6 +841,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 					}
 					fadeInMonster(monst);
 				}
+                updateVision(true);
 				
 				runicDiscovered = true;
 				sprintf(returnString, "Your %s flashes, and spectral images of %s appear!", armorName, attackerName);
@@ -983,7 +990,7 @@ boolean attack(creature *attacker, creature *defender, boolean lungeAttack) {
 	
 	degradesAttackerWeapon = (defender->info.flags & MONST_DEFEND_DEGRADE_WEAPON ? true : false);
 	
-	sightUnseen = !(canSeeMonster(attacker) || canSeeMonster(defender));
+	sightUnseen = !canSeeMonster(attacker) && !canSeeMonster(defender);
 	
 	if (defender->status[STATUS_LEVITATING] && (attacker->info.flags & MONST_RESTRICTED_TO_LIQUID)) {
 		return false; // aquatic or other liquid-bound monsters cannot attack flying opponents
@@ -1034,10 +1041,6 @@ boolean attack(creature *attacker, creature *defender, boolean lungeAttack) {
         }
         if (sneakAttack || defenderWasAsleep || defenderWasParalyzed || lungeAttack) {
 			damage *= 3; // Treble damage for sneak attacks!
-		}
-		
-		if (defender == &player && rogue.depthLevel == 1) {
-			damage = (damage + 1) /2; // player takes half damage on depth 1
 		}
 		
 		damage = min(damage, defender->currentHP); // Can't do more damage to a creature than it has remaining health.

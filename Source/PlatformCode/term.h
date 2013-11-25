@@ -16,6 +16,7 @@ struct term_t {
 	int (*hasKey)();
 	void (*title)(const char *);
 	void (*resize)(int w, int h);
+	int (*keycodeByName)(const char *);
 
 	struct {
 		int up, down, left, right, backspace, del, quit;

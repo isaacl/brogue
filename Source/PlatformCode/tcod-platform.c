@@ -6,6 +6,10 @@
 #include "libtcod.h"
 #include "platform.h"
 
+#if TCOD_TECHVERSION >= 0x01050103
+#define USE_NEW_TCOD_API
+#endif
+
 extern playerCharacter rogue;
 extern TCOD_renderer_t renderer;
 extern short brogueFontSize;
@@ -195,6 +199,13 @@ struct mapsymbol {
 static struct mapsymbol *keymap = NULL;
 
 static void rewriteKey(TCOD_key_t *key, boolean text) {
+	if (key->vk == TCODK_CHAR && (SDL_GetModState() & KMOD_CAPS)) {
+		// cancel out caps lock
+		if (!key->shift) {
+			key->c = tolower(key->c);
+		}
+	}
+
 	struct mapsymbol *s = keymap;
 	while (s != NULL) {
 		if (key->vk == s->in_vk) {
@@ -221,12 +232,6 @@ static void getModifiers(rogueEvent *returnEvent) {
 // returns true if input is acceptable
 static boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent, boolean text)
 {
-	if ((SDL_GetModState() & KMOD_CAPS)) {
-		if (key.c && !key.shift) {
-			key.c = tolower(key.c);
-		}
-	}
-
 	if (processSpecialKeystrokes(key, text)) {
 		return false;
 	}
@@ -322,7 +327,7 @@ static boolean tcod_pauseForMilliseconds(short milliseconds)
 	TCOD_console_flush();
 	TCOD_sys_sleep_milli((unsigned int) milliseconds);
 
-	#ifdef TCOD_EVENT_MOUSE
+	#ifdef USE_NEW_TCOD_API
 	if (bufferedKey.vk == TCODK_NONE) {
 		TCOD_sys_check_for_event(TCOD_EVENT_KEY_PRESS | TCOD_EVENT_MOUSE, &bufferedKey, &mouse);
 	} else {
@@ -429,7 +434,7 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 			TCOD_console_flush();
 		}
 
-		#ifdef TCOD_EVENT_MOUSE
+		#ifdef USE_NEW_TCOD_API
 		TCOD_sys_check_for_event(TCOD_EVENT_KEY_PRESS | TCOD_EVENT_MOUSE, &key, &mouse);
 		#else
 		key = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
@@ -439,12 +444,10 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 		if (processKeystroke(key, returnEvent, textInput)) {
 			return;
 		}
-		
-		mouse = TCOD_mouse_get_status();
-		// x = mouse.cx;
-		// y = mouse.cy;
 
-		if (serverMode || (SDL_GetAppState() & SDL_APPMOUSEFOCUS)) {
+		mouse = TCOD_mouse_get_status();
+
+		if (serverMode || (SDL_GetAppState() & SDL_APPACTIVE)) {
 			x = mouse.cx;
 			y = mouse.cy;
 		} else {
@@ -584,7 +587,6 @@ char *tcodkeys[] = {
 	"CHAR",
 	NULL
 };
-
 
 static void tcod_remap(const char *input_name, const char *output_name) {
 	// find input and output in the list of tcod keys, if it's there

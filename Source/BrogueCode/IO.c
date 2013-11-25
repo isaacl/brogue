@@ -470,7 +470,7 @@ void mainInputLoop() {
 					rogue.playbackMode = false;
 					
 					focusedOnMonster = true;
-					if (monst != &player && (!player.status[STATUS_HALLUCINATING] || playingBack)) {
+					if (monst != &player && (!player.status[STATUS_HALLUCINATING] || rogue.playbackOmniscience)) {
 						printMonsterDetails(monst, rbuf);
 						textDisplayed = true;
 					}
@@ -480,7 +480,7 @@ void mainInputLoop() {
 					rogue.playbackMode = false;
 					
 					focusedOnItem = true;
-					if (!player.status[STATUS_HALLUCINATING] || playingBack) {
+					if (!player.status[STATUS_HALLUCINATING] || rogue.playbackOmniscience) {
 						printFloorItemDetails(theItem, rbuf);
 						textDisplayed = true;
 					}
@@ -846,7 +846,7 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 	
 	if (!playerCanSeeOrSense(x, y)
 		&& !(pmap[x][y].flags & (ITEM_DETECTED | HAS_PLAYER))
-		&& (!player.status[STATUS_TELEPATHIC] || !monst || (monst->info.flags & MONST_INANIMATE))
+		&& (!monst || !monsterRevealed(monst))
 		&& !monsterWithDetectedItem
 		&& (pmap[x][y].flags & (DISCOVERED | MAGIC_MAPPED))
 		&& (pmap[x][y].flags & STABLE_MEMORY)) {
@@ -938,14 +938,15 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 		} else if ((pmap[x][y].flags & HAS_MONSTER)
 				   && (playerCanSeeOrSense(x, y) || ((monst->info.flags & MONST_IMMOBILE) && (pmap[x][y].flags & DISCOVERED)))
 				   && (!monst->status[STATUS_INVISIBLE] || monst->creatureState == MONSTER_ALLY || rogue.playbackOmniscience)
-				   && (!(monst->bookkeepingFlags & MONST_SUBMERGED) || rogue.inWater)) {
+				   && (!(monst->bookkeepingFlags & MONST_SUBMERGED) || rogue.inWater || rogue.playbackOmniscience)) {
 			needDistinctness = true;
 			if (player.status[STATUS_HALLUCINATING] > 0 && !(monst->info.flags & MONST_INANIMATE) && !rogue.playbackOmniscience) {
 				cellChar = rand_range('a', 'z') + (rand_range(0, 1) ? 'A' - 'a' : 0);
 				cellForeColor = *(monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)].foreColor);
 			} else {
 				cellChar = monst->info.displayChar;
-				if (monst->status[STATUS_INVISIBLE]) { // Invisible allies show up on the screen with a transparency effect.
+				if (monst->status[STATUS_INVISIBLE] || (monst->bookkeepingFlags & MONST_SUBMERGED)) {
+                    // Invisible allies show up on the screen with a transparency effect.
 					cellForeColor = cellBackColor;
 				} else {
 					cellForeColor = *(monst->info.foreColor);
@@ -957,9 +958,8 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 				}
 				//DEBUG if (monst->bookkeepingFlags & MONST_LEADER) applyColorAverage(&cellBackColor, &purple, 50);
 			}
-		} else if (player.status[STATUS_TELEPATHIC] > 0
-				   && (pmap[x][y].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER))
-				   && !(monst->info.flags & MONST_INANIMATE)
+		} else if (monst
+                   && monsterRevealed(monst)
 				   && !canSeeMonster(monst)) {
 			if (player.status[STATUS_HALLUCINATING] && !rogue.playbackOmniscience) {
 				cellChar = (rand_range(0, 1) ? 'X' : 'x');
@@ -1000,7 +1000,7 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 			// phantoms create sillhouettes in gas clouds
 			if ((pmap[x][y].flags & HAS_MONSTER)
 				&& monst->status[STATUS_INVISIBLE]
-				&& (playerCanSeeOrSense(x, y) || !player.status[STATUS_TELEPATHIC] || (monst->info.flags & MONST_INANIMATE))) {
+				&& (playerCanSeeOrSense(x, y) || !monsterRevealed(monst))) {
 				
 				if (player.status[STATUS_HALLUCINATING] && !rogue.playbackOmniscience) {
 					cellChar = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)].displayChar;
@@ -1014,7 +1014,7 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 		
 		if (!(pmap[x][y].flags & (ANY_KIND_OF_VISIBLE | ITEM_DETECTED | HAS_PLAYER))
 			&& !playerCanSeeOrSense(x, y)
-			&& (!player.status[STATUS_TELEPATHIC] || !monst || (monst->info.flags & MONST_INANIMATE)) && !monsterWithDetectedItem) {
+			&& (!monst || monsterRevealed(monst)) && !monsterWithDetectedItem) {
 			
 			bakeTerrainColors(&cellForeColor, &cellBackColor, x, y);
 			
@@ -1047,8 +1047,7 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 	}
 	
 	if (((pmap[x][y].flags & ITEM_DETECTED) || monsterWithDetectedItem
-		 || (player.status[STATUS_TELEPATHIC] > 0 && (pmap[x][y].flags & (HAS_MONSTER | HAS_DORMANT_MONSTER))
-			 && monst && !(monst->info.flags & MONST_INANIMATE)))
+		 || (monst && monsterRevealed(monst)))
 		&& !playerCanSeeOrSense(x, y)) {
 		// do nothing
 	} else if (!(pmap[x][y].flags & VISIBLE) && (pmap[x][y].flags & CLAIRVOYANT_VISIBLE)) {
@@ -1092,7 +1091,9 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 			applyColorAverage(&cellForeColor, &black, 80);
 			applyColorAverage(&cellBackColor, &black, 80);
 		} else {
-			if (!rogue.trueColorMode || !needDistinctness) {
+			if (!cellHasTMFlag(x, y, TM_BRIGHT_MEMORY)
+                && (!rogue.trueColorMode || !needDistinctness)) {
+                
 				applyColorMultiplier(&cellForeColor, &memoryColor);
 				applyColorAverage(&cellForeColor, &memoryOverlay, 25);
 			}
@@ -2652,7 +2653,7 @@ void temporaryMessage(char *msg, boolean requireAcknowledgment) {
 }
 
 void messageWithColor(char *msg, color *theColor, boolean requireAcknowledgment) {
-	char buf[COLS*2];
+	char buf[COLS*2] = "";
 	short i;
 	
 	i=0;
@@ -2752,6 +2753,15 @@ void message(const char *msg, boolean requireAcknowledgment) {
 	
 	messageWithoutCaps(msgPtr, requireAcknowledgment);
 	restoreRNG;
+}
+
+// Only used for the "you die..." message, to enable posthumous inventory viewing.
+void displayMoreSignWithoutWaitingForAcknowledgment() {
+	if (strLenWithoutEscapes(displayedMessage[0]) < DCOLS - 8 || messageConfirmed[0]) {
+		printString("--MORE--", COLS - 8, MESSAGE_LINES-1, &black, &white, 0);
+	} else {
+		printString("--MORE--", COLS - 8, MESSAGE_LINES, &black, &white, 0);
+	}
 }
 
 void displayMoreSign() {
@@ -3667,11 +3677,8 @@ void printProgressBar(short x, short y, const char barLabel[COLS], long amtFille
 	
 	if (dim) {
 		applyColorAverage(&progressBarColor, &black, 50);
-		applyColorAverage(&darkenedBarColor, &black, 50);
 	}
-	
 	darkenedBarColor = progressBarColor;
-	
 	applyColorAverage(&darkenedBarColor, &black, 75);
 	
 	labelOffset = (20 - strlen(barLabel)) / 2;
@@ -3714,7 +3721,7 @@ void highlightScreenCell(short x, short y, color *highlightColor, short strength
 
 // returns the y-coordinate after the last line printed
 short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight) {
-	char buf[COLS], monstName[COLS], redColorEscape[5], grayColorEscape[5];
+	char buf[COLS], buf2[COLS], monstName[COLS], redColorEscape[5], grayColorEscape[5];
 	uchar monstChar;
 	color monstForeColor, monstBackColor, healthBarColor, tempColor;
 	short initialY, i, j, highlightStrength, displayedArmor;
@@ -3815,6 +3822,25 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 		printString("                   ", 1, y, &white, &black, 0);
 		printString(buf, 1, y++, (dim ? &gray : &white), &black, 0);
 	}
+    
+    // mutation, if any
+    if (y < ROWS - 1
+        && monst->mutationIndex >= 0) {
+        
+        strcpy(buf, "                    ");
+        sprintf(buf2, "xxxx(%s)", mutationCatalog[monst->mutationIndex].title);
+        tempColor = *mutationCatalog[monst->mutationIndex].textColor;
+        if (dim) {
+            applyColorAverage(&tempColor, &black, 50);
+        }
+        encodeMessageColor(buf2, 0, &tempColor);
+        strcpy(buf + ((strLenWithoutEscapes(buf) - strLenWithoutEscapes(buf2)) / 2), buf2);
+        for (i = strlen(buf); i < 20 + 4; i++) {
+            buf[i] = ' ';
+        }
+        buf[24] = '\0';
+		printString(buf, 0, y++, (dim ? &gray : &white), &black, 0);
+    }
 	
 	// hit points
 	if (monst->info.maxHP > 1) {
@@ -3828,7 +3854,6 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 	}
 	
 	if (monst == &player) {
-		
 		// nutrition
 		if (player.status[STATUS_NUTRITION] > HUNGER_THRESHOLD) {
 			printProgressBar(0, y++, "Nutrition", player.status[STATUS_NUTRITION], STOMACH_SIZE, &blueBar, dim);
@@ -3838,7 +3863,7 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 			printProgressBar(0, y++, "Nutrition (Weak)", player.status[STATUS_NUTRITION], STOMACH_SIZE, &blueBar, dim);
 		} else if (player.status[STATUS_NUTRITION] > 0) {
 			printProgressBar(0, y++, "Nutrition (Faint)", player.status[STATUS_NUTRITION], STOMACH_SIZE, &blueBar, dim);
-		} else {
+		} else if (y < ROWS - 1) {
 			printString("      STARVING      ", 0, y++, &badMessageColor, &black, NULL);
 		}
 	}
@@ -3878,6 +3903,10 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 					printString("     (Helpless)     ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 				} else if (monst->creatureState == MONSTER_SLEEPING && y < ROWS - 1) {
 					printString("     (Sleeping)     ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
+                } else if ((monst->creatureState == MONSTER_ALLY) && y < ROWS - 1) {
+                    printString("       (Ally)       ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
+                } else if (monst->ticksUntilTurn > player.ticksUntilTurn + player.movementSpeed) {
+                    printString("   (Off balance)    ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 				} else if (monst->creatureState == MONSTER_FLEEING && y < ROWS - 1) {
 					printString("     (Fleeing)      ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 				} else if ((monst->creatureState == MONSTER_TRACKING_SCENT) && y < ROWS - 1) {
@@ -3892,8 +3921,6 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 					} else {
 						printString("    (Wandering)     ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 					}
-				} else if ((monst->creatureState == MONSTER_ALLY) && y < ROWS - 1) {
-					printString("       (Ally)       ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 				}
 			}
 		} else if (monst == &player) {
@@ -3944,7 +3971,7 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 	if (highlight) {
 		for (i=0; i<20; i++) {
 			highlightStrength = (short) (10 * sin(PI * i / (20-1)));
-			for (j=initialY; j < (y == ROWS - 1 ? y : y - 1); j++) {
+			for (j=initialY; j < (y == ROWS - 1 ? y : min(y - 1, ROWS - 1)); j++) {
 				highlightScreenCell(i, j, &white, highlightStrength);
 			}
 		}

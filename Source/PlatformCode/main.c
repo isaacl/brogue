@@ -6,6 +6,16 @@ TCOD_renderer_t renderer = TCOD_RENDERER_SDL; // the sdl renderer is more reliab
 short brogueFontSize = -1;
 #endif
 
+#ifdef BROGUE_TCOD
+# ifdef BROGUE_CURSES
+#  define BROGUE_TARGET_STRING "both"
+# else
+#  define BROGUE_TARGET_STRING "tcod"
+# endif
+#else
+# define BROGUE_TARGET_STRING "curses"
+#endif
+
 extern playerCharacter rogue;
 struct brogueConsole currentConsole;
 
@@ -26,6 +36,37 @@ static void append(char *str, char *ending, int bufsize) {
 	int str_len = strlen(str), ending_len = strlen(ending);
 	if (str_len + ending_len + 1 > bufsize) return;
 	strcpy(str + str_len, ending);
+}
+
+static void printCommandlineHelp() {
+	printf("%s", 
+	"--help         -h          print this help message\n"
+	"--version      -V          print the version (i.e., " BROGUE_VERSION_STRING ")\n"
+	"--target                   print the makefile target (i.e., " BROGUE_TARGET_STRING ")\n"
+	"--scores                   dump scores to output and exit immediately\n"
+	"-n                         start a new game, skipping the menu\n"
+	"-s seed                    start a new game with the specified numerical seed\n"
+	"-o filename[.broguesave]   open a save file (extension optional)\n"
+	"-v recording[.broguerec]   view a recording (extension optional)\n"
+#ifdef BROGUE_TCOD
+	"--size N                   starts the game at font size N (1 to 13)\n"
+	"--noteye-hack              ignore SDL-specific application state checks\n"
+#endif
+	"--no-menu      -M          never display the menu (automatically pick new game)\n"
+#ifdef BROGUE_CURSES
+	"--term         -t          run in ncurses-based terminal mode\n"
+#endif
+#ifdef BROGUE_TCOD
+	"--SDL                      force libtcod mode with an SDL renderer (default)\n"
+	"--opengl       -gl         force libtcod mode with an OpenGL renderer\n"
+#endif
+	);
+	return;
+}
+
+static void badArgument(const char *arg) {
+	printf("Bad argument: %s\n\n", arg);
+	printCommandlineHelp();
 }
 
 int main(int argc, char *argv[])
@@ -111,6 +152,21 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
+			printf("%s\n", BROGUE_VERSION_STRING);
+			return 0;
+		}
+
+		if (strcmp(argv[i], "--target") == 0) {
+			printf("%s\n", BROGUE_TARGET_STRING);
+			return 0;
+		}
+
+		if (!(strcmp(argv[i], "-?") && strcmp(argv[i], "-h") && strcmp(argv[i], "--help"))) {
+			printCommandlineHelp();
+			return 0;
+		}
+
 #ifdef BROGUE_TCOD
 		if (strcmp(argv[i], "--SDL") == 0) {
 			renderer = TCOD_RENDERER_SDL;
@@ -153,6 +209,9 @@ int main(int argc, char *argv[])
 			rogue.nextGame = NG_VIEW_RECORDING;
 			continue;
 		}
+		
+		badArgument(argv[i]);
+		return 1;
 	}
 	
 	loadKeymap();

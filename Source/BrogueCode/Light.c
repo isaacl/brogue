@@ -56,7 +56,7 @@ boolean paintLight(lightSource *theLight, short x, short y, boolean isMinersLigh
 	short i, j, k;
 	short colorComponents[3], randComponent, lightMultiplier;
 	short fadeToPercent;
-	float radius;
+	double radius;
 	char grid[DCOLS][DROWS];
 	boolean dispelShadows, overlappedFieldOfView;
 	
@@ -79,8 +79,8 @@ boolean paintLight(lightSource *theLight, short x, short y, boolean isMinersLigh
 	fadeToPercent = theLight->radialFadeToPercent;
 	
 	// zero out only the relevant rectangle of the grid
-	for (i = max(0, x - radius); i < DCOLS && i < x + radius; i++) {
-		for (j = max(0, y - radius); j < DROWS && j < y + radius; j++) {
+	for (i = max(0, x - (radius + FLOAT_FUDGE)); i < DCOLS && i < x + radius + FLOAT_FUDGE; i++) {
+		for (j = max(0, y - (radius + FLOAT_FUDGE)); j < DROWS && j < y + radius + FLOAT_FUDGE; j++) {
 			grid[i][j] = 0;
 		}
 	}
@@ -90,10 +90,10 @@ boolean paintLight(lightSource *theLight, short x, short y, boolean isMinersLigh
     
     overlappedFieldOfView = false;
 	
-	for (i = max(0, x - radius); i < DCOLS && i < x + radius; i++) {
-		for (j = max(0, y - radius); j < DROWS && j < y + radius; j++) {
+	for (i = max(0, x - (radius + FLOAT_FUDGE)); i < DCOLS && i < x + radius; i++) {
+		for (j = max(0, y - (radius + FLOAT_FUDGE)); j < DROWS && j < y + radius; j++) {
 			if (grid[i][j]) {
-				lightMultiplier = 100 - (100 - fadeToPercent) * (sqrt((i-x) * (i-x) + (j-y) * (j-y)) / (radius));
+				lightMultiplier = 100 - (100 - fadeToPercent) * (sqrt((i-x) * (i-x) + (j-y) * (j-y)) / radius + FLOAT_FUDGE);
 				for (k=0; k<3; k++) {
 					tmap[i][j].light[k] += colorComponents[k] * lightMultiplier / 100;;
 				}
@@ -121,8 +121,8 @@ boolean paintLight(lightSource *theLight, short x, short y, boolean isMinersLigh
 
 // sets miner's light strength and characteristics based on rings of illumination, scrolls of darkness and water submersion
 void updateMinersLightRadius() {
-	float fraction;
-	float lightRadius;
+	double fraction;
+	double lightRadius;
 	
 	lightRadius = 100 * rogue.minersLightRadius;
 	
@@ -132,10 +132,9 @@ void updateMinersLightRadius() {
 		lightRadius *= (rogue.lightMultiplier);
 		lightRadius = max(lightRadius, (rogue.lightMultiplier * 2 + 2));
 	}
-	
-	
+    
 	if (player.status[STATUS_DARKNESS]) {
-		fraction = (float) pow(1.0 - (((float) player.status[STATUS_DARKNESS]) / player.maxStatus[STATUS_DARKNESS]), 3);
+		fraction = (double) pow(1.0 - (((double) player.status[STATUS_DARKNESS]) / player.maxStatus[STATUS_DARKNESS]), 3);
 		if (fraction < 0.05) {
 			fraction = 0.05;
 		}
@@ -152,8 +151,8 @@ void updateMinersLightRadius() {
 		lightRadius = max(lightRadius / 2, 3);
 	}
 	
-	rogue.minersLight.radialFadeToPercent = 35 + max(0, min(65, rogue.lightMultiplier * 5)) * fraction;
-	rogue.minersLight.lightRadius.upperBound = rogue.minersLight.lightRadius.lowerBound = clamp(lightRadius, -30000, 30000);
+	rogue.minersLight.radialFadeToPercent = 35 + max(0, min(65, rogue.lightMultiplier * 5)) * (fraction + FLOAT_FUDGE);
+	rogue.minersLight.lightRadius.upperBound = rogue.minersLight.lightRadius.lowerBound = clamp(lightRadius + FLOAT_FUDGE, -30000, 30000);
 }
 
 void updateDisplayDetail() {
@@ -249,19 +248,17 @@ void updateLighting() {
 			paintLight(&lightCatalog[BURNING_CREATURE_LIGHT], monst->xLoc, monst->yLoc, false, false);
 		}
 		
-		if (player.status[STATUS_TELEPATHIC] && &player != monst && !(monst->info.flags & MONST_INANIMATE)) {
+		if (monsterRevealed(monst)) {
 			paintLight(&lightCatalog[TELEPATHY_LIGHT], monst->xLoc, monst->yLoc, false, true);
 		}
 	}
 	
 	// Also paint telepathy lights for dormant monsters.
-	if (player.status[STATUS_TELEPATHIC]) {
-		for (monst = dormantMonsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
-			if (!(monst->info.flags & MONST_INANIMATE)) {
-				paintLight(&lightCatalog[TELEPATHY_LIGHT], monst->xLoc, monst->yLoc, false, true);
-			}
-		}
-	}
+    for (monst = dormantMonsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
+        if (monsterRevealed(monst)) {
+            paintLight(&lightCatalog[TELEPATHY_LIGHT], monst->xLoc, monst->yLoc, false, true);
+        }
+    }
 	
 	updateDisplayDetail();
 	
@@ -339,7 +336,7 @@ boolean updateFlare(flare *theFlare) {
     if (!flareIsActive(theFlare)) {
         return false;
     }
-    theFlare->coeff += ((float) theFlare->coeffChangeAmount) / 10;
+    theFlare->coeff += ((double) theFlare->coeffChangeAmount) / 10;
     theFlare->coeffChangeAmount *= 1.2;
     return flareIsActive(theFlare);
 }
@@ -353,8 +350,8 @@ boolean drawFlareFrame(flare *theFlare) {
     
     lightSource tempLight = *(theFlare->light);
     color tempColor = *(tempLight.lightColor);
-    tempLight.lightRadius.lowerBound = ((short) ((float) tempLight.lightRadius.lowerBound) * (theFlare->coeff / 100.0 + FLOAT_FUDGE));
-    tempLight.lightRadius.upperBound = ((short) ((float) tempLight.lightRadius.upperBound) * (theFlare->coeff / 100.0 + FLOAT_FUDGE));
+    tempLight.lightRadius.lowerBound = ((short) (((double) tempLight.lightRadius.lowerBound + FLOAT_FUDGE) * (theFlare->coeff / 100.0 + FLOAT_FUDGE)));
+    tempLight.lightRadius.upperBound = ((short) (((double) tempLight.lightRadius.upperBound + FLOAT_FUDGE) * (theFlare->coeff / 100.0 + FLOAT_FUDGE)));
     applyColorScalar(&tempColor, (short) (theFlare->coeff + FLOAT_FUDGE));
     tempLight.lightColor = &tempColor;
     inView = paintLight(&tempLight, theFlare->xLoc, theFlare->yLoc, false, true);
@@ -368,8 +365,12 @@ void animateFlares(flare **flares, short count) {
     boolean inView, fastForward, atLeastOneFlareStillActive;
     short i; // i iterates through the flare list
     
+#ifdef BROGUE_ASSERTS
+    assert(rogue.RNG == RNG_SUBSTANTIVE);
+#endif
+    
     backUpLighting(lights);
-    fastForward = rogue.trueColorMode;
+    fastForward = rogue.trueColorMode || rogue.playbackFastForward;
     
     do {
         inView = false;
@@ -390,7 +391,7 @@ void animateFlares(flare **flares, short count) {
         demoteVisibility();
         updateFieldOfViewDisplay(false, true);
         if (!fastForward && (inView || rogue.playbackOmniscience) && atLeastOneFlareStillActive) {
-            fastForward = rogue.playbackFastForward || pauseBrogue(10);
+            fastForward = pauseBrogue(10);
         }
         recordOldLights();
         restoreLighting(lights);
