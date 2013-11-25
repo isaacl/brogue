@@ -1,16 +1,31 @@
-./brogue is a shell script that will detect terminal and invoke bin/brogue
-with the appropriate switches and in the correct working folder.  It therefore
-serves as an acceptable target for a desktop shortcut (see 
-make-link-for-desktop.sh for an easy way to make one.)  It will pass command
-line arguments along to bin/brogue.  The following are accepted:
+Be sure to read readme.rtf too.  This readme only explains functionality that
+is specific to the Linux release of Brogue.
 
--t	force terminal mode
--s	force libtcod mode with an SDL renderer
--gl	force libtcod mode with an OpenGL renderer (default)
+---
+
+Brogue now supports remapped keys.  The remapping engine is quite limited
+and is described in bin/keymap.
+
+Press F12 or alt-enter to toggle fullscreen
+
+--
+
+./brogue is a shell script that will invoke bin/brogue with the appropriate
+switches and in the correct working folder.  It therefore serves as an
+acceptable target for a desktop shortcut (see make-link-for-desktop.sh for
+an easy way to make one.)  It will pass command line arguments along
+to bin/brogue.  The following renderer switches are accepted:
+
+-t	force ncurses-based terminal mode
+-s	force libtcod mode with an SDL renderer (default)
+-gl	force libtcod mode with an OpenGL renderer
 
 The switch that you pass to ./brogue will override the -t it appends in
 terminal mode, so ./brogue -gl will start brogue in the traditional libtcod
 window.
+
+If you supply the --scores switch, Brogue will dump high scores to the terminal
+and exit immediately.
 
 Regrettably, SDL is initialized automatically at present no matter what switch
 you supply, unless bin/brogue has been built without libtcod support.
@@ -22,12 +37,13 @@ The Makefile accepts these targets:
 	make both
 
 If you build for curses only, libtcod is not required and SDL will not be linked
-or initialized at runtime.  If you build for tcod only, you do not need ncurses-dev.
-If you make either 'tcod' or 'both', the Makefile will automatically download the
-32-bit version of libtcod for you and untar it in the right place (in src).
+or initialized at runtime.  If you build for tcod only, you do not need
+ncurses-dev.  If you make either 'tcod' or 'both', the Makefile will
+automatically download the 32-bit version of libtcod for you and untar it in
+the right place (in src).
 
-To produce a distributable tar file, make tar.  To clean (as you must after changing
-headers or before switching targets -- sorry about that), make clean.
+To produce a distributable tar file, make tar.  To clean (as you must after
+changing headers or before switching targets -- sorry about that), make clean.
 
 make both is the default.
 

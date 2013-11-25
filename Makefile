@@ -1,7 +1,7 @@
 
 LIBTCODDIR=src/libtcod-1.5.1
 CFLAGS=-Isrc/brogue -Isrc/platform -Wall -Wno-parentheses ${DEFINES}
-RELEASENAME=brogue-1.5.2
+RELEASENAME=brogue-1.6
 
 %.o : %.c
 	gcc $(CFLAGS) -g -o $@ -c $< 
@@ -14,6 +14,7 @@ BROGUEFILES=src/brogue/Architect.o \
 	src/brogue/Items.o \
 	src/brogue/Light.o \
 	src/brogue/Monsters.o \
+	src/brogue/Buttons.o \
 	src/brogue/Movement.o \
 	src/brogue/Recordings.o \
 	src/brogue/RogueMain.o \
@@ -72,6 +73,7 @@ tar : both
 	readme \
 	$(wildcard *.txt) \
 	bin/brogue \
+	bin/keymap \
 	$(wildcard bin/*.png) \
 	$(wildcard bin/*.so) \
 	$(wildcard src/*.sh) \

@@ -2,7 +2,7 @@
  *  Dijkstra.c
  *  Brogue
  *
- *  Copyright 2011. All rights reserved.
+ *  Copyright 2012. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -152,7 +152,7 @@ void pdsSetCosts(pdsMap *map, short **costMap) {
 	}
 }
 
-void pdsBatchInput(pdsMap *map, short **distanceMap, char passMap[DCOLS][DROWS], short maxDistance, boolean eightWays) {
+void pdsBatchInput(pdsMap *map, short **distanceMap, short **costMap, short maxDistance, boolean eightWays) {
 	short i, j;
 	pdsLink *left, *right;
 
@@ -169,15 +169,26 @@ void pdsBatchInput(pdsMap *map, short **distanceMap, char passMap[DCOLS][DROWS],
 			if (distanceMap != NULL) {
 				link->distance = distanceMap[i][j];
 			} else {
-				if (passMap != NULL) {
+				if (costMap != NULL) {
 					// totally hackish; refactor
 					link->distance = maxDistance;
 				}
 			}
 
-			if ((passMap == NULL || passMap[i][j]) && i > 0 && j > 0 && i < DCOLS - 1 && j < DROWS - 1) {
-				link->cost = 1;
+			int cost;
 
+			if (i == 0 || j == 0 || i == DCOLS - 1 || j == DROWS - 1) {
+				cost = PDS_OBSTRUCTION;
+			} else if (costMap == NULL) {
+				if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)) cost = PDS_OBSTRUCTION;
+				else cost = PDS_FORBIDDEN;
+			} else {
+				cost = costMap[i][j];
+			}
+
+			link->cost = cost;
+
+			if (cost > 0) {
 				if (link->distance < maxDistance) {
 					if (right == NULL || right->distance > link->distance) {
 						// left and right are used to traverse the list; if many cells have similar values,
@@ -204,8 +215,6 @@ void pdsBatchInput(pdsMap *map, short **distanceMap, char passMap[DCOLS][DROWS],
 					link->left = NULL;
 				}
 			} else {
-				if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)) link->cost = PDS_OBSTRUCTION;
-				else link->cost = PDS_FORBIDDEN;
 				link->right = NULL;
 				link->left = NULL;
 			}
@@ -229,13 +238,10 @@ void pdsInvalidate(pdsMap *map, short maxDistance) {
 	pdsBatchInput(map, NULL, NULL, maxDistance, map->eightWays);
 }
 
-void dijkstraScan(short **distanceMap, short **costMap, char passMap[DCOLS][DROWS], boolean useDiagonals) {
+void dijkstraScan(short **distanceMap, short **costMap, boolean useDiagonals) {
 	static pdsMap map;
 
-	pdsBatchInput(&map, distanceMap, passMap, 30000, useDiagonals);
-	if (costMap) {
-		pdsSetCosts(&map, costMap);
-	}
+	pdsBatchInput(&map, distanceMap, costMap, 30000, useDiagonals);
 	pdsBatchOutput(&map, distanceMap);
 }
 

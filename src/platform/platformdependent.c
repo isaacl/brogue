@@ -40,7 +40,7 @@ typedef struct brogueScoreEntry {
 	char description[COLS];
 } brogueScoreEntry;
 
-brogueScoreEntry scoreBuffer[25];
+brogueScoreEntry scoreBuffer[HIGH_SCORES_COUNT];
 
 void plotChar(uchar inputChar,
 			  short xLoc, short yLoc,
@@ -53,8 +53,8 @@ void pausingTimerStartsNow() {
 	
 }
 
-void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
-	currentConsole.nextKeyOrMouseEvent(returnEvent, colorsDance);
+void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance) {
+	currentConsole.nextKeyOrMouseEvent(returnEvent, textInput, colorsDance);
 }
 
 boolean pauseForMilliseconds(short milliseconds) {
@@ -67,7 +67,7 @@ void initScores() {
 	FILE *scoresFile;
 	
 	scoresFile = fopen("BrogueHighScores.txt", "w");
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		fprintf(scoresFile, "%li\t%li\t%s", (long) 0, (long) 0, "(empty entry)\n");
 	}
 	fclose(scoresFile);
@@ -78,19 +78,19 @@ void initScores() {
 short sortScoreBuffer() {
 	short i, j, highestUnsortedLine, mostRecentSortedLine;
 	long highestUnsortedScore, mostRecentDate;
-	brogueScoreEntry sortedScoreBuffer[25];
-	boolean lineSorted[25];
+	brogueScoreEntry sortedScoreBuffer[HIGH_SCORES_COUNT];
+	boolean lineSorted[HIGH_SCORES_COUNT];
 	
 	mostRecentDate = 0;
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		lineSorted[i] = false;
 	}
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		highestUnsortedLine = 0;
 		highestUnsortedScore = 0;
-		for (j=0; j<25; j++) {
+		for (j=0; j<HIGH_SCORES_COUNT; j++) {
 			if (!lineSorted[j] && scoreBuffer[j].score >= highestUnsortedScore) {
 				highestUnsortedLine = j;
 				highestUnsortedScore = scoreBuffer[j].score;
@@ -101,7 +101,7 @@ short sortScoreBuffer() {
 	}
 	
 	// copy the sorted list back into scoreBuffer, remember the most recent entry
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		scoreBuffer[i] = sortedScoreBuffer[i];
 		if (scoreBuffer[i].dateNumber > mostRecentDate) {
 			mostRecentDate = scoreBuffer[i].dateNumber;
@@ -126,7 +126,7 @@ short loadScoreBuffer() {
 		scoresFile = fopen("BrogueHighScores.txt", "r");
 	}
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		// load score and also the date in seconds
 		fscanf(scoresFile, "%li\t%li\t", &(scoreBuffer[i].score), &(scoreBuffer[i].dateNumber));
 		
@@ -144,6 +144,42 @@ short loadScoreBuffer() {
 	return sortScoreBuffer();
 }
 
+void loadKeymap() {
+	int i;
+	FILE *f;
+
+	char buffer[512];
+	
+	f = fopen("keymap", "r");
+	
+	if (f != NULL) {
+		while (fgets(buffer, 512, f) != NULL) {
+			// split it in two (destructively)
+			int mode = 1;
+			char *input_name = NULL, *output_name = NULL;
+			for (i = 0; buffer[i]; i++) {
+				if (isspace(buffer[i])) {
+					buffer[i] = '\0';
+					mode = 1;
+				} else {
+					if (mode) {
+						if (input_name == NULL) input_name = buffer + i;
+						else if (output_name == NULL) output_name = buffer + i;
+					}
+					mode = 0;
+				}
+			}
+			if (input_name != NULL && output_name != NULL) {
+				if (input_name[0] == '#') continue; // must be a comment
+
+				currentConsole.remap(input_name, output_name);
+			}
+		}
+		fclose(f);
+	}
+}
+
+
 // saves the scoreBuffer global variable into the BrogueHighScores.txt file,
 // thus overwriting whatever is already there.
 // The numerical version of the date is what gets saved; the "mm/dd/yy" version is ignored.
@@ -154,7 +190,7 @@ void saveScoreBuffer() {
 	
 	scoresFile = fopen("BrogueHighScores.txt", "w");
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		// save the entry
 		fprintf(scoresFile, "%li\t%li\t%s\n", scoreBuffer[i].score, scoreBuffer[i].dateNumber, scoreBuffer[i].description);
 	}
@@ -162,12 +198,23 @@ void saveScoreBuffer() {
 	fclose(scoresFile);
 }
 
-short getHighScoresList(rogueHighScoresEntry returnList[25]) {
+void dumpScores() {
+	int i;
+
+	rogueHighScoresEntry list[HIGH_SCORES_COUNT];
+	getHighScoresList(list);
+	
+	for (i = 0; i < HIGH_SCORES_COUNT; i++) {
+		printf("%d\t%s\t%s\n", (int) list[i].score, list[i].date, list[i].description);
+	}
+}
+
+short getHighScoresList(rogueHighScoresEntry returnList[HIGH_SCORES_COUNT]) {
 	short i, mostRecentLineNumber;
 	
 	mostRecentLineNumber = loadScoreBuffer();
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		returnList[i].score =				scoreBuffer[i].score;
 		strcpy(returnList[i].date,			scoreBuffer[i].dateText);
 		strcpy(returnList[i].description,	scoreBuffer[i].description);
@@ -182,7 +229,7 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	
 	loadScoreBuffer();
 	
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		if (scoreBuffer[i].score < lowestScore || i == 0) {
 			lowestScore = scoreBuffer[i].score;
 			lowestScoreIndex = i;

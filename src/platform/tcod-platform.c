@@ -10,13 +10,14 @@ extern playerCharacter rogue;
 extern TCOD_renderer_t renderer;
 extern short brogueFontSize;
 
-short mouseX, mouseY;
+struct mouseState {int x, y, lmb, rmb;};
 
 static int isFullScreen = false;
 static int hasMouseMoved = false;
 
 static TCOD_key_t bufferedKey = {TCODK_NONE};
-static short bufferedMouseClick[2] = {-1, -1};
+static struct mouseState brogueMouse = {0, 0, 0, 0};
+static struct mouseState missedMouse = {-1, -1, 0, 0};
 
 static void gameLoop()
 {
@@ -46,7 +47,7 @@ static void gameLoop()
 	} while (!TCOD_console_is_window_closed());
 }
 
-void tcod_plotChar(uchar inputChar,
+static void tcod_plotChar(uchar inputChar,
 			  short xLoc, short yLoc,
 			  short foreRed, short foreGreen, short foreBlue,
 			  short backRed, short backGreen, short backBlue) {
@@ -117,55 +118,88 @@ void tcod_plotChar(uchar inputChar,
 	TCOD_console_put_char_ex(NULL, xLoc, yLoc, (int) inputChar, fore, back);
 }
 
-static void initWithFont(int fontSize) {
+static void initWithFont(int fontSize)
+{
 	char font[80];
 	
 	sprintf(font,"BrogueFont%i.png",fontSize);
 	
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
-	TCOD_console_init_root(COLS, ROWS, "Brogue", isFullScreen, renderer);
+	TCOD_console_init_root(COLS, ROWS, "Brogue", 0, renderer);
 	TCOD_console_map_ascii_codes_to_font(0, 255, 0, 0);
 	TCOD_console_set_keyboard_repeat(175, 30);
 	refreshScreen();
 }
 
-boolean processSpecialKeystrokes(TCOD_key_t k) {
-	
+static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 	if (k.vk == TCODK_PRINTSCREEN) {
 		// screenshot
 		TCOD_sys_save_screenshot(NULL);
 		return true;
-	} else if ( (k.vk == TCODK_F12) || (k.lalt && (k.vk == TCODK_ENTER || k.vk == TCODK_KPENTER) )) {
-		// switch fullscreen (DISABLED)
-		// isFullScreen = !isFullScreen;
-		// TCOD_console_delete(NULL);
-		// initWithFont(brogueFontSize);
-		// TCOD_console_flush();
+	} else if ( (k.vk == TCODK_F12) || ((k.lalt || k.ralt) && (k.vk == TCODK_ENTER || k.vk == TCODK_KPENTER) )) {
+		isFullScreen = !isFullScreen;
+		TCOD_console_set_fullscreen(isFullScreen);
 		return true;
 	} else if ((k.vk == TCODK_PAGEUP
 				|| (k.vk == TCODK_CHAR && (k.c == '=' || k.c == '+')))
 			   && brogueFontSize < 5) {
-		brogueFontSize++;
-		TCOD_console_delete(NULL);
-		//TCODConsole::root=NULL;
-		initWithFont(brogueFontSize);
-		TCOD_console_flush();
-		return true;
+		
+		if (!text) {
+			if (isFullScreen) {
+				TCOD_console_set_fullscreen(0);
+				isFullScreen = 0;
+			}
+
+			brogueFontSize++;
+			TCOD_console_delete(NULL);
+			//TCODConsole::root=NULL;
+			initWithFont(brogueFontSize);
+
+			TCOD_console_flush();
+			return true;
+		}
 	} else if ((k.vk == TCODK_PAGEDOWN
 				|| (k.vk == TCODK_CHAR && k.c == '-'))
 			   && brogueFontSize > 1) {
-		brogueFontSize--;
-		TCOD_console_delete(NULL);
-		//TCODConsole::root=NULL;
-		initWithFont(brogueFontSize);
-		TCOD_console_flush();
-		return true;
+		if (!text) {
+			brogueFontSize--;
+			TCOD_console_delete(NULL);
+			//TCODConsole::root=NULL;
+			initWithFont(brogueFontSize);
+			TCOD_console_flush();
+			return true;
+		}
 	}
 	return false;
 }
 
 
-void getModifiers(rogueEvent *returnEvent) {
+struct mapsymbol {
+	int in_vk, out_vk;
+	int in_c, out_c;
+	struct mapsymbol *next;
+};
+
+static struct mapsymbol *keymap = NULL;
+
+static void rewriteKey(TCOD_key_t *key, boolean text) {
+	struct mapsymbol *s = keymap;
+	while (s != NULL) {
+		if (key->vk == s->in_vk) {
+			if (s->in_vk != TCODK_CHAR || (!text && s->in_c == key->c)) {
+				// we have a match!
+				key->vk = s->out_vk;
+				key->c = s->out_c;
+
+				// only apply one remapping
+				return;
+			}
+		}
+		s = s->next;
+	}
+}
+
+static void getModifiers(rogueEvent *returnEvent) {
 	Uint8 *keystate = SDL_GetKeyState(NULL);
 	returnEvent->controlKey = keystate[SDLK_LCTRL] || keystate[SDLK_RCTRL];
 	returnEvent->shiftKey = keystate[SDLK_LSHIFT] || keystate[SDLK_RSHIFT];
@@ -173,9 +207,9 @@ void getModifiers(rogueEvent *returnEvent) {
 
 
 // returns true if input is acceptable
-boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
-	
-	if (processSpecialKeystrokes(key)) {
+static boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent, boolean text)
+{
+	if (processSpecialKeystrokes(key, text)) {
 		return false;
 	}
 	
@@ -264,26 +298,34 @@ boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 	return true;
 }
 
-static boolean tcod_pauseForMilliseconds(short milliseconds) {
+static boolean tcod_pauseForMilliseconds(short milliseconds)
+{
 	TCOD_mouse_t mouse;
 	TCOD_console_flush();
 	TCOD_sys_sleep_milli((unsigned int) milliseconds);
-	bufferedKey = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
-	
-	
-	mouse = TCOD_mouse_get_status();
-	if (mouse.lbutton_pressed) {
-		bufferedMouseClick[0] = mouse.cx;
-		bufferedMouseClick[1] = mouse.cy;
+
+	if (bufferedKey.vk == TCODK_NONE) {
+		bufferedKey = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
 	}
 	
-	return (bufferedKey.vk != TCODK_NONE || bufferedMouseClick[0] >= 0);
+	if (missedMouse.lmb == 0 && missedMouse.rmb == 0) {
+		mouse = TCOD_mouse_get_status();
+		if (mouse.lbutton_pressed || mouse.rbutton_pressed) {
+			missedMouse.x = mouse.cx;
+			missedMouse.y = mouse.cy;
+			if (mouse.lbutton_pressed) missedMouse.lmb = MOUSE_DOWN;
+			if (mouse.rbutton_pressed) missedMouse.rmb = MOUSE_DOWN;
+		}
+	}
+	
+	return (bufferedKey.vk != TCODK_NONE || missedMouse.lmb || missedMouse.rmb);
 }
 
 
 #define PAUSE_BETWEEN_EVENT_POLLING		34//17
 
-static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
+static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance)
+{
 	boolean tryAgain;
 	TCOD_key_t key;
 	TCOD_mouse_t mouse;
@@ -298,21 +340,27 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 		if (TCOD_console_is_window_closed()) {
 			rogue.gameHasEnded = true; // causes the game loop to terminate quickly
 			returnEvent->eventType = KEYSTROKE;
-			returnEvent->param1 = ACKNOWLEDGE_KEY;
+			returnEvent->param1 = ESCAPE_KEY;
 			return;
 		}
 		
 		tryAgain = false;
 		
-		if (bufferedKey.vk != TCODK_NONE && processKeystroke(bufferedKey, returnEvent)) {
-			bufferedKey.vk = TCODK_NONE;
-			return;
+		if (bufferedKey.vk != TCODK_NONE) {
+			rewriteKey(&bufferedKey, textInput);
+			if (processKeystroke(bufferedKey, returnEvent, textInput)) {
+				bufferedKey.vk = TCODK_NONE;
+				return;
+			} else {
+				bufferedKey.vk = TCODK_NONE;
+			}
 		}
 		
-		if (bufferedMouseClick[0] >= 0 && bufferedMouseClick[1] >= 0) {
-			returnEvent->eventType = MOUSE_UP;
-			returnEvent->param1 = bufferedMouseClick[0];
-			returnEvent->param2 = bufferedMouseClick[1];
+		if (missedMouse.lmb) {
+			returnEvent->eventType = missedMouse.lmb;
+
+			returnEvent->param1 = missedMouse.x;
+			returnEvent->param2 = missedMouse.y;
 			if (TCOD_console_is_key_pressed(TCODK_CONTROL)) {
 				returnEvent->controlKey = true;
 			}
@@ -320,7 +368,23 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 				returnEvent->shiftKey = true;
 			}
 			
-			bufferedMouseClick[0] = -1;
+			missedMouse.lmb = missedMouse.lmb == MOUSE_DOWN ? MOUSE_UP : 0;
+			return;
+		}
+
+		if (missedMouse.rmb) {
+			returnEvent->eventType = missedMouse.rmb == MOUSE_DOWN ? RIGHT_MOUSE_DOWN : RIGHT_MOUSE_UP;
+
+			returnEvent->param1 = missedMouse.x;
+			returnEvent->param2 = missedMouse.y;
+			if (TCOD_console_is_key_pressed(TCODK_CONTROL)) {
+				returnEvent->controlKey = true;
+			}
+			if (TCOD_console_is_key_pressed(TCODK_SHIFT)) {
+				returnEvent->shiftKey = true;
+			}
+			
+			missedMouse.rmb = missedMouse.rmb == MOUSE_DOWN ? MOUSE_UP : 0;
 			return;
 		}
 		
@@ -331,7 +395,8 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 		
 		TCOD_console_flush();
 		key = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
-		if (processKeystroke(key, returnEvent)) {
+		rewriteKey(&key, textInput);
+		if (processKeystroke(key, returnEvent, textInput)) {
 			return;
 		}
 		
@@ -348,19 +413,51 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 			y = 0;
 		}
 
-		if (mouse.lbutton_pressed || mouseX !=x || mouseY != y) {
+		if (
+			mouse.lbutton_pressed || mouse.rbutton_pressed
+			|| mouse.lbutton != brogueMouse.lmb || mouse.rbutton != brogueMouse.rmb
+			|| brogueMouse.x !=x || brogueMouse.y != y) {
+
 			returnEvent->param1 = x;
 			returnEvent->param2 = y;
-			mouseX = x;
-			mouseY = y;
 
 			getModifiers(returnEvent);
 
 			if (mouse.lbutton_pressed) {
-				returnEvent->eventType = MOUSE_UP;
+				if (!brogueMouse.lmb) {
+					// we missed a mouseDown event -- better make up for it!
+					missedMouse.x = x;
+					missedMouse.y = y;
+					missedMouse.lmb = MOUSE_UP;
+					returnEvent->eventType = MOUSE_DOWN;
+				} else {
+					returnEvent->eventType = MOUSE_UP;
+				}
+			} else if (mouse.lbutton && !brogueMouse.lmb) {
+				returnEvent->eventType = MOUSE_DOWN;
 			} else {
 				returnEvent->eventType = MOUSE_ENTERED_CELL;
 			}
+
+			if (mouse.rbutton_pressed) {
+				if (!brogueMouse.rmb) {
+					// we missed a mouseDown event -- better make up for it!
+					missedMouse.x = x;
+					missedMouse.y = y;
+					missedMouse.rmb = MOUSE_UP;
+					returnEvent->eventType = RIGHT_MOUSE_DOWN;
+				} else {
+					returnEvent->eventType = RIGHT_MOUSE_UP;
+				}
+			} else if (mouse.rbutton && !brogueMouse.rmb) {
+				returnEvent->eventType = RIGHT_MOUSE_DOWN;
+			}
+
+			brogueMouse.x = x;
+			brogueMouse.y = y;
+			brogueMouse.lmb = mouse.lbutton;
+			brogueMouse.rmb = mouse.rbutton;
+
 			if (returnEvent->eventType == MOUSE_ENTERED_CELL && !hasMouseMoved) {
 				hasMouseMoved = true;
 			} else {
@@ -376,11 +473,121 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 	}
 }
 
+
+
+// tcodkeys is derived from console_types.h
+char *tcodkeys[] = {
+	"NONE",
+	"ESCAPE",
+	"BACKSPACE",
+	"TAB",
+	"ENTER",
+	"SHIFT",
+	"CONTROL",
+	"ALT",
+	"PAUSE",
+	"CAPSLOCK",
+	"PAGEUP",
+	"PAGEDOWN",
+	"END",
+	"HOME",
+	"UP",
+	"LEFT",
+	"RIGHT",
+	"DOWN",
+	"PRINTSCREEN",
+	"INSERT",
+	"DELETE",
+	"LWIN",
+	"RWIN",
+	"APPS",
+	"0",
+	"1",
+	"2",
+	"3",
+	"4",
+	"5",
+	"6",
+	"7",
+	"8",
+	"9",
+	"KP0",
+	"KP1",
+	"KP2",
+	"KP3",
+	"KP4",
+	"KP5",
+	"KP6",
+	"KP7",
+	"KP8",
+	"KP9",
+	"KPADD",
+	"KPSUB",
+	"KPDIV",
+	"KPMUL",
+	"KPDEC",
+	"KPENTER",
+	"F1",
+	"F2",
+	"F3",
+	"F4",
+	"F5",
+	"F6",
+	"F7",
+	"F8",
+	"F9",
+	"F10",
+	"F11",
+	"F12",
+	"NUMLOCK",
+	"SCROLLLOCK",
+	"SPACE",
+	"CHAR",
+	NULL
+};
+
+
+static void tcod_remap(const char *input_name, const char *output_name) {
+	// find input and output in the list of tcod keys, if it's there
+	int i;
+	struct mapsymbol *sym = malloc(sizeof(*sym));
+	
+	if (sym == NULL) return; // out of memory?  seriously?
+
+	// default to treating the names as literal ascii symbols
+	sym->in_c = input_name[0];
+	sym->out_c = output_name[0];
+	sym->in_vk = TCODK_CHAR;
+	sym->out_vk = TCODK_CHAR;
+
+	// but try to find them in the list of tcod keys
+	for (i = 0; tcodkeys[i] != NULL; i++) {
+		if (strcmp(input_name, tcodkeys[i]) == 0) {
+			sym->in_vk = i;
+			sym->in_c = 0;
+			break;
+		}
+	}
+
+	for (i = 0; tcodkeys[i] != NULL; i++) {
+		if (strcmp(output_name, tcodkeys[i]) == 0) {
+			sym->out_vk = i;
+			sym->out_c = 0;
+			break;
+		}
+	}
+	
+	sym->next = keymap;
+	keymap = sym;
+}
+
+
 struct brogueConsole tcodConsole = {
 	gameLoop,
 	tcod_pauseForMilliseconds,
 	tcod_nextKeyOrMouseEvent,
-	tcod_plotChar
+	tcod_plotChar,
+	tcod_remap
 };
 
 #endif

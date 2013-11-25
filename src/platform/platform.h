@@ -3,10 +3,12 @@
 struct brogueConsole {
 	void (*gameLoop)();
 	boolean (*pauseForMilliseconds)(short milliseconds);
-	void (*nextKeyOrMouseEvent)(rogueEvent *returnEvent, boolean colorsDance);
+	void (*nextKeyOrMouseEvent)(rogueEvent *returnEvent, boolean textInput, boolean colorsDance);
 	void (*plotChar)(uchar, short, short, short, short, short, short, short, short);
+	void (*remap)(const char *, const char *);
 };
 
+void loadKeymap();
 
 #ifdef BROGUE_TCOD
 extern struct brogueConsole tcodConsole;

@@ -80,7 +80,7 @@ static boolean curses_pauseForMilliseconds(short milliseconds) {
 	return Term.hasKey();
 }
 
-static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
+static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance) {
 	int key;
 	// TCOD_mouse_t mouse;
 	uint32_t theTime, waitTime;
@@ -152,11 +152,16 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDa
 	}
 }
 
+static void curses_remap(const char *input_name, const char *output_name) {
+}
+
+
 struct brogueConsole cursesConsole = {
 	gameLoop,
 	curses_pauseForMilliseconds,
 	curses_nextKeyOrMouseEvent,
-	curses_plotChar
+	curses_plotChar,
+	curses_remap
 };
 #endif
 
