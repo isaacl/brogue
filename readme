@@ -6,7 +6,9 @@ is specific to the Linux release of Brogue.
 Brogue now supports remapped keys.  The remapping engine is quite limited
 and is described in bin/keymap.
 
-Press F12 or alt-enter to toggle fullscreen
+Press F12 or alt-enter to toggle fullscreen mode.
+
+Press -/+ or pgdn/pgup to adjust the font size
 
 --
 
@@ -14,7 +16,18 @@ Press F12 or alt-enter to toggle fullscreen
 switches and in the correct working folder.  It therefore serves as an
 acceptable target for a desktop shortcut (see make-link-for-desktop.sh for
 an easy way to make one.)  It will pass command line arguments along
-to bin/brogue.  The following renderer switches are accepted:
+to bin/brogue.  The following switches are accepted:
+
+-n                         start a new game, skipping the menu
+-o FILENAME.BROGUESAVE     open a recording
+-v RECORDING.BROGUEREC     view a recording
+--no-menu                  never display the menu (automatically pick new game)
+--scores                   dump scores to output and exit immediately
+--noteye-hack              ignore SDL-specific application state checks
+
+--
+
+The following render switches are accepted:
 
 -t	force ncurses-based terminal mode
 -s	force libtcod mode with an SDL renderer (default)
@@ -23,9 +36,6 @@ to bin/brogue.  The following renderer switches are accepted:
 The switch that you pass to ./brogue will override the -t it appends in
 terminal mode, so ./brogue -gl will start brogue in the traditional libtcod
 window.
-
-If you supply the --scores switch, Brogue will dump high scores to the terminal
-and exit immediately.
 
 Regrettably, SDL is initialized automatically at present no matter what switch
 you supply, unless bin/brogue has been built without libtcod support.

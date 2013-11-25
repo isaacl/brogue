@@ -67,17 +67,33 @@ void reversePath(short path[1000][2], short steps) {
 	}
 }
 
-void hilitePath(short path[1000][2], short steps, color *theColor, short intensity, boolean unhilite) {
+void hilitePath(short path[1000][2], short steps, boolean unhilite) {
 	short i;
 	if (unhilite) {
 		for (i=0; i<steps; i++) {
+			pmap[path[i][0]][path[i][1]].flags &= ~IS_IN_PATH;
 			refreshDungeonCell(path[i][0], path[i][1]);
-			pmap[path[i][0]][path[i][1]].flags &= ~NO_AUTO_DANCING;
 		}
 	} else {
 		for (i=0; i<steps; i++) {
-			hiliteCell(path[i][0], path[i][1], theColor, intensity, true);
-			pmap[path[i][0]][path[i][1]].flags |= NO_AUTO_DANCING;
+			pmap[path[i][0]][path[i][1]].flags |= IS_IN_PATH;
+			refreshDungeonCell(path[i][0], path[i][1]);
+		}
+	}
+}
+
+// More expensive than hilitePath(__, __, true), but you don't need access to the path itself.
+void clearCursorPath() {
+	short i, j;
+	
+	if (!rogue.playbackMode) { // There are no cursor paths during playback.
+		for (i=1; i<DCOLS; i++) {
+			for (j=1; j<DROWS; j++) {
+				if (pmap[i][j].flags & IS_IN_PATH) {
+					pmap[i][j].flags &= ~IS_IN_PATH;
+					refreshDungeonCell(i, j);
+				}
+			}
 		}
 	}
 }
@@ -194,7 +210,7 @@ short actionMenu(short x, short y, boolean playingBack) {
 	buttons[buttonCount].flags &= ~B_ENABLED;
 	buttonCount++;
 	
-	sprintf(buttons[buttonCount].text, "  %sQ: %sQuit %s  ",	yellowColorEscape, whiteColorEscape, (playingBack ? "to high scores" : "without saving"));
+	sprintf(buttons[buttonCount].text, "  %sQ: %sQuit %s  ",	yellowColorEscape, whiteColorEscape, (playingBack ? "to title screen" : "without saving"));
 	buttons[buttonCount].hotkey[0] = QUIT_KEY;
 	buttonCount++;
 	
@@ -273,7 +289,7 @@ void initializeMenuButtons(buttonState *state, brogueButton buttons[5]) {
 		buttons[buttonCount].hotkey[0] = REST_KEY;
 		buttonCount++;
 		
-		sprintf(buttons[buttonCount].text,	"   %sS%search    ", goldTextEscape, whiteTextEscape);
+		sprintf(buttons[buttonCount].text,	"  Search (%ss%s)  ", goldTextEscape, whiteTextEscape);
 		buttons[buttonCount].hotkey[0] = SEARCH_KEY;
 		buttonCount++;
 		
@@ -281,7 +297,7 @@ void initializeMenuButtons(buttonState *state, brogueButton buttons[5]) {
 		buttonCount++;
 	}
 	
-	sprintf(buttons[4].text,	"  %sI%snventory  ", goldTextEscape, whiteTextEscape);
+	sprintf(buttons[4].text,	"   %sI%snventory   ", goldTextEscape, whiteTextEscape);
 	buttons[4].hotkey[0] = INVENTORY_KEY;
 	buttons[4].hotkey[1] = 'I';
 	
@@ -336,6 +352,9 @@ void mainInputLoop() {
 	canceled = false;
 	justDisabledCursorMode = false;
 	cursorMode = false; // Controls whether the keyboard moves the cursor or the character.
+	steps = 0;
+	
+	rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 	
 	// Initialize buttons.
 	initializeMenuButtons(&state, buttons);
@@ -353,6 +372,7 @@ void mainInputLoop() {
 		
 		focusedOnMonster = focusedOnItem = false;
 		steps = 0;
+		clearCursorPath();
 		
 		originLoc[0] = player.xLoc;
 		originLoc[1] = player.yLoc;
@@ -369,6 +389,7 @@ void mainInputLoop() {
 			
 			// Path hides when you reach your destination.
 			cursorMode = false;
+			rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 			cursor[0] = -1;
 			cursor[1] = -1;
 			justDisabledCursorMode = true;
@@ -390,11 +411,10 @@ void mainInputLoop() {
 			// Draw the cursor and path
 			if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
 				refreshDungeonCell(oldTargetLoc[0], oldTargetLoc[1]);						// Remove old cursor.
-				pmap[oldTargetLoc[0]][oldTargetLoc[1]].flags &= ~NO_AUTO_DANCING;
 			}
 			if (!playingBack) {
 				if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
-					hilitePath(path, steps, NULL, 0, true);									// Unhilite old path.
+					hilitePath(path, steps, true);									// Unhilite old path.
 				}
 				if (coordinatesAreInMap(cursor[0], cursor[1])) {
 					if (playerPathingMap[cursor[0]][cursor[1]] >= 0
@@ -414,7 +434,7 @@ void mainInputLoop() {
 					if (playerPathingMap[cursor[0]][cursor[1]] != 1
 						|| pathDestination[0] != cursor[0]
 						|| pathDestination[1] != cursor[1]) {
-						hilitePath(path, steps, &yellow, (cursorMode ? 50 : 20), false);		// Hilite new path.
+						hilitePath(path, steps, false);		// Hilite new path.
 					}
 				}
 			}
@@ -425,7 +445,6 @@ void mainInputLoop() {
 						   ((path[steps-1][0] == cursor[0] && path[steps-1][1] == cursor[1])
 							|| (!playingBack && distanceBetween(player.xLoc, player.yLoc, cursor[0], cursor[1]) <= 1) ? 100 : 25),
 						   true);
-				pmap[cursor[0]][cursor[1]].flags |= NO_AUTO_DANCING;
 				
 				oldTargetLoc[0] = cursor[0];
 				oldTargetLoc[1] = cursor[1];
@@ -485,6 +504,7 @@ void mainInputLoop() {
 			if (playingBack) {
 				if (canceled) {
 					cursorMode = false;
+					rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 				}
 				
 				if (theEvent.eventType == KEYSTROKE
@@ -533,10 +553,6 @@ void mainInputLoop() {
 		
 		if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
 			refreshDungeonCell(oldTargetLoc[0], oldTargetLoc[1]);						// Remove old cursor.
-			pmap[oldTargetLoc[0]][oldTargetLoc[1]].flags &= ~NO_AUTO_DANCING;
-		}
-		if (!playingBack) {
-			hilitePath(path, steps, NULL, 0, true);										// Unhilite old path.
 		}
 		
 		restoreRNG;
@@ -545,6 +561,7 @@ void mainInputLoop() {
 			// Drop out of cursor mode if we're in it, and hide the path either way.
 			confirmMessages();
 			cursorMode = false;
+			rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 			cursor[0] = -1;
 			cursor[1] = -1;
 			justDisabledCursorMode = true;
@@ -590,12 +607,15 @@ void mainInputLoop() {
 				cursor[0] = player.xLoc;
 				cursor[1] = player.yLoc;
 				cursorMode = true;
+				rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 			} else if (playingBack && cursorMode) {
 				cursorMode = false;
+				rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 				cursor[0] = cursor[1] = -1;
 				updateMessageDisplay();
 			} else {
 				cursorMode = true;
+				rogue.cursorPathIntensity = (cursorMode ? 50 : 20);
 			}
 		}
 		
@@ -717,7 +737,7 @@ void shuffleTerrainColors(short percentOfCells, boolean refreshCells) {
 				&& (!rogue.automationActive || !(rogue.turnNumber % 5))
 				&& ((pmap[i][j].flags & TERRAIN_COLORS_DANCING)
 					|| (player.status[STATUS_HALLUCINATING] && (pmap[i][j].flags & VISIBLE)))
-				&& !(pmap[i][j].flags & NO_AUTO_DANCING)
+				&& (i != rogue.cursorLoc[0] || j != rogue.cursorLoc[1])
 				&& (percentOfCells >= 100 || rand_range(1, 100) <= percentOfCells)) {
 					
 					for (k=0; k<8; k++) {
@@ -1060,6 +1080,12 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 	// DEBUG if (pmap[x][y].flags & KNOWN_TO_BE_TRAP_FREE) cellBackColor.red += 20;
 	// DEBUG if (cellHasTerrainFlag(x, y, T_IS_FLAMMABLE)) cellBackColor.red += 50;
 	
+	if (pmap[x][y].flags & IS_IN_PATH) {
+		applyColorAverage(&cellForeColor, &yellow, rogue.cursorPathIntensity);
+		applyColorAverage(&cellBackColor, &yellow, rogue.cursorPathIntensity);
+		needDistinctness = true;
+	}
+	
 	bakeTerrainColors(&cellForeColor, &cellBackColor, x, y);
 	
 	if (needDistinctness) {
@@ -1229,6 +1255,14 @@ void plotCharWithColor(uchar inputChar, short xLoc, short yLoc, color cellForeCo
 	backRed =		min(100, max(0, backRed));
 	backGreen =		min(100, max(0, backGreen));
 	backBlue =		min(100, max(0, backBlue));
+	
+	if (inputChar != ' '
+		&& foreRed		== backRed
+		&& foreGreen	== backGreen
+		&& foreBlue		== backBlue) {
+		
+		inputChar = ' ';
+	}
 	
 	if (inputChar		!= displayBuffer[xLoc][yLoc].character
 		|| foreRed		!= displayBuffer[xLoc][yLoc].foreColorComponents[0]
@@ -1740,10 +1774,12 @@ void nextBrogueEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsD
 	
 	returnEvent->eventType = EVENT_ERROR;
 	
-	if (rogue.playbackMode && (!realInputEvenInPlayback)) {
+	if (rogue.playbackMode && !realInputEvenInPlayback) {
 		do {
 			repeatAgain = false;
-			if (!rogue.playbackFastForward && rogue.playbackBetweenTurns || rogue.playbackOOS) {
+			if ((!rogue.playbackFastForward && rogue.playbackBetweenTurns)
+				|| rogue.playbackOOS) {
+				
 				pauseDuration = (rogue.playbackPaused ? DEFAULT_PLAYBACK_DELAY : rogue.playbackDelayThisTurn);
 				if (pauseDuration && pauseBrogue(pauseDuration)) {
 					// if the player did something during playback
@@ -1799,6 +1835,7 @@ void executeMouseClick(rogueEvent *theEvent) {
 }
 
 void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKey) {
+	char path[BROGUE_FILENAME_MAX];
 	short direction = -1;
 	
 	confirmMessages();
@@ -1826,12 +1863,6 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 			direction = RIGHT;
 			break;
 		case NUMPAD_7:
-			if (shiftKey) {
-				//recordKeystroke(EASY_MODE_KEY, false, false);
-				enableEasyMode();
-				break;
-			}
-			// otherwise continue to movement
 		case UPLEFT_KEY:
 			direction = UPLEFT;
 			break;
@@ -1942,16 +1973,15 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 				return;
 			}
 			confirmMessages();
-			if ((rogue.turnNumber < 50 || confirm("End this game and load a saved recording?", false))
-				&& openFile("View recording: ", "Recording", RECORDING_SUFFIX, true)) {
-				
-				freeEverything();
-				randomNumbersGenerated = 0;
-				rogue.playbackMode = true;
-				initializeRogue();
-				startLevel(rogue.depthLevel, 1);
-				pausePlayback();
-				displayAnnotation(); // in case there's an annotation for turn 0
+			if ((rogue.turnNumber < 50 || confirm("End this game and view a recording?", false))
+				&& dialogChooseFile(path, RECORDING_SUFFIX, "View recording: ")) {
+				if (fileExists(path)) {
+					strcpy(rogue.nextGamePath, path);
+					rogue.nextGame = NG_VIEW_RECORDING;
+					rogue.gameHasEnded = true;
+				} else {
+					message("File not found.", false);
+				}
 			}
 			break;
 		case LOAD_SAVED_GAME_KEY:
@@ -1960,8 +1990,14 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 			}
 			confirmMessages();
 			if ((rogue.turnNumber < 50 || confirm("End this game and load a saved game?", false))
-				&& openFile("Open saved game: ", "Saved game", GAME_SUFFIX, true)) {
-				loadSavedGame();
+				&& dialogChooseFile(path, GAME_SUFFIX, "Open saved game: ")) {
+				if (fileExists(path)) {
+					strcpy(rogue.nextGamePath, path);
+					rogue.nextGame = NG_OPEN_GAME;
+					rogue.gameHasEnded = true;
+				} else {
+					message("File not found.", false);
+				}
 			}
 			break;
 		case SAVE_GAME_KEY:
@@ -1970,6 +2006,12 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 			}
 			if (confirm("Suspend this game? (This feature is still in beta.)", false)) {
 				saveGame();
+			}
+			break;
+		case NEW_GAME_KEY:
+			if (rogue.turnNumber < 50 || confirm("End this game and begin a new game?", false)) {
+				rogue.nextGame = NG_NEW_GAME;
+				rogue.gameHasEnded = true;
 			}
 			break;
 		case QUIT_KEY:
@@ -1988,7 +2030,8 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 			// DEBUG showWaypoints();
 			// DEBUG displayLoops();
 			// DEBUG displayChokeMap();
-			 DEBUG displayMachines();
+			// DEBUG displayMachines();
+			// DEBUG {displayMap(safetyMap); displayMoreSign(); displayLevel();}
 			// parseFile();
 			// DEBUG spawnDungeonFeature(player.xLoc, player.yLoc, &dungeonFeatureCatalog[DF_METHANE_GAS_ARMAGEDDON], true, false);
 			printSeed();
@@ -2020,8 +2063,8 @@ void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKe
 	rogue.cautiousMode = false;
 }
 
-boolean getInputTextString(char *inputText, char *prompt, short maxLength,
-						   char *defaultEntry, char *promptSuffix, short textEntryType) {
+boolean getInputTextString(char *inputText, const char *prompt, short maxLength,
+						   const char *defaultEntry, const char *promptSuffix, short textEntryType) {
 	short charNum, charStartNum, i;
 	char keystroke, suffix[100];
 	const short textEntryBounds[TEXT_INPUT_TYPES][2] = {{' ', '~'}, {'0', '9'}};
@@ -2403,7 +2446,7 @@ void messageWithoutCaps(char *msg, boolean requireAcknowledgment) {
 }
 
 
-void message(char *msg, boolean requireAcknowledgment) {
+void message(const char *msg, boolean requireAcknowledgment) {
 	char text[COLS*20], *msgPtr;
 	short i, lines;
 	
@@ -2876,10 +2919,10 @@ void printHelpScreen() {
 		"             S: ****suspend game and quit",
 		"             O: ****open saved game and resume play",
 		"             V: ****view saved recording",
-		"             Q: ****quit without saving",
+		"             Q: ****quit to title screen without saving",
 		"   <space/esc>: ****clear message or cancel command",
 		"",
-		"        -- press space to continue --"
+		"        -- press any key to continue --"
 	};
 	
 	// Replace the "****"s with color escapes.
@@ -3067,10 +3110,8 @@ void printDiscoveriesScreen() {
 //	overlayDisplayBuffer(rbuf, NULL);
 //}
 
-#define scorePercentAt(y, k)	(k + (100-k) * (COLS - y) / COLS / 100)
-
 void printHighScores(boolean hiliteMostRecent) {
-	short i, k, hiliteLineNum, maxLength = 0, leftOffset;
+	short i, hiliteLineNum, maxLength = 0, leftOffset;
 	rogueHighScoresEntry list[HIGH_SCORES_COUNT] = {{0}};
 	char buf[DCOLS*3];
 	color scoreColor;
@@ -3094,48 +3135,40 @@ void printHighScores(boolean hiliteMostRecent) {
 	
 	fastForward = false;
 	
-	for (k=1; k<=100; k++) {
-		
+	scoreColor = black;
+	applyColorAverage(&scoreColor, &itemMessageColor, 100);
+	printString("-- HIGH SCORES --", (COLS - 17 + 1) / 2, 0, &scoreColor, &black, 0);
+	
+	for (i = 0; i < HIGH_SCORES_COUNT && list[i].score > 0; i++) {
 		scoreColor = black;
-		applyColorAverage(&scoreColor, &itemMessageColor, scorePercentAt(1, k));
-		printString("-- HIGH SCORES --", (COLS - 17 + 1) / 2, 0, &scoreColor, &black, 0);
-		
-		for (i = 0; i < HIGH_SCORES_COUNT && list[i].score > 0; i++) {
-			scoreColor = black;
-			if (i == hiliteLineNum) {
-				applyColorAverage(&scoreColor, &itemMessageColor, scorePercentAt(i+3, k));
-			} else {
-				applyColorAverage(&scoreColor, &white, scorePercentAt(i+3, k));
-				applyColorAverage(&scoreColor, &black, (i * 50 / 24));
-			}
-			
-			// rank
-			sprintf(buf, "%s%i)", (i + 1 < 10 ? " " : ""), i + 1);
-			printString(buf, leftOffset, i + 2, &scoreColor, &black, 0);
-			
-			// score
-			sprintf(buf, "%li", list[i].score);
-			printString(buf, leftOffset + 5, i + 2, &scoreColor, &black, 0);
-			
-			// date
-			printString(list[i].date, leftOffset + 12, i + 2, &scoreColor, &black, 0);
-			
-			// description
-			printString(list[i].description, leftOffset + 21, i + 2, &scoreColor, &black, 0);
+		if (i == hiliteLineNum) {
+			applyColorAverage(&scoreColor, &itemMessageColor, 100);
+		} else {
+			applyColorAverage(&scoreColor, &white, 100);
+			applyColorAverage(&scoreColor, &black, (i * 50 / 24));
 		}
 		
-		scoreColor = black;
-		applyColorAverage(&scoreColor, &goodMessageColor, scorePercentAt(ROWS - 1, k));
-		printString(PLAY_AGAIN_STRING, (COLS - strLenWithoutEscapes(PLAY_AGAIN_STRING)) / 2, ROWS - 1, &scoreColor, &black, 0);
+		// rank
+		sprintf(buf, "%s%i)", (i + 1 < 10 ? " " : ""), i + 1);
+		printString(buf, leftOffset, i + 2, &scoreColor, &black, 0);
 		
-		if (!fastForward) {
-			fastForward = pauseBrogue(10);
-			if (fastForward) {
-				k = max(99, k);
-			}
-		}
+		// score
+		sprintf(buf, "%li", list[i].score);
+		printString(buf, leftOffset + 5, i + 2, &scoreColor, &black, 0);
+		
+		// date
+		printString(list[i].date, leftOffset + 12, i + 2, &scoreColor, &black, 0);
+		
+		// description
+		printString(list[i].description, leftOffset + 21, i + 2, &scoreColor, &black, 0);
 	}
+	
+	scoreColor = black;
+	applyColorAverage(&scoreColor, &goodMessageColor, 100);
+	printString("Press space to continue.", (COLS - strLenWithoutEscapes("Press space to continue.")) / 2, ROWS - 1, &scoreColor, &black, 0);
+	
 	commitDraws();
+	waitForAcknowledgment();
 }
 
 void showWaypoints() {
@@ -3403,7 +3436,9 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 		for (i=0; i<NUMBER_OF_STATUS_EFFECTS; i++) {
 			if (i == STATUS_LEVITATING && monst->status[i] > 0) {
 				printProgressBar(0, y++, (monst == &player ? "Levitating" : "Flying"), monst->status[i], monst->maxStatus[i], &redBar, dim);
-			} else if (i == STATUS_POISONED && monst->status[i] >= monst->currentHP) {
+			} else if (i == STATUS_POISONED
+					   && monst->status[i] > 0
+					   && monst->status[i] >= monst->currentHP) {
 				printProgressBar(0, y++, "Fatally Poisoned", monst->status[i], monst->maxStatus[i], &redBar, dim);
 			} else if (statusStrings[i][0] && monst->status[i] > 0) {
 				printProgressBar(0, y++, statusStrings[i], monst->status[i], monst->maxStatus[i], &redBar, dim);
@@ -3417,52 +3452,55 @@ short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight)
 	if (monst != &player
 		&& (!(monst->info.flags & MONST_INANIMATE)
 			|| monst->creatureState == MONSTER_ALLY)) {
-		if (player.status[STATUS_HALLUCINATING] && !rogue.playbackOmniscience && y < ROWS - 1) {
-			printString(hallucinationStrings[rand_range(0, 9)], 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if (monst->bookkeepingFlags & MONST_CAPTIVE && y < ROWS - 1) {
-			printString("     (Captive)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if ((monst->info.flags & MONST_RESTRICTED_TO_LIQUID)
-				   && !cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_ALLOWS_SUBMERGING)) {
-			printString("     (Helpless)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if (monst->creatureState == MONSTER_SLEEPING && y < ROWS - 1) {
-			printString("     (Sleeping)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if (monst->creatureState == MONSTER_FLEEING && y < ROWS - 1) {
-			printString("     (Fleeing)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if ((monst->creatureState == MONSTER_TRACKING_SCENT) && y < ROWS - 1) {
-			printString("     (Hunting)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		} else if ((monst->creatureState == MONSTER_WANDERING) && y < ROWS - 1) {
-			if ((monst->bookkeepingFlags & MONST_FOLLOWER) && monst->leader && (monst->leader->info.flags & MONST_IMMOBILE)) {
-				// follower of an immobile leader -- i.e. a totem
-				printString("    (Worshiping)    ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-			} else if ((monst->bookkeepingFlags & MONST_FOLLOWER) && monst->leader && (monst->leader->bookkeepingFlags & MONST_CAPTIVE)) {
-				// actually a captor/torturer
-				printString("     (Guarding)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-			} else {
-				printString("    (Wandering)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+			
+			if (y < ROWS - 1) {
+				if (player.status[STATUS_HALLUCINATING] && !rogue.playbackOmniscience && y < ROWS - 1) {
+					printString(hallucinationStrings[rand_range(0, 9)], 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if (monst->bookkeepingFlags & MONST_CAPTIVE && y < ROWS - 1) {
+					printString("     (Captive)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if ((monst->info.flags & MONST_RESTRICTED_TO_LIQUID)
+						   && !cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_ALLOWS_SUBMERGING)) {
+					printString("     (Helpless)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if (monst->creatureState == MONSTER_SLEEPING && y < ROWS - 1) {
+					printString("     (Sleeping)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if (monst->creatureState == MONSTER_FLEEING && y < ROWS - 1) {
+					printString("     (Fleeing)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if ((monst->creatureState == MONSTER_TRACKING_SCENT) && y < ROWS - 1) {
+					printString("     (Hunting)      ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				} else if ((monst->creatureState == MONSTER_WANDERING) && y < ROWS - 1) {
+					if ((monst->bookkeepingFlags & MONST_FOLLOWER) && monst->leader && (monst->leader->info.flags & MONST_IMMOBILE)) {
+						// follower of an immobile leader -- i.e. a totem
+						printString("    (Worshiping)    ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+					} else if ((monst->bookkeepingFlags & MONST_FOLLOWER) && monst->leader && (monst->leader->bookkeepingFlags & MONST_CAPTIVE)) {
+						// actually a captor/torturer
+						printString("     (Guarding)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+					} else {
+						printString("    (Wandering)     ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+					}
+				} else if ((monst->creatureState == MONSTER_ALLY) && y < ROWS - 1) {
+					printString("       (Ally)       ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+				}
 			}
-		} else if ((monst->creatureState == MONSTER_ALLY) && y < ROWS - 1) {
-			printString("       (Ally)       ", 0, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		}
-	} else if (monst == &player) {
-		if (y < ROWS - 1) {
-			if (!rogue.armor || rogue.armor->flags & ITEM_IDENTIFIED) {
-				sprintf(buf, "Str: %i  Armor: %i", rogue.strength, player.info.defense / 10);
-			} else {
-				sprintf(buf, "Str: %i  Armor: %i?",
-						rogue.strength,
-						(short) (((armorTable[rogue.armor->kind].range.upperBound + armorTable[rogue.armor->kind].range.lowerBound) / 2) / 10 + strengthModifier(rogue.armor)));
+		} else if (monst == &player) {
+			if (y < ROWS - 1) {
+				if (!rogue.armor || rogue.armor->flags & ITEM_IDENTIFIED) {
+					sprintf(buf, "Str: %i  Armor: %i", rogue.strength, player.info.defense / 10);
+				} else {
+					sprintf(buf, "Str: %i  Armor: %i?",
+							rogue.strength,
+							(short) (((armorTable[rogue.armor->kind].range.upperBound + armorTable[rogue.armor->kind].range.lowerBound) / 2) / 10 + strengthModifier(rogue.armor)));
+				}
+				buf[20] = '\0';
+				printString("                    ", 0, y, &white, &sidebarBackColor, 0);
+				printString(buf, (20 - strLenWithoutEscapes(buf)) / 2, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
 			}
-			buf[20] = '\0';
-			printString("                    ", 0, y, &white, &sidebarBackColor, 0);
-			printString(buf, (20 - strLenWithoutEscapes(buf)) / 2, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+			if (y < ROWS - 1 && rogue.gold) {
+				sprintf(buf, "Gold: %li", rogue.gold);
+				buf[20] = '\0';
+				printString("                    ", 0, y, &white, &sidebarBackColor, 0);
+				printString(buf, (20 - strLenWithoutEscapes(buf)) / 2, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
+			}
 		}
-		if (y < ROWS - 1 && rogue.gold) {
-			sprintf(buf, "Gold: %li", rogue.gold);
-			buf[20] = '\0';
-			printString("                    ", 0, y, &white, &sidebarBackColor, 0);
-			printString(buf, (20 - strLenWithoutEscapes(buf)) / 2, y++, (dim ? &darkGray : &gray), &sidebarBackColor, 0);
-		}
-	}
 	
 	if (y < ROWS - 1) {
 		printString("                    ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
@@ -3566,16 +3604,16 @@ short printTextBox(char *textBuf, short x, short y, short width,
 	
 	if (buttonCount > 0) {
 		padLines = 2;
-		bx = x2;
+		bx = x2 + width;
 		by = y2 + lineCount + 1;
 		for (i=0; i<buttonCount; i++) {
 			if (buttons[i].flags & B_DRAW) {
+				bx -= strLenWithoutEscapes(buttons[i].text) + 2;
 				buttons[i].x = bx;
 				buttons[i].y = by;
-				bx += strLenWithoutEscapes(buttons[i].text) + 2;
-				if (bx > x2 + width) {
+				if (bx < x2) {
 					// Buttons can wrap to the next line (though are double-spaced).
-					bx = x2;
+					bx = x2 + width - (strLenWithoutEscapes(buttons[i].text) + 2);
 					by += 2;
 					padLines += 2;
 					buttons[i].x = bx;

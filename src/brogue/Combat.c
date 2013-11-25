@@ -88,10 +88,6 @@ short hitProbability(creature *attacker, creature *defender) {
 		accuracy += 5 * netEnchant(rogue.weapon);
 	}
 	
-	if (defender == &player && rogue.armor) {
-		defense += 10 * strengthModifier(rogue.armor);
-	}
-	
 	hitProbability = accuracy * pow(DEFENSE_FACTOR, defense);
 	
 	if (hitProbability > 100) {
@@ -295,6 +291,7 @@ void splitMonster(creature *monst, short x, short y) {
 					clone->xLoc = i;
 					clone->yLoc = j;
 					pmap[i][j].flags |= HAS_MONSTER;
+					clone->ticksUntilTurn = max(clone->ticksUntilTurn, 101);
 					fadeInMonster(clone);
 					refreshSideBar(NULL, false);
 					
@@ -998,11 +995,12 @@ boolean attack(creature *attacker, creature *defender) {
 				}
 			}
 		}
+		
+		moralAttack(attacker, defender);
+		
 		if (attacker == &player && rogue.weapon && (rogue.weapon->flags & ITEM_RUNIC)) { // moved to here
 			magicWeaponHit(defender, rogue.weapon, sneakAttack || defenderWasAsleep || defenderWasParalyzed);
 		}
-		
-		moralAttack(attacker, defender);
 		
 		if (degradesAttackerWeapon
 			&& attacker == &player
@@ -1048,7 +1046,7 @@ void addExperience(unsigned long exp) {
 }
 
 // Gets the length of a string without the four-character color escape sequences, since those aren't displayed.
-short strLenWithoutEscapes(char *str) {
+short strLenWithoutEscapes(const char *str) {
 	short i, count;
 	
 	count = 0;

@@ -24,12 +24,12 @@ static void gameLoop()
 	char font[60];
 	
 	int screenWidth, screenHeight;
-	int fontWidths[5] = {128, 160, 192, 240, 288}; // widths of the font graphics (divide by 16 to get individual character width)
+	int fontWidths[13] = {112, 128, 144, 160, 186, 192, 208, 224, 240, 256, 272, 288, 304}; // widths of the font graphics (divide by 16 to get individual character width)
 
 	TCOD_sys_get_current_resolution(&screenWidth, &screenHeight);
-	for (brogueFontSize = 5; fontWidths[brogueFontSize - 1] * COLS / 16 >= screenWidth && brogueFontSize > 1; brogueFontSize--);
+	for (brogueFontSize = 13; fontWidths[brogueFontSize - 1] * COLS / 16 >= screenWidth && brogueFontSize > 1; brogueFontSize--);
 
-	sprintf(font, "BrogueFont%i.png", brogueFontSize);
+	sprintf(font, "fonts/font-%i.png", brogueFontSize);
 	
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
 	TCOD_console_init_root(COLS, ROWS, "Brogue", false, renderer);
@@ -37,14 +37,9 @@ static void gameLoop()
 	TCOD_console_set_keyboard_repeat(175, 30);
 	TCOD_mouse_show_cursor(1);
 	
-	do {
-		rogueMain();
-		
-		if (!TCOD_console_is_window_closed()) {
-			rogue.gameHasEnded = true;
-			waitForAcknowledgment();
-		}
-	} while (!TCOD_console_is_window_closed());
+	rogueMain();
+
+	TCOD_console_delete(NULL);
 }
 
 static void tcod_plotChar(uchar inputChar,
@@ -67,52 +62,33 @@ static void tcod_plotChar(uchar inputChar,
 	} else if (inputChar > 255) {
 		switch (inputChar) {
 #ifdef USE_UNICODE
-			case FLOOR_CHAR:
-				inputChar = 128 + 0;
-				break;
-			case CHASM_CHAR:
-				inputChar = 128 + 1;
-				break;
-			case TRAP_CHAR:
-				inputChar = 128 + 2;
-				break;
-			case FIRE_CHAR:
-				inputChar = 128 + 3;
-				break;
-			case FOLIAGE_CHAR:
-				inputChar = 128 + 4;
-				break;
-			case AMULET_CHAR:
-				inputChar = 128 + 5;
-				break;
-			case SCROLL_CHAR:
-				inputChar = 128 + 6;
-				break;
-			case RING_CHAR:
-				inputChar = 128 + 7;
-				break;
-			case WEAPON_CHAR:
-				inputChar = 128 + 8;
-				break;
-			case GEM_CHAR:
-				inputChar = 128 + 9;
-				break;
-			case TOTEM_CHAR:
-				inputChar = 128 + 10;
-				break;
-//			case TURRET_CHAR: // same as GEM_CHAR
-//				inputChar = 128 + 11;
-//				break;
-			case BAD_MAGIC_CHAR:
-				inputChar = 128 + 12;
-				break;
-			case GOOD_MAGIC_CHAR:
-				inputChar = 128 + 13;
-				break;
+			case FLOOR_CHAR: inputChar = 128 + 0; break;
+			case CHASM_CHAR: inputChar = 128 + 1; break;
+			case TRAP_CHAR: inputChar = 128 + 2; break;
+			case FIRE_CHAR: inputChar = 128 + 3; break;
+			case FOLIAGE_CHAR: inputChar = 128 + 4; break;
+			case AMULET_CHAR: inputChar = 128 + 5; break;
+			case SCROLL_CHAR: inputChar = 128 + 6; break;
+			case RING_CHAR: inputChar = 128 + 7; break;
+			case WEAPON_CHAR: inputChar = 128 + 8; break;
+			case GEM_CHAR: inputChar = 128 + 9; break;
+			case TOTEM_CHAR: inputChar = 128 + 10; break;
+			case BAD_MAGIC_CHAR: inputChar = 128 + 12; break;
+			case GOOD_MAGIC_CHAR: inputChar = 128 + 13; break;
+
+			case DOWN_ARROW_CHAR: inputChar = 144 + 1; break;
+			case LEFT_ARROW_CHAR: inputChar = 144 + 2; break;
+			case RIGHT_ARROW_CHAR: inputChar = 144 + 3; break;
+			case UP_TRIANGLE_CHAR: inputChar = 144 + 4; break;
+			case DOWN_TRIANGLE_CHAR: inputChar = 144 + 5; break;
+			case OMEGA_CHAR: inputChar = 144 + 6; break;
+			case THETA_CHAR: inputChar = 144 + 7; break;
+			case LAMDA_CHAR: inputChar = 144 + 8; break;
+			case KOPPA_CHAR: inputChar = 144 + 9; break;
+			case LOZENGE_CHAR: inputChar = 144 + 10; break;
+			case CROSS_PRODUCT_CHAR: inputChar = 144 + 11; break;
 #endif
-			default:
-				inputChar = ' ';
-				break;
+			default: inputChar = '?'; break;
 		}
 	}
 	TCOD_console_put_char_ex(NULL, xLoc, yLoc, (int) inputChar, fore, back);
@@ -122,7 +98,7 @@ static void initWithFont(int fontSize)
 {
 	char font[80];
 	
-	sprintf(font,"BrogueFont%i.png",fontSize);
+	sprintf(font,"fonts/font-%i.png",fontSize);
 	
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
 	TCOD_console_init_root(COLS, ROWS, "Brogue", 0, renderer);
@@ -142,7 +118,7 @@ static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 		return true;
 	} else if ((k.vk == TCODK_PAGEUP
 				|| (k.vk == TCODK_CHAR && (k.c == '=' || k.c == '+')))
-			   && brogueFontSize < 5) {
+			   && brogueFontSize < 13) {
 		
 		if (!text) {
 			if (isFullScreen) {
@@ -333,12 +309,15 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 	short x, y;
 	
 	TCOD_console_flush();
+
+	if (noMenu && rogue.nextGame == NG_NOTHING) rogue.nextGame = NG_NEW_GAME;
 	
 	for (;;) {
 		theTime = TCOD_sys_elapsed_milli();
 		
 		if (TCOD_console_is_window_closed()) {
 			rogue.gameHasEnded = true; // causes the game loop to terminate quickly
+			rogue.nextGame = NG_QUIT; // causes the menu to drop out immediately
 			returnEvent->eventType = KEYSTROKE;
 			returnEvent->param1 = ESCAPE_KEY;
 			return;
@@ -388,12 +367,17 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 			return;
 		}
 		
-		if (colorsDance) {
-			shuffleTerrainColors(3, true);
-			commitDraws();
+		if (!(serverMode || (SDL_GetAppState() & SDL_APPACTIVE))) {
+			TCOD_sys_sleep_milli(100);
+		} else {
+			if (colorsDance) {
+				shuffleTerrainColors(3, true);
+				commitDraws();
+			}
+			TCOD_console_flush();
 		}
+
 		
-		TCOD_console_flush();
 		key = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
 		rewriteKey(&key, textInput);
 		if (processKeystroke(key, returnEvent, textInput)) {
@@ -403,9 +387,8 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 		mouse = TCOD_mouse_get_status();
 		// x = mouse.cx;
 		// y = mouse.cy;
-		int fontWidth, fontHeight;
 
-		if ((SDL_GetAppState() & SDL_APPMOUSEFOCUS)) {
+		if (serverMode || (SDL_GetAppState() & SDL_APPMOUSEFOCUS)) {
 			x = mouse.cx;
 			y = mouse.cy;
 		} else {

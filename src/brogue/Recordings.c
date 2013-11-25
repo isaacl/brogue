@@ -143,7 +143,7 @@ void recordMouseClick(short x, short y, boolean controlKey, boolean shiftKey) {
 	recordEvent(&theEvent);
 }
 
-void writeHeaderInfo() {
+void writeHeaderInfo(char *path) {
 	unsigned char c[RECORDING_HEADER_LENGTH];
 	short i;
 	FILE *recordFile;
@@ -165,14 +165,14 @@ void writeHeaderInfo() {
 	numberToString(lengthOfPlaybackFile, 4, &c[i]);
 	i += 4;
 	
-	if (!fileExists(currentFilePath)) {
-		recordFile = fopen(currentFilePath, "wb");
+	if (!fileExists(path)) {
+		recordFile = fopen(path, "wb");
 		if (recordFile) {
 			fclose(recordFile);
 		}
 	}
 	
-	recordFile = fopen(currentFilePath, "r+b");
+	recordFile = fopen(path, "r+b");
 	rewind(recordFile);
 	for (i=0; i<RECORDING_HEADER_LENGTH; i++) {
 		putc(c[i], recordFile);
@@ -195,7 +195,7 @@ void flushBufferToFile() {
 	}
 	
 	lengthOfPlaybackFile += locationInRecordingBuffer;
-	writeHeaderInfo();
+	writeHeaderInfo(currentFilePath);
 	
 	if (locationInRecordingBuffer != 0) {
 		
@@ -267,9 +267,9 @@ unsigned long recallNumber(short numberOfBytes) {
 	return n;
 }
 
-#define OOS_APOLOGY "Playback of the recording has diverged from the originally recorded game.\n\
+#define OOS_APOLOGY "Playback of the recording has diverged from the originally recorded game.\n\n\
 This could be caused by recording or playing the file on a modified version of Brogue, or it could \
-simply be the result of a bug.  (The recording feature is still in beta for this reason.)\n\
+simply be the result of a bug.  (The recording feature is still in beta for this reason.)\n\n\
 If this is a different computer from the one on which the recording was saved, the recording \
 might succeed on the original computer."
 
@@ -297,6 +297,8 @@ void playbackPanic() {
 		printf("\n\nPlayback panic at location %li!", recordingLocation - 1);
 		
 		overlayDisplayBuffer(rbuf, 0);
+		
+		mainInputLoop();
 	}
 }
 
@@ -425,7 +427,7 @@ void initRecording() {
 	char versionString[16], buf[100];
 	FILE *recordFile;
 	
-	initializeBrogueSaveLocation();
+	//initializeBrogueSaveLocation();
 	
 #ifdef AUDIT_RNG
 	if (fileExists(RNG_LOG)) {
@@ -458,12 +460,13 @@ void initRecording() {
 		
 		if (strcmp(versionString, BROGUE_VERSION_STRING)) {
 			rogue.playbackMode = false;
-			sprintf(buf, "This file is from version %s and cannot be opened in version %s.", versionString, BROGUE_VERSION_STRING);
-			message(buf, true);
-			rogue.playbackMode = true;
 			rogue.playbackFastForward = false;
+			sprintf(buf, "This file is from version %s and cannot be opened in version %s.", versionString, BROGUE_VERSION_STRING);
+			dialogAlert(buf);
+			rogue.playbackMode = true;
 			rogue.playbackPaused = true;
-			rogue.playbackOOS = true;
+			rogue.playbackOOS = false;
+			rogue.gameHasEnded = true;
 		}
 		rogue.seed				= recallNumber(4);			// master random seed
 		rogue.howManyTurns		= recallNumber(4);			// how many turns are in this recording
@@ -534,7 +537,7 @@ boolean unpause() {
 	return false;
 }
 
-#define PLAYBACK_HELP_LINE_COUNT	17
+#define PLAYBACK_HELP_LINE_COUNT	19
 
 void printPlaybackHelpScreen() {
 	short i, j;
@@ -554,9 +557,11 @@ void printPlaybackHelpScreen() {
 		"               i: ****display inventory",
 		"               D: ****display discovered items",
 		"               V: ****view saved recording",
-		"               Q: ****quit to high scores screen",
+		"               O: ****open and resume saved game",
+		"               N: ****begin a new game",
+		"               Q: ****quit to title screen",
 		" ",
-		"        -- press space to continue --"
+		"        -- press any key to continue --"
 	};
 	
 	// Replace the "****"s with color escapes.
@@ -675,13 +680,14 @@ void pausePlayback() {
 	}
 }
 
-// used to interact with playback -- e.g. changing speed, pausing
+// Used to interact with playback -- e.g. changing speed, pausing.
 void executePlaybackInput(rogueEvent *recordingInput) {
 	uchar key;
 	short newDelay, frameCount, x, y;
 	unsigned long initialState, destinationFrame;
 	boolean pauseState;
 	rogueEvent theEvent;
+	char path[BROGUE_FILENAME_MAX];
 	
 	if (!rogue.playbackMode) {
 		return;
@@ -804,40 +810,48 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 			case VIEW_RECORDING_KEY:
 				confirmMessages();
 				rogue.playbackMode = false;
-				if (openFile("View recording: ", "Recording", RECORDING_SUFFIX, true)) {
-					freeEverything();
-					randomNumbersGenerated = 0;
-					rogue.playbackMode = true;
-					initializeRogue();
-					startLevel(rogue.depthLevel, 1);
-					//pausePlayback();
-				} else {
-					rogue.playbackMode = true;
+				if (dialogChooseFile(path, RECORDING_SUFFIX, "View recording: ")) {
+					if (fileExists(path)) {
+						strcpy(rogue.nextGamePath, path);
+						rogue.nextGame = NG_VIEW_RECORDING;
+						rogue.gameHasEnded = true;
+					} else {
+						message("File not found.", false);
+					}
 				}
+				rogue.playbackMode = true;
 				break;
-//			case LOAD_SAVED_GAME_KEY:
-//				confirmMessages();
-//				rogue.playbackMode = false;
-//				if (openFile("Open saved game: ", "Saved game", GAME_SUFFIX, true)) {
-//					loadSavedGame();
-//				} else {
-//					rogue.playbackMode = true;
-//				}
-//				break;
-//			case NEW_GAME_KEY:
-//				rogue.playbackMode = false;
-//				freeEverything();
-//				randomNumbersGenerated = 0;
-//				strcpy(currentFilePath, LAST_GAME_PATH);
-//				initializeRogue();
-//				startLevel(rogue.depthLevel, 1);
-//				break;
+			case LOAD_SAVED_GAME_KEY:
+				confirmMessages();
+				rogue.playbackMode = false;
+				if (dialogChooseFile(path, GAME_SUFFIX, "Open saved game: ")) {
+					if (fileExists(path)) {
+						strcpy(rogue.nextGamePath, path);
+						rogue.nextGame = NG_OPEN_GAME;
+						rogue.gameHasEnded = true;
+					} else {
+						message("File not found.", false);
+					}
+				}
+				rogue.playbackMode = true;
+				break;
+			case NEW_GAME_KEY:
+				rogue.playbackMode = false;
+				if (confirm("Close recording and begin a new game?", true)) {
+					rogue.nextGame = NG_NEW_GAME;
+					rogue.gameHasEnded = true;
+				}
+				rogue.playbackMode = true;
+				break;
 			case QUIT_KEY:
-				freeEverything();
-				printHighScores(false);
+				//freeEverything();
 				rogue.gameHasEnded = true;
+				rogue.playbackOOS = false;
 				break;
 			case SEED_KEY:
+				//rogue.playbackMode = false;
+				//DEBUG {displayMap(safetyMap); displayMoreSign(); displayLevel();}
+				//rogue.playbackMode = true;
 				printSeed();
 				break;
 			default:
@@ -864,7 +878,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 }
 
 void getAvailableFilePath(char *filePath, const char *defaultPath, const char *suffix) {
-	char fullPath[FILENAME_MAX];
+	char fullPath[BROGUE_FILENAME_MAX];
 	short fileNameIterator = 2;
 	
 	strcpy(filePath, defaultPath);
@@ -877,7 +891,7 @@ void getAvailableFilePath(char *filePath, const char *defaultPath, const char *s
 }
 
 void saveGame() {
-	char filePath[FILENAME_MAX], defaultPath[FILENAME_MAX];
+	char filePath[BROGUE_FILENAME_MAX], defaultPath[BROGUE_FILENAME_MAX];
 	boolean askAgain;
 	
 	if (rogue.playbackMode) {
@@ -890,7 +904,7 @@ void saveGame() {
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save game as (<esc> to cancel): ",
-							   FILENAME_MAX - strlen(GAME_SUFFIX), defaultPath, GAME_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   BROGUE_FILENAME_MAX - strlen(GAME_SUFFIX), defaultPath, GAME_SUFFIX, TEXT_INPUT_NORMAL)) {
 			
 			strcat(filePath, GAME_SUFFIX);
 			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite?", true)) {
@@ -899,7 +913,6 @@ void saveGame() {
 				rename(currentFilePath, filePath);
 				strcpy(currentFilePath, filePath);
 				message("Saved.", true);
-				printHighScores(false);
 				rogue.gameHasEnded = true;
 			} else {
 				askAgain = true;
@@ -910,7 +923,7 @@ void saveGame() {
 }
 
 void saveRecording() {
-	char filePath[FILENAME_MAX], defaultPath[FILENAME_MAX];
+	char filePath[BROGUE_FILENAME_MAX], defaultPath[BROGUE_FILENAME_MAX];
 	boolean askAgain;
 	
 	if (rogue.playbackMode) {
@@ -923,7 +936,7 @@ void saveRecording() {
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save recording as (<esc> to cancel): ",
-							   FILENAME_MAX - strlen(RECORDING_SUFFIX), defaultPath, RECORDING_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   BROGUE_FILENAME_MAX - strlen(RECORDING_SUFFIX), defaultPath, RECORDING_SUFFIX, TEXT_INPUT_NORMAL)) {
 			
 			strcat(filePath, RECORDING_SUFFIX);
 			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite?", true)) {
@@ -973,6 +986,7 @@ void switchToPlaying() {
 	
 	strcpy(currentFilePath, LAST_GAME_PATH);
 	
+	blackOutScreen();
 	refreshSideBar(NULL, false);
 	updateMessageDisplay();
 	displayLevel();
@@ -984,14 +998,16 @@ void loadSavedGame() {
 	
 	cellDisplayBuffer dbuf[COLS][ROWS];
 	
-	blackOutScreen();
-	pauseBrogue(1);
-	freeEverything();
+//	pauseBrogue(1);
+//	freeEverything();
 	randomNumbersGenerated = 0;
 	rogue.playbackMode = true;
 	rogue.playbackFastForward = true;
 	initializeRogue(); // Calls initRecording().
-	startLevel(rogue.depthLevel, 1);
+	if (!rogue.gameHasEnded) {
+		blackOutScreen();
+		startLevel(rogue.depthLevel, 1);
+	}
 	
 	if (rogue.howManyTurns > 0) {
 		
@@ -1039,7 +1055,7 @@ void describeKeystroke(unsigned char key, char *description) {
 		DESCEND_KEY, ASCEND_KEY, REST_KEY, AUTO_REST_KEY, SEARCH_KEY, INVENTORY_KEY,
 		ACKNOWLEDGE_KEY, EQUIP_KEY, UNEQUIP_KEY, APPLY_KEY, THROW_KEY, DROP_KEY, CALL_KEY,
 		//FIGHT_KEY, FIGHT_TO_DEATH_KEY,
-		HELP_KEY, DISCOVERIES_KEY, REPEAT_TRAVEL_KEY,
+		HELP_KEY, DISCOVERIES_KEY, RETURN_KEY,
 		EXPLORE_KEY, AUTOPLAY_KEY, SEED_KEY, EASY_MODE_KEY, ESCAPE_KEY,
 		RETURN_KEY, ENTER_KEY, DELETE_KEY, TAB_KEY, PERIOD_KEY, VIEW_RECORDING_KEY, NUMPAD_0,
 		NUMPAD_1, NUMPAD_2, NUMPAD_3, NUMPAD_4, NUMPAD_5, NUMPAD_6, NUMPAD_7, NUMPAD_8,
@@ -1052,7 +1068,8 @@ void describeKeystroke(unsigned char key, char *description) {
 		"help", "discoveries", "repeat travel", "explore", "autoplay", "seed",
 		"easy mode", "escape", "return", "enter", "delete", "tab", "period", "open file",
 		"numpad 0", "numpad 1", "numpad 2", "numpad 3", "numpad 4", "numpad 5", "numpad 6",
-		"numpad 7", "numpad 8", "numpad 9", "unknown", "ERROR"};	
+		"numpad 7", "numpad 8", "numpad 9", "unknown", "ERROR"};
+	
 	c = uncompressKeystroke(key);
 	for (i=0; ucharList[i] != c && i < 53; i++);
 	if (key >= 32 && key <= 126) {
@@ -1080,7 +1097,7 @@ void parseFile() {
 	char description[1000], versionString[500];
 	short x, y;
 	
-	if (openFile("Parse recording: ", "Recording.broguerec", "", true)) {
+	if (selectFile("Parse recording: ", "Recording.broguerec", "")) {
 		
 		oldFileLoc = positionInPlaybackFile;
 		oldRecLoc = recordingLocation;

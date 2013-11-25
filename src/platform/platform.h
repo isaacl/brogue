@@ -19,4 +19,6 @@ extern struct brogueConsole cursesConsole;
 #endif
 
 extern struct brogueConsole currentConsole;
+extern boolean serverMode;
+extern boolean noMenu;
 

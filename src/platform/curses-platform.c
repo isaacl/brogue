@@ -16,12 +16,10 @@ static void gameLoop() {
 	if (!Term.start()) {
 		return;
 	}
-	Term.title("Brogue 1.5.2");
+	Term.title("Brogue 1.6.1");
 	Term.resize(COLS, ROWS);
 
-	do {
-		rogueMain();
-	} while (!rogue.gameHasEnded);
+	rogueMain();
 	
 	Term.end();
 }
@@ -42,7 +40,7 @@ static void curses_plotChar(uchar ch,
 	back.b = (float) backBlue / 100;
 
 	#ifdef USE_UNICODE
-	// because we can't look at unicode and ascii without messing with Rogue.h, reinterpret until 1.5.2 comes along:
+	// because we can't look at unicode and ascii without messing with Rogue.h, reinterpret until some later version comes along:
 	switch (ch) {
 	case FLOOR_CHAR: ch = '.'; break;
 	case CHASM_CHAR: ch = ':'; break;
@@ -57,6 +55,22 @@ static void curses_plotChar(uchar ch,
 	case TOTEM_CHAR: ch = '0'; break;
 	case BAD_MAGIC_CHAR: ch = '+'; break;
 	case GOOD_MAGIC_CHAR: ch = '$'; break;
+
+	// case UP_ARROW_CHAR: ch = '^'; break; // same as WEAPON_CHAR
+	case DOWN_ARROW_CHAR: ch = 'v'; break;
+	case LEFT_ARROW_CHAR: ch = '<'; break;
+	case RIGHT_ARROW_CHAR: ch = '>'; break;
+
+	case UP_TRIANGLE_CHAR: ch = '^'; break;
+	case DOWN_TRIANGLE_CHAR: ch = 'v'; break;
+
+	case OMEGA_CHAR: ch = 'w'; break;
+	case THETA_CHAR: ch = '0'; break;
+	case LAMDA_CHAR: ch = '^'; break;
+	case KOPPA_CHAR: ch = '0'; break;
+
+	case LOZENGE_CHAR: ch = 'o'; break;
+	case CROSS_PRODUCT_CHAR: ch = 'x'; break;
 	}
 	#endif
 	
@@ -87,6 +101,8 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInpu
 	// short x, y;
 	
 	Term.refresh();
+
+	if (noMenu && rogue.nextGame == NG_NOTHING) rogue.nextGame = NG_NEW_GAME;
 	
 	for (;;) {
 		theTime = getTime(); //TCOD_sys_elapsed_milli();
@@ -130,6 +146,7 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInpu
 			else if (key == Term.keys.right) returnEvent->param1 = RIGHT_ARROW;
 			else if (key == Term.keys.quit) {
 				rogue.gameHasEnded = true;
+				rogue.nextGame = NG_QUIT; // causes the menu to drop out immediately
 			} 
 			else if ((key >= 'A' && key <= 'Z')) {
 				returnEvent->shiftKey = 1;
