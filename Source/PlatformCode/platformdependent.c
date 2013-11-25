@@ -498,3 +498,9 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	return true;
 }
 
+void initializeBrogueSaveLocation() {
+    // char path[PATH_MAX];
+    // chdir(path);
+	return;
+}
+

@@ -114,7 +114,7 @@ boolean attackHit(creature *attacker, creature *defender) {
 }
 
 void monsterShoots(creature *attacker, short targetLoc[2], uchar projChar, color *projColor) {
-	short listOfCoordinates[DCOLS][2], originLoc[2];
+	short listOfCoordinates[MAX_BOLT_LENGTH][2], originLoc[2];
 	short i, x, y, numCells;
 	creature *monst;
 	uchar displayChar;
@@ -300,12 +300,40 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 	}
 }
 
+short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchantLevel) {
+	
+	// W_POISON, W_QUIETUS, W_PARALYSIS, W_NEGATION, W_SLOWING, W_CONFUSION, W_SLAYING, W_MERCY, W_PLENTY
+	
+	const short effectChances[NUMBER_WEAPON_RUNIC_KINDS][2] = {
+		{25, 130},
+		{5, 60},
+		{7, 65},
+		{20, 180},
+		{10, 75},
+		{7, 70},
+		{0, 0},
+		{15, 15},
+		{15, 15}};
+	short runicType = theItem->enchant2;
+	short chance;
+	
+	if (customEnchantLevel) {
+		enchantLevel = netEnchant(theItem);
+	}
+	chance = max(effectChances[runicType][0],
+			   effectChances[runicType][0] +
+			   (effectChances[runicType][1] - effectChances[runicType][0]) * enchantLevel / 10);
+	
+	// innately high-damage weapon types have much less likelihood of runic effects actuating
+	chance = chance * (100 - 100 * ((theItem->damage.lowerBound + theItem->damage.upperBound) / 2 - 3) / (20 - 3)) / 100;
+	
+	return chance;
+}
+
 void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 	char buf[DCOLS*3], monstName[DCOLS];
 	// lower is chance at weapon level 0, upper is chance at weapon level 10, to be interpolated/extrapolated as necessary
-	short effectChances[NUMBER_WEAPON_ENCHANT_KINDS][2] = {{25, 130}, {5, 60},
-		{7, 65}, {20, 180}, {10, 75}, {7, 70}, {0, 0}, {15, 15}, {15, 15}};
-	color *effectColors[NUMBER_WEAPON_ENCHANT_KINDS] = {&darkGreen, &black,
+	color *effectColors[NUMBER_WEAPON_RUNIC_KINDS] = {&darkGreen, &black,
 		&yellow, &pink, &green, &confusionGasColor, &white, &darkRed, &rainbow};
 	//	W_POISON, W_QUIETUS, W_PARALYSIS, W_NEGATION, W_SLOWING, W_CONFUSION, W_SLAYING, W_MERCY, W_PLENTY
 	short chance;
@@ -318,11 +346,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 	if (theItem->enchant2 == W_SLAYING) {
 		chance = (theItem->vorpalEnemy == defender->info.monsterID ? 100 : 0);
 	} else {
-		chance = max(effectChances[enchantType][0],
-					 effectChances[enchantType][0] + (effectChances[enchantType][1]
-													  - effectChances[enchantType][0]) * enchant / 10);
-		// high-damage weapons have much less likelihood of runic effects actuating
-		chance = chance * (100 - 100 * ((theItem->damage.lowerBound + theItem->damage.upperBound) / 2 - 3) / (20 - 3)) / 100;
+		chance = runicWeaponChance(theItem, false, 0);
 		if (backstabbed) {
 			chance *= 2;
 		}
@@ -709,7 +733,6 @@ void displayCombatText() {
 	
 	if (strlen(combatText) > 0) {
 		sprintf(buf, "%s.", combatText);
-		//strcpy(combatText, "");
 		combatText[0] = '\0';
 		message(buf, true, rogue.cautiousMode);
 		rogue.cautiousMode = false;
@@ -843,7 +866,7 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, colo
 		damage = max(1, damage/5);
 	}
 	
-	if (defender->currentHP <= damage) {
+	if (defender->currentHP <= damage) { // killed
 		if (defender->carriedItem) {
 			makeMonsterDropItem(defender);
 		}

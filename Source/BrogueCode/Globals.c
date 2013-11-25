@@ -259,7 +259,7 @@ const color *dynamicColors[NUMBER_DYNAMIC_COLORS][3] = {
 
 const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	
-	// note that promoteChance is in hundredths of a percent per turn
+	// promoteChance is in hundredths of a percent per turn
 	
 	//	char		fore color				back color		priority	ignit	fireType	discovType	promoteType		promoteChance	glowLight		flags																							description			flavorText
 	
@@ -1012,88 +1012,110 @@ const char itemGemsRef[NUMBER_ITEM_GEMS][30] = {
 //} itemTable;
 
 const itemTable foodTable[NUMBER_FOOD_KINDS] = {
-	{"ration of food",	"", "", 3, 25,	1800, {0,0,0}, true, false},
-	{"mango",			"", "", 1, 15,	1550, {0,0,0}, true, false}
+	{"ration of food",	"", "", 3, 25,	1800, {0,0,0}, true, false, "A ration of food. Was it left by former adventurers? Is it a curious byproduct of the subterranean ecosystem?"},
+	{"mango",			"", "", 1, 15,	1550, {0,0,0}, true, false, "An odd fruit to be found so deep beneath the surface of the earth, but only slightly less filling than a ration of food."}
 };
 
 const itemTable weaponTable[NUMBER_WEAPON_KINDS] = {
-	{"dagger",				"", "", 10, 100,		10,	{2,	5,	1}, true, false},	// avg dmg 3.5
-	{"short sword",			"", "", 10, 300,		12, {2,	8,	2}, true, false},	// avg dmg 5
-	{"mace",				"", "", 10,	500,		14, {3,	12, 2}, true, false},	// avg dmg 7.5
-	{"long sword",			"", "", 10, 700,		16, {3,	20, 3}, true, false},	// avg dmg 11.5
-	{"two-handed sword",	"", "", 10, 1200,		19, {5,	30, 4}, true, false},	// avg dmg 17.5
-	{"dart",				"", "",	0,	15,			10,	{1,	3,	1},	true, false},	// avg dmg 2
-	{"incendiary dart",		"", "",	10, 25,			12,	{1,	2,	1}, true, false},	// avg dmg 1.5
-	{"javelin",				"", "",	10, 40,			15,	{3, 11, 3},	true, false}	// avg dmg 7
+	{"dagger",				"", "", 10, 100,		10,	{2,	5,	1}, true, false, "A simple iron dagger with a well-worn wooden handle."},	// avg dmg 3.5
+	{"short sword",			"", "", 10, 300,		12, {2,	8,	2}, true, false, "A short blade with its center of gravity near the hilt."},	// avg dmg 5
+	{"mace",				"", "", 10,	500,		14, {3,	12, 2}, true, false, "The symmetrical iron flanges at the head of this weapon glint softly in the darkness."},	// avg dmg 7.5
+	{"long sword",			"", "", 10, 700,		16, {3,	20, 3}, true, false, "The razor-sharp length of steel blade shines reassuringly."},	// avg dmg 11.5
+	{"two-handed sword",	"", "", 10, 1200,		19, {5,	30, 4}, true, false, "This towering blade inflicts mighty damage by investing its considerable heft into every cut."},	// avg dmg 17.5
+	{"dart",				"", "",	0,	15,			10,	{1,	3,	1},	true, false, "These simple metal spikes are weighted to fly true and sting their prey with a flick of the wrist."},	// avg dmg 2
+	{"incendiary dart",		"", "",	10, 25,			12,	{1,	2,	1}, true, false, "The spike on each of these darts is designed to pin it to its target while the unstable compounds strapped to its length burst into brilliant flames."},	// avg dmg 1.5
+	{"javelin",				"", "",	10, 40,			15,	{3, 11, 3},	true, false, "This length of metal is weighted to keep the spike at its tip foremost as it sails through the air. "}	// avg dmg 7
 };
 
 const itemTable armorTable[NUMBER_ARMOR_KINDS] = {
-	{"leather armor",	"", "", 10,	250,		10,	{30,30,0},		true, false},
-	{"scale mail",		"", "", 10, 350,		12, {40,40,0},		true, false},
-	{"chain mail",		"", "", 10, 500,		13, {50,50,0},		true, false},
-	{"banded mail",		"", "", 10, 800,		15, {70,70,0},		true, false},
-	{"splint mail",		"", "", 10, 1000,		17, {90,90,0},		true, false},
-	{"plate armor",		"", "", 10, 1300,		19, {120,120,0},	true, false}
+	{"leather armor",	"", "", 10,	250,		10,	{30,30,0},		true, false, "This lightweight armor offers basic protection."},
+	{"scale mail",		"", "", 10, 350,		12, {40,40,0},		true, false, "Bronze scales cover the surface of treated leather, offering greater protection than plain leather with minimal additional weight."},
+	{"chain mail",		"", "", 10, 500,		13, {50,50,0},		true, false, "Interlocking metal links make for a tough but flexible suit of armor."},
+	{"banded mail",		"", "", 10, 800,		15, {70,70,0},		true, false, "Overlapping strips of metal horizontally encircle a chain mail base, offering an additional layer of protection at the cost of greater weight."},
+	{"splint mail",		"", "", 10, 1000,		17, {90,90,0},		true, false, "Thick plates of metal are embedded into a chain mail base, providing the wearer with substantial protection."},
+	{"plate armor",		"", "", 10, 1300,		19, {120,120,0},	true, false, "Emormous plates of metal are joined together into a suit that provides unmatched protection to any adventurer strong enough to bear its staggering weight."}
+};
+
+const char weaponRunicNames[NUMBER_WEAPON_RUNIC_KINDS][30] = {
+	"poison",
+	"quietus",
+	"paralysis",
+	"negation",
+	"slowing",
+	"confusion",
+	"slaying",
+	"mercy",
+	"plenty"
+};
+
+const char armorRunicNames[NUMBER_ARMOR_ENCHANT_KINDS][30] = {
+	"toughness",
+	"wisdom",
+	"absorption",
+	"reprisal",
+	"immunity",
+	"burden",
+	"vulnerability"
 };
 
 itemTable scrollTable[NUMBER_SCROLL_KINDS] = {
-	{"identify",			itemTitles[0], "",	30,	100,	0,{0,0,0}, false, false},
-	{"teleportation",		itemTitles[1], "",	10,	500,	0,{0,0,0}, false, false},
-	{"remove curse",		itemTitles[2], "",	15,	150,	0,{0,0,0}, false, false},
-	{"enchanting",			itemTitles[3], "",	0,	525,	0,{0,0,0}, false, false}, // frequency is dynamically adjusted
-	{"recharging",			itemTitles[4], "",	12,	375,	0,{0,0,0}, false, false},
-	{"protect armor",		itemTitles[5], "",	10,	400,	0,{0,0,0}, false, false},
-	{"protect weapon",		itemTitles[6], "",	10,	400,	0,{0,0,0}, false, false},
-	{"magic mapping",		itemTitles[7], "",	12,	500,	0,{0,0,0}, false, false},
-	{"aggravate monsters",	itemTitles[8], "",	15,	50,		0,{0,0,0}, false, false},
-	{"summon monsters",		itemTitles[9], "",	10,	175,	0,{0,0,0}, false, false},
-	{"cause fear",			itemTitles[10], "",	10,	500,	0,{0,0,0}, false, false},
-	{"sanctuary",			itemTitles[11], "",	5,	850,	0,{0,0,0}, false, false}
+	{"identify",			itemTitles[0], "",	30,	100,	0,{0,0,0}, false, false, "Permanently reveals all of the secrets of a single item."},
+	{"teleportation",		itemTitles[1], "",	10,	500,	0,{0,0,0}, false, false, "The spell on this parchment instantly transports the reader to a random location on the dungeon level. It can be used to escape a dangerous situation, but the unlucky reader might find himself in an even more dangerous place."},
+	{"remove curse",		itemTitles[2], "",	15,	150,	0,{0,0,0}, false, false, "The incantation on this scroll will instantly strip from the reader's weapon, armor, rings and carried items any evil enchantments that might prevent the wearer from removing them."},
+	{"enchanting",			itemTitles[3], "",	0,	525,	0,{0,0,0}, false, false, "This indispensable scroll will imbue a single item with a powerful and permanent magical charge. A staff will increase in power and in number of charges; a weapon will inflict more damage or find its mark more frequently; a suit of armor will deflect additional blows; the effect of a ring on its wearer will intensify; and a wand will gain a single expendable charge. Weapons and armor will also require less strength to use."}, // frequency is dynamically adjusted
+	{"recharging",			itemTitles[4], "",	12,	375,	0,{0,0,0}, false, false, "The raw magical power bound up in this parchment will, when released, recharge all of the reader's staffs to full power and will add a charge to each wand."},
+	{"protect armor",		itemTitles[5], "",	10,	400,	0,{0,0,0}, false, false, "The armor worn by the reader of this scroll will be permanently proofed against degradation from acid."},
+	{"protect weapon",		itemTitles[6], "",	10,	400,	0,{0,0,0}, false, false, "The weapon held by the reader of this scroll will be permanently proofed against degradation from acid."},
+	{"magic mapping",		itemTitles[7], "",	12,	500,	0,{0,0,0}, false, false, "When this scroll is read, a purple-hued image of crystal clarity will be etched into the reader's memory, alerting the reader to the precise layout of the level and revealing all hidden secrets, though the locations of items and creatures will remain unknown."},
+	{"aggravate monsters",	itemTitles[8], "",	15,	50,		0,{0,0,0}, false, false, "When read aloud, this scroll will unleash a piercing shriek that will awaken all monsters and alert them to the reader's location."},
+	{"summon monsters",		itemTitles[9], "",	10,	175,	0,{0,0,0}, false, false, "The incantation on this scroll will call out to foul creatures in other planes of existence, drawing them through the fabric of reality to confront the reader."},
+	{"cause fear",			itemTitles[10], "",	10,	500,	0,{0,0,0}, false, false, "A sudden flash of red light will overwhelm all visible monsters with a sudden terror, and they will instantly turn and flee. Attacking a fleeing foe will dispel the effect, and even fleeing monsters will turn to fight when they are cornered. The magic is powerful and will forever sweep away the loyalty of any allies caught within its area of effect."},
+	{"sanctuary",			itemTitles[11], "",	5,	850,	0,{0,0,0}, false, false, "A sacred magic is intertwined with the fabric of this scroll. When laid on the ground, no monster will step onto it or use melee attacks against anyone standing atop it. Upon leaving one's possession -- for any reason -- the scroll will be bound to the floor. Reading the scroll will cause its power to dissipate uselessly into thin air."}
 };
 
 itemTable potionTable[NUMBER_POTION_KINDS] = {
-	{"healing",				itemColors[0], "",	30,	150,	0,{0,0,0}, false, false},
-	{"extra healing",		itemColors[1], "",	15,	750,	0,{0,0,0}, false, false},
-	{"gain level",			itemColors[2], "",	4,	850,	0,{0,0,0}, false, false},
-	{"telepathy",			itemColors[3], "",	20,	350,	0,{0,0,0}, false, false},
-	{"levitation",			itemColors[4], "",	15,	250,	0,{0,0,0}, false, false},
-	{"detect magic",		itemColors[5], "",	20,	300,	0,{0,0,0}, false, false},
-	{"speed",				itemColors[6], "",	10,	500,	0,{0,0,0}, false, false},
-	{"fire immunity",		itemColors[7], "",	15,	500,	0,{0,0,0}, false, false},
-	{"strength",			itemColors[8], "",	0,	400,	0,{0,0,0}, false, false}, // frequency is dynamically adjusted
-	{"poisonous gas",		itemColors[9], "",	15,	200,	0,{0,0,0}, false, false},
-	{"paralysis",			itemColors[10], "",	10, 250,	0,{0,0,0}, false, false},
-	{"hallucination",		itemColors[11], "",	10,	500,	0,{0,0,0}, false, false},
-	{"confusion",			itemColors[12], "",	15,	450,	0,{0,0,0}, false, false},
-	{"incineration",		itemColors[13], "",	15,	500,	0,{0,0,0}, false, false},
-	{"darkness",			itemColors[14], "",	7,	30,		0,{0,0,0}, false, false},
-	{"descent",				itemColors[15], "",	15,	500,	0,{0,0,0}, false, false},
-	{"creeping death",		itemColors[16], "",	7,	450,	0,{0,0,0}, false, false},
+	{"healing",				itemColors[0], "",	30,	150,	0,{0,0,0}, false, false, "A potent medicine that will instantly restore half of the health of anyone who imbibes it. It will also cure confusion, nausea, poison and magical slowness and will halve the intensity of magical darkness and any hallucinogenic substances in the bloodstream. If drunk when in good health, your vitality will increase to 120% of its natural maximum, though this excess will not regenerate once lost."},
+	{"extra healing",		itemColors[1], "",	15,	750,	0,{0,0,0}, false, false, "An elixir that will instantly return its imbiber to full health and cure confusion, nausea, poison, magical slowness, magical darkness and hallucination. If drunk when in good health, your vitality will increase to 133% of its natural maximum, though this excess will not regenerate once lost."},
+	{"gain level",			itemColors[2], "",	4,	850,	0,{0,0,0}, false, false, "The storied experiences of a multitude of battles fought reduced to liquid form, this draught will instantly raise the experience level of any who drinks it."},
+	{"telepathy",			itemColors[3], "",	20,	350,	0,{0,0,0}, false, false, "The imbiber's mind will become attuned to the psychic signature of distant creatures, enabling you to sense biological presences through walls and discern their physical stature even as their precise identity remains a mystery. Its effects will not reveal inanimate objects, such as totems, turrets and traps."},
+	{"levitation",			itemColors[4], "",	15,	250,	0,{0,0,0}, false, false, "Anyone who drinks this curious liquid will find oneself hovering five to ten feet in the air, able to drift effortlessly over lava, water, chasms and traps -- though one should take great pains to return to safe terrain before the effects expire. Flames, gases and spiderwebs fill the air, however, and cannot be bypassed by airborne adventurers. Monsters submerged beneath the surface of water or mud will be unable to attack you while airborne."},
+	{"detect magic",		itemColors[5], "",	20,	300,	0,{0,0,0}, false, false, "This drink will sensitize one's mind to the slight radiance of distant magic. Items imbued with a helpful magic will be marked on the map with a full magical sigil; items corrupted by magic designed to entrap the unwary will be marked on the map with a hollow sigil. The Amulet of Yendor, if in the vicinity, will be precisely revealed by its distinctive aura."},
+	{"speed",				itemColors[6], "",	10,	500,	0,{0,0,0}, false, false, "Quaffing the contents of this flask will enable one to move at blinding speed for several minutes."},
+	{"fire immunity",		itemColors[7], "",	15,	500,	0,{0,0,0}, false, false, "The only way for a human to experience immunity to fire, a drink of this draught will render you impervious to heat and able to wander through fire and lava and ignore otherwise deadly bolts of flame. It will not guard against the concussive impact of an explosion or from the physical attacks of enemy creatures, however."},
+	{"strength",			itemColors[8], "",	0,	400,	0,{0,0,0}, false, false, "This powerful liquid will course through the muscles of any who drinks it, permanently increasing your strength by one point."}, // frequency is dynamically adjusted
+	{"poisonous gas",		itemColors[9], "",	15,	200,	0,{0,0,0}, false, false, "Uncorking or shattering this pressurized glass will cause its contents to explode into a deadly cloud of caustic purple gas. Happy is the adventurer with the foresight to hurl this item at distant enemies rather than uncorking it by hand."},
+	{"paralysis",			itemColors[10], "",	10, 250,	0,{0,0,0}, false, false, "Upon exposure to open air, the liquid in this flask will vaporize into a numbing pink haze. Anyone who inhales the cloud will be paralyzed instantly, unable to move for some time after the cloud dissipates. This item can be turned toward the adventurer's use by throwing it at distant enemies, so as to catch them within the effect of the gas."},
+	{"hallucination",		itemColors[11], "",	10,	500,	0,{0,0,0}, false, false, "This flask contains a vicious and long-lasting hallucinogen. Under its dazzling effect, you will be unable to discern the form of any creatures or items you see."},
+	{"confusion",			itemColors[12], "",	15,	450,	0,{0,0,0}, false, false, "This unstable chemical will quickly vaporize into a shimmering, glittering cloud upon contact with open air, whereupon any who breathe it will be unable to control the direction of their movements until the effect wears off (although one's ability to aim projectile attacks will not be affected). Its vertiginous intoxication can cause creatures and adventurers to careen into one another or into deep chasms or deadly lava pits, so extreme care should be taken when under its effect. Its contents can be weaponized by throwing the flask at distant enemies."},
+	{"incineration",		itemColors[13], "",	15,	500,	0,{0,0,0}, false, false, "This flask contains an unstable compound which will burst violently into flame upon exposure to open air. The clever adventurer may turn its potency to his or her favor by throwing the flask at distant enemies. When thrown into a deep lake, the cavern will fill with scalding steam that will quickly kill everything that is exposed to it."},
+	{"darkness",			itemColors[14], "",	7,	30,		0,{0,0,0}, false, false, "Drinking this potion will cause a cursed darkness to fall over your vision. At first, you will be completely blind to anything not illuminated by an independent light source, but over time your vision will regain its former strength. Throwing the potion will create a cloud of supernatural darkness, and monsters will have difficulty seeing or following adventurers standing in deepest darkness."},
+	{"descent",				itemColors[15], "",	15,	500,	0,{0,0,0}, false, false, "When this flask is uncorked or shattered, the fog that seeps out will temporarily cause the ground in the vicinity to vanish."},
+	{"creeping death",		itemColors[16], "",	7,	450,	0,{0,0,0}, false, false, "When the cork is popped or the flask is broken, tiny spores will immediately cover the floor and begin to grow a deadly lichen. Anything that steps on the lichen will be poisoned for ten turns by its clinging tendrils, and the lichen will slowly grow to fill the area. Fire is the only way to remove it."},
 };
 
 itemTable wandTable[NUMBER_WAND_KINDS] = {
-	{"teleportation",	itemMetals[0], "",	1,	800,	0,{2,5,1}, false, false},
-	{"beckoning",		itemMetals[1], "",	1,	500,	0,{2,4,1}, false, false},
-	{"slowness",		itemMetals[2], "",	1,	800,	0,{2,5,1}, false, false},
-	{"plenty",			itemMetals[3], "",	1,	700,	0,{2,4,1}, false, false},
-	{"polymorphism",	itemMetals[4], "",	1,	700,	0,{3,5,1}, false, false},
-	{"invisibility",	itemMetals[5], "",	1,	100,	0,{3,5,1}, false, false},
-	{"cancellation",	itemMetals[6], "",	1,	550,	0,{4,6,1}, false, false},
-	{"domination",		itemMetals[7], "",	1,	1000,	0,{1,2,1}, false, false},
+	{"teleportation",	itemMetals[0], "",	1,	800,	0,{2,5,1}, false, false, "A blast from this wand will teleport a creature against its will to a random place on the current level. This can be particularly effective against aquatic or mud-bound creatures, which will be unable to attack on dry land."},
+	{"beckoning",		itemMetals[1], "",	1,	500,	0,{2,4,1}, false, false, "The force of this wand will magically yank the targeted creature into direct proximity."},
+	{"slowness",		itemMetals[2], "",	1,	800,	0,{2,5,1}, false, false, "This wand will cause a creature to move at half speed for several turns."},
+	{"plenty",			itemMetals[3], "",	1,	700,	0,{2,4,1}, false, false, "The creature at the other end of the rainbow-colored burst from this mischievous bit of metal will be beside itself -- literally! Cloning an enemy in a moment of desperation is ill-advised, but the effect can be invaluable on a powerful ally."},
+	{"polymorphism",	itemMetals[4], "",	1,	700,	0,{3,5,1}, false, false, "This mischievous magic can transform any creature into another creature at random. The effect can be invaluable when an enraged dragon is instantly reduced to a small mammal, but care should be taken, because the tamest of creatures could likewise turn into the most fearsome."},
+	{"invisibility",	itemMetals[5], "",	1,	100,	0,{3,5,1}, false, false, "A charge from this wand will render a creature completely invisible to the naked eye. Only with telepathy or in the silhouette of a thick gas will an observer discern the creature's hazy outline."},
+	{"cancellation",	itemMetals[6], "",	1,	550,	0,{4,6,1}, false, false, "The powerful anti-magic unleashed by this wand will strip a creature of any of a host of magical traits, including flight, invisibility, acidic corrosiveness, telepathy, speed or slowness, hypnosis, magical fear, immunity to physical attack, fire resistance and the ability to blink or teleport at will. Spell casters will lose their magical abilities and magical totems will be reduced to decoration."},
+	{"domination",		itemMetals[7], "",	1,	1000,	0,{1,2,1}, false, false, "The blinding blue-purple beam from this wand can forever bind an enemy to the caster's will, turning it into a steadfast ally. However, the wand is effective only against monsters that are near death."},
 };
 
 itemTable staffTable[NUMBER_STAFF_KINDS] = {
-	{"lightning",		itemWoods[0], "",	3,	1300,	0,{2,4,1}, false, false},
-	{"firebolt",		itemWoods[1], "",	3,	1300,	0,{2,4,1}, false, false},
-	{"poison",			itemWoods[2], "",	2,	1200,	0,{2,4,1}, false, false},
-	{"tunneling",		itemWoods[3], "",	2,	900,	0,{2,4,1}, false, false},
-	{"blinking",		itemWoods[4], "",	2,	1100,	0,{2,4,1}, false, false},
-	{"entrancement",	itemWoods[5], "",	1,	1000,	0,{2,4,1}, false, false},
-	{"healing",			itemWoods[6], "",	2,	1100,	0,{2,4,1}, false, false},
-	{"haste",			itemWoods[7], "",	2,	1000,	0,{2,4,1}, false, false},
-	{"obstruction",		itemWoods[8], "",	2,	1000,	0,{2,4,1}, false, false},
-	{"discord",			itemWoods[9], "",	2,	1000,	0,{2,4,1}, false, false},
-	{"conjuration",		itemWoods[10],"",	2,	1000,	0,{2,4,1}, false, false},
+	{"lightning",		itemWoods[0], "",	3,	1300,	0,{2,4,1}, false, false, "This staff conjures forth deadly arcs of electricity, which deal damage to any creature they hit and pass through it to hit creatures behind."},
+	{"firebolt",		itemWoods[1], "",	3,	1300,	0,{2,4,1}, false, false, "This staff unleashes a red-hot burst of magical fire. It will set aflame any flammable terrain over which it passes, and will set a creature it hits on fire as well as dealing direct damage. Creatures with an immunity to fire will not be affected by the bolt."},
+	{"poison",			itemWoods[2], "",	2,	1200,	0,{2,4,1}, false, false, "The vile blast of this twisted bit of wood will imbue its target with a deadly venom. A creature that is poisoned will suffer one point of damage per turn until the effect ends, and it will have no ability to regenerate lost hit points until then. The duration of the effect increases exponentially with the level of the staff, and a level 10 staff can fell even a deadly dragon with a single use -- eventually."},
+	{"tunneling",		itemWoods[3], "",	2,	900,	0,{2,4,1}, false, false, "Bursts of magic from this staff will pass harmlessly through creatures but will reduce walls and other inanimate obstructions to rubble."},
+	{"blinking",		itemWoods[4], "",	2,	1100,	0,{2,4,1}, false, false, "Use of this staff will permit you to teleport in the chosen direction. Creatures and inanimate obstructions will block the teleportation. Be careful around dangerous terrain, as nothing will prevent you from teleporting to a fiery death in a lake of lava."},
+	{"entrancement",	itemWoods[5], "",	1,	1000,	0,{2,4,1}, false, false, "This curious staff will send creatures into a deep but temporary trance, in which state they will mindlessly mimic your movements. You can use the effect to cause one creature to attack another, but the spell will be broken if you attack the creature under the effect. Entranced creatures can be commanded to step into lava and other hazardous terrain."},
+	{"healing",			itemWoods[6], "",	2,	1100,	0,{2,4,1}, false, false, "The crimson bolts from this staff will heal the injuries of any it hits. This can be an unfortunate result against enemies but can prove useful when aimed at your allies. Unfortunately, you cannot use this or any staff on yourself."},
+	{"haste",			itemWoods[7], "",	2,	1000,	0,{2,4,1}, false, false, "The magical bolt from this staff will temporarily double the speed of any monster it hits."},
+	{"obstruction",		itemWoods[8], "",	2,	1000,	0,{2,4,1}, false, false, "A mass of impenetrable green crystal will spring forth from the point at which this staff is aimed, obstructing any who wish to move through the affected area and temporarily entombing any who are already there. The crystal will dissolve into the air as time passes. Higher level staffs will create larger obstructions."},
+	{"discord",			itemWoods[9], "",	2,	1000,	0,{2,4,1}, false, false, "The purple light that this staff emits will alter the perceptions of all creatures to think the target is their enemy. Strangers and allies alike will turn on an affected creature."},
+	{"conjuration",		itemWoods[10],"",	2,	1000,	0,{2,4,1}, false, false, "A flick of this staff summons a number of phantom blades to fight on the user's behalf."},
 };
 
 const color *boltColors[NUMBER_BOLT_KINDS] = {
@@ -1119,13 +1141,13 @@ const color *boltColors[NUMBER_BOLT_KINDS] = {
 };
 
 itemTable ringTable[NUMBER_RING_KINDS] = {
-	{"clairvoyance",	itemGems[0], "",	1,	900,	0,{1,3,1}, false, false},
-	{"stealth",			itemGems[1], "",	1,	800,	0,{1,3,1}, false, false},
-	{"regeneration",	itemGems[2], "",	1,	750,	0,{1,3,1}, false, false},
-	{"transference",	itemGems[3], "",	1,	750,	0,{1,3,1}, false, false},
-	{"light",			itemGems[4], "",	1,	600,	0,{1,3,1}, false, false},
-	{"awareness",		itemGems[5], "",	1,	700,	0,{1,3,1}, false, false},
-	{"reflection",		itemGems[6], "",	1,	700,	0,{1,3,1}, false, false},
+	{"clairvoyance",	itemGems[0], "",	1,	900,	0,{1,3,1}, false, false, "Wearing this ring will permit you to see through nearby walls and doors, within a radius determined by the level of the ring. A cursed ring of clairvoyance will cloak your immediate surroundings with darkness, thus preventing you from seeing anything nearby even as distant vision is unaffected."},
+	{"stealth",			itemGems[1], "",	1,	800,	0,{1,3,1}, false, false, "Monsters will be less likely to notice one wearing this ring. Wearers who stay motionless and who lurk in the shadows will be even harder to spot. At very high levels, even monsters giving chase may lose track of an adventurer who wears this ring while standing motionless in the shadows. Cursed rings of stealth will alert monsters who might otherwise not have noticed your presence."},
+	{"regeneration",	itemGems[2], "",	1,	750,	0,{1,3,1}, false, false, "This ring increases the body's regenerative properties, allowing one to recover lost hit points at an accelerated rate. Cursed rings will decrease or even halt one's natural regeneration."},
+	{"transference",	itemGems[3], "",	1,	750,	0,{1,3,1}, false, false, "Landing a melee attack while wearing this ring will cause a proportion of the inflicted damage to transfer to benefit of the attacker's own hit points. Cursed rings will cause you to lose hit points with each attack you land."},
+	{"light",			itemGems[4], "",	1,	600,	0,{1,3,1}, false, false, "This ring subtly enhances your vision, enabling you to see farther in the dimming light of the deeper dungeon levels. It will not make you more visible to other monsters."},
+	{"awareness",		itemGems[5], "",	1,	700,	0,{1,3,1}, false, false, "Wearing this ring will allow the wearer to notice hidden secrets -- traps and secret doors -- without taking time to search. Cursed rings of awareness will dull your senses, making it harder to notice secrets even when actively searching for them."},
+	{"reflection",		itemGems[6], "",	1,	700,	0,{1,3,1}, false, false, "Under this ring's protective aura, projectiles and spells will sometimes deflect harmlessly off of the wearer. Higher levels increase the chances of deflection, and also the chance that the attack will be deflected back at the attacker."},
 };
 
 #pragma mark Miscellaneous definitions

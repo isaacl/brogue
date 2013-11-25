@@ -1803,7 +1803,8 @@ void spawnMapDF(short x, short y, enum tileType propagationTerrain, boolean requ
 
 void spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refreshCell) {
 	char blockingMap[DCOLS][DROWS];
-	boolean blocking = ((!refreshCell && tileCatalog[feat->tile].flags & (PATHING_BLOCKER)) ? true : false);
+	boolean blocking = ((!refreshCell && (tileCatalog[feat->tile].flags & (PATHING_BLOCKER))) ? true : false);
+	// blocking keeps track of whether to abort if it turns out that the DF would obstruct the level
 	
 	if (feat->layer == GAS) {
 		pmap[x][y].volume += randClump(feat->startProbability);
