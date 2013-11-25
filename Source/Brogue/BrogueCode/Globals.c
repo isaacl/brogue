@@ -51,9 +51,13 @@ item *packItems;
 room *rooms;
 waypoint waypoints[MAX_WAYPOINTS];
 levelProfile *thisLevelProfile;
+
 char displayedMessage[MESSAGE_LINES][COLS*2];
-boolean messageConfirmed[3];
+boolean messageConfirmed[MESSAGE_LINES];
 char combatText[COLS * 2];
+short messageArchivePosition;
+char messageArchive[MESSAGE_ARCHIVE_LINES][COLS*2];
+
 char currentFilePath[FILENAME_MAX];
 
 char displayDetail[DCOLS][DROWS];		// used to make certain per-cell data accessible to external code (e.g. terminal adaptations)
@@ -80,20 +84,19 @@ const long levelPoints[MAX_EXP_LEVEL] = {
 	160L,		// level 6
 	320L,		// level 7
 	640L,		// level 8
-	1300L,		// level 9
-	2600L,		// level 10
-	5200L,		// level 11
-	10000L,		// level 12
-	20000L,		// level 13
-	40000L,		// level 14
-	80000L,		// level 15
-	160000L,	// level 16
-	320000L,	// level 17
-	1000000L,	// level 18
-	3333333L,	// level 19
-	6666666L,	// level 20
-	MAX_EXP,	// level 21
-	99900000L	// level 22
+	1400L,		// level 9
+	2800L,		// level 10
+	6000L,		// level 11
+	18000L,		// level 12
+	40000L,		// level 13
+	160000L,	// level 14
+	600000L,	// level 15
+	2400000L,	// level 16
+	10000000L,	// level 17
+	30000000L,	// level 18
+	80000000L,	// level 19
+	MAX_EXP,	// level 20
+	999000000L	// level 21
 };
 
 #pragma mark Colors
@@ -153,6 +156,7 @@ const color ironDoorForeColor =		{40,	40,		40,		0,		0,			0,			0,		false};
 const color ironDoorBackColor =		{15,	15,		15,		0,		0,			0,			0,		false};
 const color bridgeFrontColor =		{50,	18,		18,		18,		7,			2,			0,		false};
 const color bridgeBackColor =		{18,	5,		3,		5,		2,			1,			0,		false};
+const color statueBackColor =		{20,	20,		20,		0,		0,			0,			0,		false};
 
 const color deepWaterForeColor =	{5,		5,		40,		0,		0,			10,			10,		true};
 color deepWaterBackColor;
@@ -203,7 +207,8 @@ const color ogreColor =				{60,	25,		25,		0,		0,			0,			0,		false};
 const color eelColor =				{30,	12,		12,		0,		0,			0,			0,		false};
 const color goblinConjurerColor =	{67,	10,		100,	0,		0,			0,			0,		false};
 const color spectralBladeColor =	{15,	15,		60,		0,		0,			70,			50,		true};
-const color spectralImageColor =	{50,	20,		20,		50,		0,			0,			70,		true};
+//const color spectralImageColor =	{50,	20,		20,		50,		0,			0,			70,		true};
+const color spectralImageColor =	{13,	0,		0,		25,		0,			0,			0,		true};
 const color toadColor =				{40,	65,		30,		0,		0,			0,			0,		false};
 const color trollColor =			{40,	60,		15,		0,		0,			0,			0,		false};
 const color centipedeColor =		{75,	25,		85,		0,		0,			0,			0,		false};
@@ -215,12 +220,14 @@ const color darPriestessColor =		{0,		50,		50,		0,		0,			0,			0,		false};
 const color darMageColor =			{50,	50,		0,		0,		0,			0,			0,		false};
 const color wraithColor =			{66,	66,		25,		0,		0,			0,			0,		false};
 const color pinkJellyColor =		{100,	40,		40,		5,		5,			5,			20,		true};
+const color sentinelColor =			{30,	30,		60,		10,		10,			20,			0,		false};
 
 // light colors
 color minersLightColor;
 const color minersLightStartColor =	{180,	180,	180,	0,		0,			0,			0,		false};
 const color minersLightEndColor =	{90,	90,		120,	0,		0,			0,			0,		false};
-const color torchLightColor =		{100,	50,		20,		0,		20,			10,			0,		true};
+const color torchColor =			{150,	75,		30,		0,		30,			20,			0,		true};
+const color torchLightColor =		{75,	38,		15,		0,		15,			7,			0,		true};
 const color burningLightColor =		{200,	10,		10,		0,		20,			5,			0,		true};
 const color wispLightColor =		{75,	100,	250,	33,		10,			0,			0,		true};
 const color summonedImageLightColor ={200,	0,		75,		0,		0,			0,			0,		true};
@@ -238,6 +245,7 @@ const color redFlashColor =			{100,	10,		10,		0,		0,			0,			0,		false};
 const color darknessPatchColor =	{-10,	-10,	-10,	0,		0,			0,			0,		false};
 const color darknessCloudColor =	{-20,	-20,	-20,	0,		0,			0,			0,		false};
 const color magicMapFlashColor =	{60,	20,		60,		0,		0,			0,			0,		false};
+const color sentinelLightColor =	{60,	60,		120,	30,		30,			60,			0,		true};
 
 // color multipliers
 const color colorDim25 =			{25,	25,		25,		25,		25,			25,			25,		false};
@@ -299,6 +307,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{	' ',		&black,					&black,					100,0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"a chilly void",		""},
 	{WALL_CHAR,		&wallBackColor,			&graniteBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a rough granite wall",	"The granite is split open with splinters of rock jutting out at odd angles."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"the ground",			""},
+	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"the ground",			""},
 	{FLOOR_CHAR,	&carpetForeColor,		&carpetBackColor,		95,	0,	DF_EMBERS,		0,			0,				0,				NO_LIGHT,		(T_VANISHES_UPON_PROMOTION | T_IS_FLAMMABLE),														"the carpet",			"Ornate carpeting fills this room, a relic of ages past."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a stone wall",			"The rough stone wall is firm and unyielding."},
@@ -312,8 +321,8 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{OPEN_DOOR_CHAR,&ironDoorForeColor,		&ironDoorBackColor,		90,	50,	DF_EMBERS,		0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE | T_OBSTRUCTS_SURFACE_EFFECTS),													"an open iron door",	"you pass through the doorway."},
 	{DOWN_CHAR,		&yellow,				&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS),													"a downward staircase",	"stairs spiral downward into the depths."},
 	{UP_CHAR,		&yellow,				&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS),													"an upward staircase",	"stairs spiral upward."},
-	{UP_CHAR,		&blue,					&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS),													"the dungeon exit",		"the gilded doors leading out of the dungeon are sealed by an invisible force."},
-	{WALL_CHAR,		&torchLightColor,		&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a wall-mounted torch",	"The torch is anchored firmly to the wall, and sputters quietly in the gloom."},
+	{UP_CHAR,		&lightBlue,				&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS),													"the dungeon exit",		"the gilded doors leading out of the dungeon are sealed by an invisible force."},
+	{WALL_CHAR,		&torchColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a wall-mounted torch",	"The torch is anchored firmly to the wall and sputters quietly in the gloom."},
 	{WALL_CHAR,		&wallCrystalColor,		&wallCrystalColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				CRYSTAL_WALL_LIGHT,(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_STAND_IN_TILE),"a crystal formation", "You feel the crystal's glossy surface and admire the dancing lights beneath."},
 	{WALL_CHAR,		&gray,					&floorBackColor,		10,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_STAND_IN_TILE),				"a heavy portcullis",	"The iron bars rattle but will not budge; they are firmly locked in place."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_DOOR_BLOCKED,0,				NO_LIGHT,		(T_VANISHES_UPON_PROMOTION | T_IS_WIRED),															"the ground",			""},
@@ -321,9 +330,9 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{WALL_CHAR,		&doorForeColor,			&floorBackColor,		10,	100,DF_WOODEN_BARRICADE_BURN,0,	0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_STAND_IN_TILE | T_IS_FLAMMABLE | T_VANISHES_UPON_PROMOTION),"a dry wooden barricade","The wooden barricade is firmly set but has dried over the years. Might it burn?"},
 	{WALL_CHAR,		&torchLightColor,		&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_PILOT_LIGHT,	0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),				"a wall-mounted torch",	"The torch is anchored firmly to the wall, and sputters quietly in the gloom."},
 	{FIRE_CHAR,		&fireForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_FIRE),												"a fallen torch",		"The torch lies at the foot of the wall, spouting gouts of flame haphazardly."},
-	{STATUE_CHAR,	&wallBackColor,			&graniteBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
-	{STATUE_CHAR,	&wallBackColor,			&graniteBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_CRACKING_STATUE,0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
-	{STATUE_CHAR,	&wallBackColor,			&graniteBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_STATUE_SHATTER,3500,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),"a cracking statue",	"Deep cracks ramble down the side of the statue even as you watch."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_CRACKING_STATUE,0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_STATUE_SHATTER,3500,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SCENT | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),"a cracking statue",	"Deep cracks ramble down the side of the statue even as you watch."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_TURRET_EMERGE,0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),				"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_DARKENING_FLOOR,	0,			NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_DARK_FLOOR,	1500,			NO_LIGHT,		(T_VANISHES_UPON_PROMOTION),																		"the ground",			""},
@@ -343,11 +352,11 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		90,	0,	DF_FLOOD,		DF_SHOW_FLOOD_TRAP, 0,		0,				NO_LIGHT,		(T_IS_SECRET | T_IS_DF_TRAP),																		"the ground",			""},
 	{TRAP_CHAR,		&shallowWaterForeColor,	&floorBackColor,		58,	0,	DF_FLOOD,		0,			0,				0,				NO_LIGHT,		(T_IS_DF_TRAP),																						"a flood trap",			"A hidden pressure plate is connected to floodgates in the walls and ceiling."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		90,	0,	DF_PLAIN_FIRE,	0,			DF_POISON_GAS_VENT_OPEN,0,		NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
-	{WEB_CHAR,		&floorForeColor,		&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_VENT_SPEW_POISON_GAS,10000,	NO_LIGHT,		0,																									"a gas vent",			"Clouds of caustic gas are wafting out of a hidden vent in the floor."},
+	{VENT_CHAR,		&floorForeColor,		&floorBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_VENT_SPEW_POISON_GAS,10000,	NO_LIGHT,		0,																									"a gas vent",			"Clouds of caustic gas are wafting out of a hidden vent in the floor."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		90,	0,	DF_PLAIN_FIRE,	0,			DF_METHANE_VENT_OPEN,0,			NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
-	{WEB_CHAR,		&floorForeColor,		&floorBackColor,		30,	15,	DF_EMBERS,		0,			DF_VENT_SPEW_METHANE,5000,		NO_LIGHT,		(T_IS_FLAMMABLE),																					"a gas vent",			"Clouds of explosive gas are wafting out of a hidden vent in the floor."},
-	{WEB_CHAR,		&gray,					&floorBackColor,		15,	15,	DF_EMBERS,		0,			DF_STEAM_PUFF,	250,			NO_LIGHT,		T_OBSTRUCTS_ITEMS,																					"a steam vent",			"A natural crevice in the floor periodically vents scalding gouts of steam."},
-	{TRAP_CHAR,		&white,					&chasmEdgeBackColor,	15,	0,	0,				0,			0,				0,				NO_LIGHT,		(T_IS_DF_TRAP | T_IS_WIRED | T_PROMOTES_ON_STEP),													"a pressure plate",		"there is an exposed pressure plate here; could a thrown item trigger it?"},
+	{VENT_CHAR,		&floorForeColor,		&floorBackColor,		30,	15,	DF_EMBERS,		0,			DF_VENT_SPEW_METHANE,5000,		NO_LIGHT,		(T_IS_FLAMMABLE),																					"a gas vent",			"Clouds of explosive gas are wafting out of a hidden vent in the floor."},
+	{VENT_CHAR,		&gray,					&floorBackColor,		15,	15,	DF_EMBERS,		0,			DF_STEAM_PUFF,	250,			NO_LIGHT,		T_OBSTRUCTS_ITEMS,																					"a steam vent",			"A natural crevice in the floor periodically vents scalding gouts of steam."},
+	{TRAP_CHAR,		&white,					&chasmEdgeBackColor,	15,	0,	0,				0,			0,				0,				NO_LIGHT,		(T_IS_DF_TRAP | T_IS_WIRED | T_PROMOTES_ON_STEP),													"a pressure plate",		"There is an exposed pressure plate here. A thrown item might trigger it."},
 	
 	// liquid layer
 	{WATER_CHAR,	&deepWaterForeColor,	&deepWaterBackColor,	40,	100,DF_STEAM_ACCUMULATION,	0,	0,				0,				NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_IS_FLAMMABLE | T_IS_DEEP_WATER | T_OBSTRUCTS_SCENT | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),"murky waters","the current tugs you in all directions."},
@@ -356,7 +365,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_OBSTRUCTS_SCENT | T_AUTO_DESCENT | T_STAND_IN_TILE),						"a chasm",				"you plunge downward into the chasm!"},
 	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"the brink of a chasm",	"chilly winds blow upward from the stygian depths."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_SPREADABLE_COLLAPSE,0,		NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
-	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	85,	0,	DF_PLAIN_FIRE,	0,			DF_COLLAPSE_SPREADS,2500,		NO_LIGHT,		0,																									"the crumbling ground",	"cracks are appearing in the ground beneath your feet!"},
+	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	75,	0,	DF_PLAIN_FIRE,	0,			DF_COLLAPSE_SPREADS,2500,		NO_LIGHT,		0,																									"the crumbling ground",	"cracks are appearing in the ground beneath your feet!"},
 	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			DF_BRIDGE_APPEARS,0,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_OBSTRUCTS_SCENT | T_AUTO_DESCENT | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),"a chasm","you plunge downward into the chasm!"},
 	{WATER_CHAR,	&fireForeColor,			&lavaBackColor,			40,	0,	DF_OBSIDIAN,	0,			0,				0,				LAVA_LIGHT,		(T_OBSTRUCTS_SCENT | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),					"lava",					"searing heat rises from the lava."},
 	{WATER_CHAR,	&fireForeColor,			&lavaBackColor,			40,	0,	DF_OBSIDIAN,	0,			DF_RETRACTING_LAVA,	0,			LAVA_LIGHT,		(T_OBSTRUCTS_SCENT | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),"lava","searing heat rises from the lava."},
@@ -371,6 +380,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	20,	50,	DF_BRIDGE_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"a stone bridge",		"a stone bridge traces a narrow path across the chasm."},
 	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	60,	0,	DF_STEAM_ACCUMULATION,	0,	DF_SPREADABLE_WATER,0,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),	"shallow water",	"the water is cold and reaches your knees."},
 	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	60,	0,	DF_STEAM_ACCUMULATION,	0,	DF_WATER_SPREADS,2500,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION),			"shallow water",		"the water is cold and reaches your knees."},
+	{WATER_CHAR,	&mudForeColor,			&mudBackColor,			40,	0,	DF_PLAIN_FIRE,	0,			DF_MUD_ACTIVATE,0,				NO_LIGHT,		(T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),					"a bog",				"you are knee-deep in thick, foul-smelling mud."},
 		
 	// surface layer
 	{CHASM_CHAR,	&chasmForeColor,		&black,					15,	0,	DF_PLAIN_FIRE,	0,			DF_HOLE_DRAIN,	-1000,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_OBSTRUCTS_SCENT | T_AUTO_DESCENT | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION),"a hole",			"you plunge downward into the hole!"},
@@ -442,7 +452,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	// tileType					layer		start	decr	fl	txt	fCol fRad	propTerrain	subseqDF	foundation	>Depth	<Depth	freq	minIncp	minSlope	maxNumber
 	{0}, // nothing
 	{GRANITE,					DUNGEON,	80,		70,		0,	"",	0,	0,		0,			0,			FLOOR,		1,		100,	60,		100,	0,			4},
-	{CRYSTAL_WALL,				DUNGEON,	200,	50,		0,	"",	0,	0,		TOP_WALL,	0,			TOP_WALL,	14,		100,	15,		-325,	25,			5},
+	{CRYSTAL_WALL,				DUNGEON,	200,	50,		0,	"",	0,	0,		0,			0,			TOP_WALL,	14,		100,	15,		-325,	25,			5},
 	{LUMINESCENT_FUNGUS,		SURFACE,	60,		7,		0,	"",	0,	0,		0,			0,			FLOOR,		7,		100,	15,		-300,	70,			14},
 	{GRASS,						SURFACE,	75,		5,		0,	"",	0,	0,		0,			0,			FLOOR,		0,		10,		0,		1000,	-80,		10},
 	{DEAD_GRASS,				SURFACE,	75,		5,		0,	"",	0,	0,		0,			DF_DEAD_FOLIAGE,FLOOR,	4,		9,		0,		-200,	80,			10},
@@ -464,12 +474,12 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{GAS_TRAP_CONFUSION_HIDDEN,	DUNGEON,	0,		0,		0,	"",	0,	0,		0,			0,			FLOOR,		11,		100,	30,		100,	0,			3},
 	{FLAMETHROWER_HIDDEN,		DUNGEON,	0,		0,		0,	"",	0,	0,		0,			0,			FLOOR,		13,		100,	30,		100,	0,			3},
 	{FLOOD_TRAP_HIDDEN,			DUNGEON,	0,		0,		0,	"",	0,	0,		0,			0,			FLOOR,		15,		100,	30,		100,	0,			3},
-	{STEAM_VENT,				DUNGEON,	0,		0,		0,	"",	0,	0,		0,			0,			FLOOR,		16,		100,	30,		100,	0,			3},
 	
 	// misc. liquids
 	{MUD,						LIQUID,		75,		5,		0,	"",	0,	0,		0,			0,			FLOOR,		1,		100,	30,		0,		0,			5},
 	{SUNLIGHT_POOL,				LIQUID,		65,		6,		0,	"",	0,	0,		0,			0,			FLOOR,		0,		5,		15,		500,	-150,		10},
 	{DARKNESS_PATCH,			LIQUID,		65,		11,		0,	"",	0,	0,		0,			0,			FLOOR,		1,		15,		15,		500,	-50,		10},
+	{STEAM_VENT,				DUNGEON,	0,		0,		0,	"",	0,	0,		0,			0,			FLOOR,		16,		100,	30,		100,	0,			3},
 	
 	// Dungeon features spawned during gameplay:
 	
@@ -574,6 +584,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	// throwing tutorial:
 	{ALTAR_INERT,				DUNGEON,	0,		0,		0,	"the cage lifts off of the altar."},
 	{TRAP_DOOR,					LIQUID,		225,	100,	(DFF_CLEAR_OTHER_TERRAIN | DFF_SUBSEQ_EVERYWHERE), "", 0, 0, 0, DF_SHOW_TRAPDOOR_HALO},
+	{LAVA,						LIQUID,		225,	100,	(DFF_CLEAR_OTHER_TERRAIN)},
 	
 	// wooden barricade at entrance:
 	{WOODEN_BARRICADE,			DUNGEON,	0,		0,		0},
@@ -585,14 +596,14 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	// shallow water flood machine:
 	{MACHINE_FLOOD_WATER_SPREADING,	LIQUID,	0,		0,		0,	"you hear a heavy click, and the nearby water begins flooding the area!"},
 	{SHALLOW_WATER,				LIQUID,		0,		0,		0},
-	{MACHINE_FLOOD_WATER_SPREADING,LIQUID,	100,	100,	0,	"",	0,	0,		0,			DF_SHALLOW_WATER},
+	{MACHINE_FLOOD_WATER_SPREADING,LIQUID,	100,	100,	0,	"",	0,	0,		FLOOR_FLOODABLE,			DF_SHALLOW_WATER},
 	{MACHINE_FLOOD_WATER_DORMANT,LIQUID,	250,	100,	(DFF_TREAT_AS_BLOCKING), "", 0, 0, 0, DF_DEEP_WATER_POOL},
 	{DEEP_WATER,				LIQUID,		90,		100,	(DFF_PERMIT_BLOCKING)},
 	
 	// unstable floor machine:
 	{MACHINE_COLLAPSE_EDGE_SPREADING,LIQUID,0,		0,		0,	"you hear a deep rumbling noise as the floor of the room begins to collapse!"},
-	{CHASM,						LIQUID,		0,		0,		DFF_CLEAR_OTHER_TERRAIN},
-	{MACHINE_COLLAPSE_EDGE_SPREADING,LIQUID,100,	100,	0,	"",	0,	0,		0,			DF_COLLAPSE},
+	{CHASM,						LIQUID,		0,		0,		DFF_CLEAR_OTHER_TERRAIN, "", 0, 0, 0, DF_SHOW_TRAPDOOR_HALO},
+	{MACHINE_COLLAPSE_EDGE_SPREADING,LIQUID,100,	100,	0,	"",	0,	0,	FLOOR_FLOODABLE,	DF_COLLAPSE},
 	
 	// levitation bridge machine:
 	{STONE_BRIDGE,				LIQUID,		0,		0,		0,	"a stone bridge extends from the floor with a grinding sound."},
@@ -625,6 +636,9 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{DARK_FLOOR_DARKENING,		DUNGEON,	0,		0,		0,	"the light in the room flickers and you feel a chill in the air."},
 	{DARK_FLOOR,				DUNGEON,	0,		0,		DFF_ACTIVATE_DORMANT_MONSTER,	"", 0, 0, 0, DF_ECTOPLASM_DROPLET},
 
+	// mud pit:
+	{MACHINE_MUD_DORMANT,		LIQUID,		100,	100,	0},
+	{MUD,						LIQUID,		0,		0,		DFF_ACTIVATE_DORMANT_MONSTER,	"across the bog, bubbles rise ominously from the mud."},
 };
 
 #pragma mark Lights
@@ -641,6 +655,7 @@ const lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
 	{&pixieColor,			{400, 600, 1},			50,		false},		// pixie light
 	{&lichLightColor,		{1500, 1500, 1},		0,		false},		// lich light
 	{&flamedancerCoronaColor,{1000, 2000, 1},		0,		false},		// flamedancer light
+	{&sentinelLightColor,	{300, 500, 1},			0,		false},		// sentinel light
 	{&spectralBladeLightColor,{350, 350, 1},		0,		false},		// spectral blades
 	{&summonedImageLightColor,{350, 350, 1},		0,		false},		// weapon images
 	{&lightningColor,		{250, 250, 1},			35,		false},		// lightning turret light
@@ -704,26 +719,27 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{DF_AMBIENT_BLOOD,MANACLE_L,SURFACE,	{1,2},		1,			0,			-1,			0,				0,				1,				0,			0,			0},
 		{DF_BONES,	0,			0,				{2,3},		1,			0,			-1,			0,				0,				1,				0,			0,			0},
 		{DF_VOMIT,	0,			0,				{2,3},		1,			0,			-1,			0,				0,				1,				0,			0,			0},
-		{0,			LOCKED_DOOR, DUNGEON,		{1,1},		1,			KEY,		0,			0,				0,				1,				0,			(ITEM_IS_KEY | ITEM_IS_DISPOSABLE),(MF_BUILD_IN_DOORWAY | MF_PERMIT_BLOCKING | MF_GENERATE_ITEM | MF_OUTSOURCE_ITEM)}}},
+		{0,			LOCKED_DOOR, DUNGEON,		{1,1},		1,			KEY,		0,			0,				0,				1,				0,			(ITEM_IS_KEY | ITEM_IS_DISPOSABLE),(MF_BUILD_IN_DOORWAY | MF_PERMIT_BLOCKING | MF_GENERATE_ITEM | MF_OUTSOURCE_ITEM | MF_IMPREGNABLE)}}},
 	
 	// -- KEY HOLDERS --
 	// Secret room -- key on an altar in a secret room
 	{{1, AMULET_LEVEL},	{15, 100},	1,		2,			(BF_ADOPT_ITEM_MANDATORY), {
-		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING)},
+		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_ADOPT_ITEM | MF_TREAT_AS_BLOCKING)},
 		{0,			SECRET_DOOR,DUNGEON,		{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)}}},
 	// Throwing tutorial -- toss an item onto the pressure plate to retract the cage and reveal the key
-	{{1, 15},			{70, 120},	10,		2,			(BF_ADOPT_ITEM_MANDATORY), {
-		{0,			ALTAR_CAGE_RETRACTABLE,DUNGEON,{1,1},	1,			0,			-1,			0,				0,				3,				0,			0,			(MF_IMPREGNABLE)},
-		{DF_MEDIUM_HOLE, MACHINE_PRESSURE_PLATE, LIQUID, {1,1}, 1,		0,			0,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING)}}},
+	{{1, 10},			{70, 120},	10,		3,			(BF_ADOPT_ITEM_MANDATORY), {
+		{0,			ALTAR_CAGE_RETRACTABLE,DUNGEON,{1,1},	1,			0,			-1,			0,				0,				3,				0,			0,			(MF_ADOPT_ITEM | MF_IMPREGNABLE)},
+		{DF_MEDIUM_HOLE, MACHINE_PRESSURE_PLATE, LIQUID, {1,1}, 1,		0,			0,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_ALTERNATIVE)},
+		{DF_MEDIUM_LAVA_POND,MACHINE_PRESSURE_PLATE, LIQUID, {1,1}, 1,	0,			0,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_ALTERNATIVE)}}},
 	// Flammable barricade in the doorway -- burn the wooden barricade to enter
-	{{1, 15},			{15, 50},	8,		4,			(BF_ADOPT_ITEM_MANDATORY), {
-		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING)},
+	{{1, 10},			{15, 50},	8,		4,			(BF_ADOPT_ITEM_MANDATORY), {
+		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_ADOPT_ITEM | MF_TREAT_AS_BLOCKING)},
 		{0,			ADD_WOODEN_BARRICADE,DUNGEON,{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)},
 		{0,			0,			0,				{1,1},		1,			WEAPON,		INCENDIARY_DART,0,			0,				1,				0,			0,			(MF_GENERATE_ITEM | MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)},
 		{0,			0,			0,				{1,1},		1,			POTION,		POTION_INCINERATION,0,		0,				1,				0,			0,			(MF_GENERATE_ITEM | MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)}}},
 	// Fun with fire -- trigger the fire trap and coax the fire over to the wooden barricade surrounding the altar and key
-    {{3, 15},			{80, 120},	10,		8,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_OPEN_INTERIOR), {
-		{DF_SURROUND_WOODEN_BARRICADE,ALTAR_INERT,DUNGEON,{1,1},1,		0,			-1,			0,				0,				3,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+    {{3, 12},			{80, 120},	10,		8,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_OPEN_INTERIOR), {
+		{DF_SURROUND_WOODEN_BARRICADE,ALTAR_INERT,DUNGEON,{1,1},1,		0,			-1,			0,				0,				3,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			GRASS,		SURFACE,		{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE | MF_ALTERNATIVE)},
 		{DF_MUD,	0,			0,				{4,4},		2,			0,			-1,			0,				0,				2,				0,			0,			(MF_ALTERNATIVE | MF_FAR_FROM_GATE)},
 		{0,			FLAMETHROWER_HIDDEN,DUNGEON,{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_NEAR_GATE)},
@@ -732,25 +748,23 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{0,			0,			0,				{2,2},		1,			POTION,		POTION_HASTE_SELF,0,		0,				3,				0,			0,			(MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)},
 		{0,			0,			0,				{1,1},		1,			WAND,		WAND_BECKONING,0,			0,				3,				0,			0,			(MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)}}},
 	// Flood zone -- key on an altar in a room with pools of eel-infested waters; take key to flood room with shallow water
-	{{3, AMULET_LEVEL},	{80, 180},	10,		4,			(BF_SURROUND_WITH_WALLS | BF_PURGE_LIQUIDS | BF_PURGE_PATHING_BLOCKERS | BF_ADOPT_ITEM_MANDATORY | BF_IMPREGNABLE),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				5,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
-		{DF_SPREADABLE_WATER_POOL,0,0,			{2, 4},		1,			0,			-1,			0,				0,				5,				HORDE_MACHINE_WATER_MONSTER,0,MF_GENERATE_HORDE},
-		{0,			DOOR,		DUNGEON,		{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)},
-		{0,			SHALLOW_WATER,LIQUID,		{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)}}},
+	{{3, AMULET_LEVEL},	{80, 180},	10,		3,			(BF_SURROUND_WITH_WALLS | BF_PURGE_LIQUIDS | BF_PURGE_PATHING_BLOCKERS | BF_ADOPT_ITEM_MANDATORY),	{
+		{0,			FLOOR_FLOODABLE,LIQUID,		{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				5,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{DF_SPREADABLE_WATER_POOL,0,0,			{2, 4},		1,			0,			-1,			0,				0,				5,				HORDE_MACHINE_WATER_MONSTER,0,MF_GENERATE_HORDE}}},
 	// Collapsing floor -- key on an altar in a plain room; take key to cause the floor of the room to collapse
-	{{1, AMULET_LEVEL},	{20, 60},	10,		4,			(BF_SURROUND_WITH_WALLS | BF_PURGE_LIQUIDS | BF_IMPREGNABLE | BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_SWITCH_RETRACTING,DUNGEON,{1,1},	1,			0,			-1,			0,				0,				4,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
-		{0,			MACHINE_COLLAPSE_EDGE_DORMANT,LIQUID,{1, 2},1,		0,			-1,			0,				0,				2,				0,			0,			MF_NEAR_GATE},
-		{0,			DOOR,		DUNGEON,		{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)},
-		{0,			CHASM_EDGE,	LIQUID,			{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)}}},
+	{{1, AMULET_LEVEL},	{20, 60},	10,		3,			(BF_SURROUND_WITH_WALLS | BF_PURGE_LIQUIDS | BF_ADOPT_ITEM_MANDATORY),	{
+		{0,			FLOOR_FLOODABLE,LIQUID,		{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
+		{0,			ALTAR_SWITCH_RETRACTING,DUNGEON,{1,1},	1,			0,			-1,			0,				0,				4,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{0,			MACHINE_COLLAPSE_EDGE_DORMANT,LIQUID,{1, 2},1,		0,			-1,			0,				0,				2,				0,			0,			MF_NEAR_GATE}}},
 	// Pit traps -- key on an altar, room full of pit traps
 	{{1, AMULET_LEVEL},	{30, 100},	10,		3,			(BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{0,			ALTAR_INERT,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			TRAP_DOOR_HIDDEN,DUNGEON,	{30, 40},	1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_REPEAT_UNTIL_NO_PROGRESS)},
 		{0,			SECRET_DOOR,DUNGEON,		{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)}}},
 	// Levitation challenge -- key on an altar, room filled with pit, levitation elsewhere on level, bridge appears when you grab the key
-	{{1, AMULET_LEVEL},	{75, 120},	10,		6,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_OPEN_INTERIOR | BF_SURROUND_WITH_WALLS),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				3,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+	{{1, 13},	{75, 120},	10,		6,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_OPEN_INTERIOR | BF_SURROUND_WITH_WALLS),	{
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				3,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			TORCH_WALL,	DUNGEON,		{1,4},		0,			0,			0,			0,				0,				1,				0,			0,			(MF_BUILD_IN_WALLS)},
 		{0,			0,			0,				{1,1},		1,			0,			0,			0,				0,				3,				0,			0,			MF_BUILD_IN_DOORWAY},
 		{DF_SHOW_TRAPDOOR_HALO,	CHASM,LIQUID,	{120, 120},	1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_REPEAT_UNTIL_NO_PROGRESS)},
@@ -758,21 +772,21 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{0,			0,			0,				{1,1},		1,			POTION,		POTION_LEVITATION,0,		0,				1,				0,			0,			(MF_GENERATE_ITEM | MF_BUILD_ANYWHERE_ON_LEVEL)}}},
 	// Web climbing -- key on an altar, room filled with pit, spider at altar to shoot webs, bridge appears when you grab the key
 	{{7, AMULET_LEVEL},	{55, 90},	10,		5,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_OPEN_INTERIOR | BF_SURROUND_WITH_WALLS),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				MK_SPIDER,		3,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING | MF_IN_VIEW_OF_GATE | MF_GENERATE_MONSTER)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				MK_SPIDER,		3,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING | MF_IN_VIEW_OF_GATE | MF_GENERATE_MONSTER)},
 		{0,			TORCH_WALL,	DUNGEON,		{1,4},		0,			0,			0,			0,				0,				1,				0,			0,			(MF_BUILD_IN_WALLS)},
 		{0,			0,			0,				{1,1},		1,			0,			0,			0,				0,				3,				0,			0,			MF_BUILD_IN_DOORWAY},
 		{DF_SHOW_TRAPDOOR_HALO,	CHASM,LIQUID,	{120, 120},	1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_REPEAT_UNTIL_NO_PROGRESS)},
 		{DF_SHOW_TRAPDOOR_HALO,	CHASM_WITH_HIDDEN_BRIDGE,LIQUID,{1,1},1,0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_EVERYWHERE)}}},
 	// Lava moat -- key on an altar, room filled with lava, levitation/fire immunity elsewhere on level, lava retracts when you grab the key
-	{{3, AMULET_LEVEL},	{75, 120},	10,		5,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_OPEN_INTERIOR),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+	{{3, 13},	{75, 120},	10,		5,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_OPEN_INTERIOR),	{
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			0,			0,				{1,1},		1,			0,			0,			0,				0,				2,				0,			0,			MF_BUILD_IN_DOORWAY},
 		{0,			LAVA_RETRACTABLE,LIQUID,	{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_EVERYWHERE)},
 		{0,			0,			0,				{1,1},		1,			POTION,		POTION_LEVITATION,0,		0,				1,				0,			0,			(MF_GENERATE_ITEM | MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)},
 		{0,			0,			0,				{1,1},		1,			POTION,		POTION_FIRE_IMMUNITY,0,		0,				1,				0,			0,			(MF_GENERATE_ITEM | MF_BUILD_ANYWHERE_ON_LEVEL | MF_ALTERNATIVE)}}},
 	// Poison gas -- key on an altar; take key to cause a poison gas vent to appear and the door to be blocked; there is a hidden trapdoor somewhere
 	{{4, AMULET_LEVEL},	{35, 60},	7,		6,			(BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			MF_TREAT_AS_BLOCKING},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_TREAT_AS_BLOCKING)},
 		{0,			MACHINE_POISON_GAS_VENT_DORMANT,DUNGEON,{1,2},1,	0,			-1,			0,				0,				2,				0,			0,			0},
 		{DF_TRAPDOOR,0,			0,				{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			MF_ALTERNATIVE},
 		{0,			0,			0,				{1,1},		1,			SCROLL,		SCROLL_TELEPORT,0,			0,				2,				0,			0,			(MF_GENERATE_ITEM | MF_ALTERNATIVE)},
@@ -780,12 +794,12 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{0,			MACHINE_BLOCKABLE_DOORWAY,DUNGEON,{1,1},1,			0,			0,			0,				0,				1,				0,			0,			(MF_BUILD_IN_DOORWAY | MF_PERMIT_BLOCKING)}}},
 	// Explosive situation -- key on an altar; take key to cause a methane gas vent to appear and a pilot light to ignite
 	{{7, AMULET_LEVEL},	{80, 90},	10,		3,			(BF_PURGE_LIQUIDS | BF_SURROUND_WITH_WALLS | BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			MF_TREAT_AS_BLOCKING | MF_FAR_FROM_GATE},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_ADOPT_ITEM | MF_TREAT_AS_BLOCKING | MF_FAR_FROM_GATE)},
 		{0,			MACHINE_METHANE_VENT_DORMANT,DUNGEON,{1,1}, 1,		0,			-1,			0,				0,				1,				0,			0,			MF_NEAR_GATE},
-		{0,			PILOT_LIGHT_DORMANT,DUNGEON,{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			MF_FAR_FROM_GATE | MF_BUILD_IN_WALLS}}},
+		{0,			PILOT_LIGHT_DORMANT,DUNGEON,{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			(MF_FAR_FROM_GATE | MF_BUILD_IN_WALLS)}}},
 	// Burning grass -- key on an altar; take key to cause pilot light to ignite grass in room
 	{{1, 7},			{40, 110},	10,		6,			(BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS | BF_ADOPT_ITEM_MANDATORY | BF_OPEN_INTERIOR),	{
-		{DF_SMALL_DEAD_GRASS,ALTAR_SWITCH_RETRACTING,DUNGEON,{1,1},1,	0,			-1,			0,				0,				1,				0,			0,			MF_TREAT_AS_BLOCKING | MF_FAR_FROM_GATE},
+		{DF_SMALL_DEAD_GRASS,ALTAR_SWITCH_RETRACTING,DUNGEON,{1,1},1,	0,			-1,			0,				0,				1,				0,			0,			(MF_ADOPT_ITEM | MF_TREAT_AS_BLOCKING | MF_FAR_FROM_GATE)},
 		{DF_DEAD_FOLIAGE,0,		SURFACE,		{2,3},		0,			0,			-1,			0,				0,				1,				0,			0,			0},
 		{0,			FOLIAGE,	SURFACE,		{1,4},		0,			0,			-1,			0,				0,				1,				0,			0,			0},
 		{0,			GRASS,		SURFACE,		{10,25},	0,			0,			-1,			0,				0,				1,				0,			0,			0},
@@ -793,20 +807,25 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{0,			PILOT_LIGHT_DORMANT,DUNGEON,{1,1},		1,			0,			-1,			0,				0,				1,				0,			0,			MF_NEAR_GATE | MF_BUILD_IN_WALLS}}},
 	// Statuary -- key on an altar, room full of statues; take key to cause statues to burst and reveal monsters
 	{{10, AMULET_LEVEL},{35, 90},	10,		2,			(BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			STATUE_DORMANT,DUNGEON,		{3, 5},		3,			0,			-1,			0,				0,				2,				HORDE_MACHINE_STATUE,0,	(MF_TREAT_AS_BLOCKING | MF_GENERATE_HORDE | MF_MONSTERS_DORMANT)}}},
+	// Mud pit -- key on an altar, room full of mud, take key to cause bog monsters to spawn in the mud
+	{{12, AMULET_LEVEL},{40, 90},	10,		3,			(BF_ADOPT_ITEM_MANDATORY | BF_SURROUND_WITH_WALLS),	{
+		{0,			MUD,		LIQUID,			{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
+		{DF_MUD_DORMANT,0,		0,				{3, 4},		3,			0,			-1,			0,				0,				1,				HORDE_MACHINE_MUD,0,	(MF_GENERATE_HORDE | MF_MONSTERS_DORMANT)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)}}},
 	// Haunted house -- key on an altar; take key to cause the room to darken, ectoplasm to cover everything and phantoms to appear
 	{{16, AMULET_LEVEL},{45, 150},	10,		3,			(BF_ADOPT_ITEM_MANDATORY | BF_PURGE_INTERIOR | BF_SURROUND_WITH_WALLS),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			DARK_FLOOR_DORMANT,DUNGEON,	{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
 		{0,			DARK_FLOOR_DORMANT,DUNGEON,	{3,5},		4,			0,			-1,			0,				MK_PHANTOM,		1,				0,			0,			(MF_GENERATE_MONSTER | MF_MONSTERS_DORMANT)}}},
 	// Gauntlet -- key on an altar; take key to cause turrets to emerge
 	{{5, 24},			{35, 90},	10,		2,			(BF_ADOPT_ITEM_MANDATORY),	{
-		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
+		{0,			ALTAR_SWITCH,DUNGEON,		{1,1},		1,			0,			-1,			0,				0,				2,				0,			0,			(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_TREAT_AS_BLOCKING)},
 		{0,			TURRET_DORMANT,DUNGEON,		{4, 6},		4,			0,			-1,			0,				0,				2,				HORDE_MACHINE_TURRET,0,	MF_TREAT_AS_BLOCKING | MF_GENERATE_HORDE | MF_MONSTERS_DORMANT | MF_BUILD_IN_WALLS}}},
 	// Boss -- key is held by a boss atop a pile of bones in a secret room. A few fungus trees light up the area.
 	{{5, AMULET_LEVEL},	{40, 100},	25,		3,			(BF_ADOPT_ITEM_MANDATORY | BF_SURROUND_WITH_WALLS | BF_PURGE_LIQUIDS), {
-		{DF_BONES,	0,			0,				{1,1},		1,			0,			-1,			0,				0,				1,				HORDE_MACHINE_BOSS,	0,	(MF_FAR_FROM_GATE | MF_MONSTER_TAKE_ITEM | MF_GENERATE_HORDE | MF_MONSTER_SLEEPING)},
+		{DF_BONES,	0,			0,				{1,1},		1,			0,			-1,			0,				0,				1,				HORDE_MACHINE_BOSS,	0,	(MF_ADOPT_ITEM | MF_FAR_FROM_GATE | MF_MONSTER_TAKE_ITEM | MF_GENERATE_HORDE | MF_MONSTER_SLEEPING)},
 		{DF_BONES,	SECRET_DOOR,DUNGEON,		{1,1},		1,			0,			0,			0,				0,				3,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_IN_DOORWAY)},
 		{DF_LUMINESCENT_FUNGUS,	FUNGUS_FOREST,SURFACE,{1,2},0,			0,			-1,			0,				0,				2,				0,			0,			0}}},
 };
@@ -817,7 +836,8 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 // Defines all creatures, which include monsters and the player:
 creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	//	name			ch		color			exp		HP		def		acc		damage			reg	sight	scent	move	attack	blood			light	DFChance DFType		behaviorF, abilityF
-	{0,	"you",	PLAYER_CHAR,	&playerInLightColor,	0,		15,		0,		75,		{1, 2, 1},		20,	DCOLS,	30,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0},
+	{0,	"you",	PLAYER_CHAR,	&playerInLightColor,0,	15,		0,		75,		{1, 2, 1},		20,	DCOLS,	30,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
+		(MONST_MALE | MONST_FEMALE)},
 	
 	{0, "rat",			'r',	&gray,			1,		6,		0,		80,		{1, 3, 1},		20,	20,		30,		100,	100,	DF_HUMAN_BLOOD,	0,		1,		DF_URINE},
 	{0, "kobold",		'k',	&goblinColor,	2,		7,		0,		80,		{1, 3, 1},		20,	30,		30,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0},
@@ -845,7 +865,8 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 		(MONST_DEFEND_DEGRADE_WEAPON), (MA_HIT_DEGRADE_ARMOR)},
 	{0, "centipede",	'c',	&centipedeColor,10,		20,		20,		80,		{1, 15, 1},		20,	20,		50,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
 		(0), (MA_POISONS)},
-	{0,	"ogre",			'O',	&ogreColor,		50,		55,		80,		125,	{8, 14, 2},		20,	30,		30,		100,	200,	DF_HUMAN_BLOOD,	0,		0,		0,			(0)},
+	{0,	"ogre",			'O',	&ogreColor,		50,		55,		80,		125,	{8, 14, 2},		20,	30,		30,		100,	200,	DF_HUMAN_BLOOD,	0,		0,		0,
+		(MONST_MALE | MONST_FEMALE)},
 	{0,	"bog monster",	'B',	&krakenColor,	50,		55,		80,		5000,	{3, 4, 1},		3,	30,		30,		200,	100,	NOTHING,		0,		0,		0,
 		(MONST_RESTRICTED_TO_LIQUID | MONST_SUBMERGES | MONST_FLITS | MONST_FLEES_NEAR_DEATH | MONST_WILL_NOT_USE_STAIRS), (MA_SEIZES)},
 	{0, "ogre totem",	TOTEM_CHAR,	&green,		100,	70,		0,		0,		{0, 0, 0},		0,	DCOLS,	200,	100,	400,	DF_RUBBLE_BLOOD,LICH_LIGHT,0,	0,
@@ -859,23 +880,26 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0, "wraith",		'W',	&wraithColor,	60,		50,		70,		120,	{4, 15, 2},		5,	DCOLS,	100,	50,		100,	DF_GREEN_BLOOD,	0,		0,		0,
 		(MONST_FLEES_NEAR_DEATH)},
 	{0, "zombie",		'z',	&vomitColor,	45,		55,		0,		120,	{4, 15, 1},		0,	50,		200,	200,	200,	DF_ROT_GAS_BLOOD,0,		100,	DF_ROT_GAS_PUFF, (0)},
-	{0, "troll",		'T',	&trollColor,	150,	65,		90,		125,	{5, 20, 3},		1,	DCOLS,	20,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,			(0)},
+	{0, "troll",		'T',	&trollColor,	150,	65,		90,		125,	{5, 20, 3},		1,	DCOLS,	20,		100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
+		(MONST_MALE | MONST_FEMALE)},
 	{0,	"ogre shaman",	'O',	&green,			120,	45,		70,		100,	{4, 10, 1},		20,	DCOLS,	30,		100,	200,	DF_HUMAN_BLOOD,	0,		0,		0,
-		(MONST_MAINTAINS_DISTANCE | MONST_CAST_SPELLS_SLOWLY), (MA_CAST_HASTE | MA_CAST_SPARK | MA_CAST_SUMMON)},
+		(MONST_MAINTAINS_DISTANCE | MONST_CAST_SPELLS_SLOWLY | MONST_MALE | MONST_FEMALE), (MA_CAST_HASTE | MA_CAST_SPARK | MA_CAST_SUMMON)},
 	{0, "naga",			'N',	&trollColor,	150,	75,		100,	150,	{5, 13, 4},		10,	DCOLS,	100,	100,	100,	DF_GREEN_BLOOD,	0,		100,	DF_PUDDLE,
-		(MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_NEVER_SLEEPS)},
+		(MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_NEVER_SLEEPS | MONST_FEMALE)},
 	{0, "salamander",	'S',	&salamanderColor,150,	60,		110,	150,	{5, 15, 3},		10,	DCOLS,	100,	100,	100,	DF_ASH_BLOOD,	SALAMANDER_LIGHT, 100, DF_SALAMANDER_FLAME,
-		(MONST_IMMUNE_TO_FIRE | MONST_SUBMERGES | MONST_NEVER_SLEEPS | MONST_FIERY | MONST_INTRINSIC_LIGHT)},
+		(MONST_IMMUNE_TO_FIRE | MONST_SUBMERGES | MONST_NEVER_SLEEPS | MONST_FIERY | MONST_INTRINSIC_LIGHT | MONST_MALE)},
 	{0, "explosive bloat",'b',	&orange,		20,		10,		0,		100,	{0, 0, 0},		5,	DCOLS,	100,	100,	100,	DF_HUMAN_BLOOD,	EMBER_LIGHT,0,	DF_BLOAT_EXPLOSION,
 		(MONST_FLIES | MONST_FLITS| MONST_INTRINSIC_LIGHT), (MA_KAMIKAZE | MA_DF_ON_DEATH)},
 	{0, "dar blademaster",'d',	&purple,		175,	35,		120,	160,	{2, 12, 2},		20,	DCOLS,	100,	100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
-		(MONST_CARRY_ITEM_25), (MA_CAST_BLINK)},
+		(MONST_CARRY_ITEM_25 | MONST_MALE | MONST_FEMALE), (MA_CAST_BLINK)},
 	{0, "dar priestess", 'd',	&darPriestessColor,150,	20,		80,		100,	{2, 5, 1},		20,	DCOLS,	100,	100,	100,	DF_HUMAN_BLOOD, 0,		0,		0,
-		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25), (MA_CAST_HEAL | MA_CAST_SPARK | MA_CAST_HASTE | MA_CAST_NEGATION)},
+		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25 | MONST_FEMALE), (MA_CAST_HEAL | MA_CAST_SPARK | MA_CAST_HASTE | MA_CAST_NEGATION)},
 	{0, "dar battlemage",'d',	&darMageColor,	150,	20,		80,		100,	{1, 3, 1},		20,	DCOLS,	100,	100,	100,	DF_HUMAN_BLOOD,	0,		0,		0,
-		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25), (MA_CAST_FIRE | MA_CAST_SLOW | MA_CAST_DISCORD)},
-	{0,	"centaur",		'C',	&tanColor,		175,	35,		50,		175,	{2, 10, 2},		20,	DCOLS,	30,		50,		200,	DF_HUMAN_BLOOD,	0,		0,		0,
-		(MONST_MAINTAINS_DISTANCE | MONST_CAST_SPELLS_SLOWLY), (MA_ATTACKS_FROM_DISTANCE)},
+		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25 | MONST_MALE | MONST_FEMALE), (MA_CAST_FIRE | MA_CAST_SLOW | MA_CAST_DISCORD)},
+	{0,	"centaur",		'C',	&tanColor,		175,	35,		50,		175,	{2, 10, 2},		20,	DCOLS,	30,		50,		100,	DF_HUMAN_BLOOD,	0,		0,		0,
+		(MONST_MAINTAINS_DISTANCE | MONST_MALE), (MA_ATTACKS_FROM_DISTANCE)},
+//	{0, "sentinel",		STATUE_CHAR, &sentinelColor, 50,50,		0,		0,		{0, 0, 0},		0,	DCOLS,	100,	100,	175,	DF_RUBBLE_BLOOD,SENTINEL_LIGHT,0,0,
+//		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING | MONST_WILL_NOT_USE_STAIRS | MONST_CAST_SPELLS_SLOWLY | MONST_DIES_IF_NEGATED), (MA_CAST_HEAL | MA_CAST_SPARK)},
 	{0, "acid turret", TURRET_CHAR,	&darkGreen,	120,	35,		0,		250,	{1, 2, 1},		0,	DCOLS,	50,		100,	250,	NOTHING,		0,		0,		0,
 		(MONST_TURRET), (MA_ATTACKS_FROM_DISTANCE | MA_HIT_DEGRADE_ARMOR)},
 	{0,	"kraken",		'K',	&krakenColor,	200,	120,	0,		150,	{10, 25, 3},	1,	DCOLS,	20,		50,		100,	NOTHING,		0,		0,		0,
@@ -885,7 +909,7 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0, "phylactery",	GEM_CHAR,&lichLightColor,250,	30,		0,		0,		{0, 0, 0},		0,	DCOLS,	50,		100,	150,	DF_RUBBLE_BLOOD,LICH_LIGHT,	0,	0,
 		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING | MONST_WILL_NOT_USE_STAIRS | MONST_INTRINSIC_LIGHT), (MA_CAST_SUMMON | MA_ENTER_SUMMONS)},
 	{0, "pixie",		'p',	&pixieColor,	150,	10,		120,	100,	{1, 3, 1},		20,	100,	100,	50,		100,	DF_GREEN_BLOOD,	PIXIE_LIGHT, 0,	0,
-		(MONST_MAINTAINS_DISTANCE | MONST_INTRINSIC_LIGHT | MONST_FLIES | MONST_FLITS), (MA_CAST_SPARK | MA_CAST_SLOW | MA_CAST_NEGATION | MA_CAST_DISCORD)},
+		(MONST_MAINTAINS_DISTANCE | MONST_INTRINSIC_LIGHT | MONST_FLIES | MONST_FLITS | MONST_MALE | MONST_FEMALE), (MA_CAST_SPARK | MA_CAST_SLOW | MA_CAST_NEGATION | MA_CAST_DISCORD)},
 	{0,	"phantom",		'P',	&ectoplasmColor,180,	35,		100,	160,	{8, 22, 4},		0,	30,		30,		50,		200,	DF_ECTOPLASM_BLOOD,	0,	2,		DF_ECTOPLASM_DROPLET,
 		(MONST_INVISIBLE | MONST_FLITS | MONST_FLIES | MONST_IMMUNE_TO_WEBS)},
 	{0, "flame turret", TURRET_CHAR, &lavaForeColor,150,40,		0,		150,	{1, 2, 1},		0,	DCOLS,	50,		100,	250,	NOTHING,		LAVA_LIGHT,	0,	0,
@@ -908,7 +932,7 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0,	"black jelly",	'J',	&black,			150,	120,	0,		130,	{3, 8, 1},		0,	20,		20,		100,	100,	DF_PURPLE_BLOOD,0,		0,		0,
 		(0), (MA_CLONE_SELF_ON_DEFEND)},
 	{0, "vampire",		'V',	&white,			200,	75,		120,	120,	{4, 15, 2},		6,	DCOLS,	100,	50,		100,	DF_HUMAN_BLOOD,	0,		0,		DF_BLOOD_EXPLOSION,
-		(MONST_FLEES_NEAR_DEATH), (MA_CAST_BLINK | MA_CAST_DISCORD | MA_TRANSFERENCE | MA_DF_ON_DEATH | MA_CAST_SUMMON | MA_ENTER_SUMMONS)},
+		(MONST_FLEES_NEAR_DEATH | MONST_MALE), (MA_CAST_BLINK | MA_CAST_DISCORD | MA_TRANSFERENCE | MA_DF_ON_DEATH | MA_CAST_SUMMON | MA_ENTER_SUMMONS)},
 	{0, "flamedancer",	'F',	&white,			200,	65,		120,	120,	{3, 8, 2},		0,	DCOLS,	100,	100,	100,	DF_EMBER_BLOOD,	FLAMEDANCER_LIGHT,100,DF_FLAMEDANCER_CORONA,
 		(MONST_MAINTAINS_DISTANCE | MONST_IMMUNE_TO_FIRE | MONST_FIERY | MONST_INTRINSIC_LIGHT), (MA_CAST_FIRE)},
 	
@@ -923,227 +947,178 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 
 const monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
 	{"A naked adventurer in an unforgiving place, bereft of equipment and confused about the circumstances.",
-		"you",
 		"studying", "Studying",
 		{"hit", {0}}},
 	{"The rat is a scavenger of the shallows, perpetually in search of decaying animal matter.",
-		"it",
 		"gnawing at", "Eating",
 		{"scratches", "bites", {0}}},
 	{"The kobold is a lizardlike humanoid of the upper dungeon.",
-		"it",
 		"poking at", "Examining",
 		{"clubs", "bashes", {0}}},
-	{"The jackal prowls the caverns for intruders to rend with its powerful jaws.",
-		"it",
+	{"The jackal prowls the caverns for intruders to rend with $HISHER powerful jaws.",
 		"tearing at", "Eating",
 		{"claws", "bites", "mauls", {0}}},
-	{"The eel slips silently through the subterranean lake, waiting for unsuspecting prey to set foot in its dark waters.",
-		"it",
+	{"The eel slips silently through the subterranean lake, waiting for unsuspecting prey to set foot in $HISHER dark waters.",
 		"eating", "Eating",
 		{"shocks", "bites", {0}}},
-	{"Mischievous trickster that it is, the monkey lives to steal shiny trinkets from adventurers -- though it will never lay a hand on cursed items.",
-		"it",
+	{"Mischievous trickster that $HESHE is, the monkey lives to steal shiny trinkets from adventurers -- though $HESHE will never lay a hand on cursed items.",
 		"examining", "Examining",
 		{"tweaks", "bites", "punches", {0}}},
-	{"A bladder of deadly gas buoys the bloat through the air, its thin veinous membrane ready to rupture at the slightest stress.",
-		"it",
+	{"A bladder of deadly gas buoys the bloat through the air, $HISHER thin veinous membrane ready to rupture at the slightest stress.",
 		"gazing at", "Gazing",
 		{"bumps", {0}},
 		"bursts, leaving behind an expanding cloud of caustic gas!"},
 	{"A filthy little primate, the tribalistic goblin often travels in packs and carries a makeshift stone blade.",
-		"it",
 		"chanting over", "Chanting",
 		{"slashes", "cuts", "stabs", {0}}},
-	{"This goblin is covered with glowing sigils that pulse with power. It can call into existence phantom blades to attack its foes.",
-		"it",
+	{"This goblin is covered with glowing sigils that pulse with power. $HESHE can call into existence phantom blades to attack $HISHER foes.",
 		"performing a ritual on", "Performing ritual",
 		{"thumps", "whacks", "wallops", {0}},
 		{0},
 		"gestures ominously!"},
-	{"Goblins have created this makeshift totem and imbued it with a shamanistic power.",
-		"it",
+	{"Goblins have created this makeshift totem and imbued $HIMHER with a shamanistic power.",
 		"gazing at", "Gazing",
 		{"hits", {0}}},
 	{"This mass of poisonous pink goo slips across the ground in search of a warm meal.",
-		"it",
 		"absorbing", "Feeding",
 		{"smears", "slimes", "drenches"}},
-	{"The enormous, warty toad secretes a powerful hallucinogenic slime to befuddle the senses of any creatures that come in contact with it.",
-		"it",
+	{"The enormous, warty toad secretes a powerful hallucinogenic slime to befuddle the senses of any creatures that come in contact with $HIMHER.",
 		"eating", "Eating",
 		{"slimes", "slams", {0}}},
-	{"Often hunting in packs, leathery wings and keen senses guide the vampire bat unerringly to its prey.",
-		"it",
+	{"Often hunting in packs, leathery wings and keen senses guide the vampire bat unerringly to $HISHER prey.",
 		"draining", "Feeding",
 		{"nips", "bites", {0}}},
 	{"A mechanical contraption embedded in the wall, the spring-loaded arrow turret will fire volley after volley of arrows at intruders.",
-		"it",
 		"gazing at", "Gazing",
 		{"shoots", {0}}},
-	{"The acid mound squelches softly across the ground, leaving a trail of acidic goo in its path.",
-		"it",
+	{"The acid mound squelches softly across the ground, leaving a trail of acidic goo in $HISHER path.",
 		"liquefying", "Feeding",
 		{"slimes", "douses", "drenches", {0}}},
-	{"This monstrous centipede's incisors are imbued with a horrible venom that will slowly kill its prey.",
-		"it",
+	{"This monstrous centipede's incisors are imbued with a horrible venom that will slowly kill $HISHER prey.",
 		"eating", "Eating",
 		{"pricks", "stings", {0}}},
-	{"This lumbering creature carries an enormous club that it can swing with incredible force.",
-		"he",
+	{"This lumbering creature carries an enormous club that $HESHE can swing with incredible force.",
 		"examining", "Studying",
 		{"cudgels", "clubs", "batters", {0}}},
-	{"The horrifying bog monster dwells beneath the surface of mud-filled swamps. When its prey ventures into the mud, the bog monster will ensnare the unsuspecting victim with its pale tentacles and squeeze its life away.",
-		"it",
+	{"The horrifying bog monster dwells beneath the surface of mud-filled swamps. When $HISHER prey ventures into the mud, the bog monster will ensnare the unsuspecting victim with $HISHER pale tentacles and squeeze its life away.",
 		"draining", "Feeding",
 		{"squeezes", "strangles", "crushes", {0}}},
-	{"Ancient ogres versed in the eldritch arts have assembled this totem and imbued it with occult power.",
-		"it",
+	{"Ancient ogres versed in the eldritch arts have assembled this totem and imbued $HIMHER with occult power.",
 		"gazing at", "Gazing",
 		{"hits", {0}}},
-	{"The spider's red eyes pierce the darkness in search of enemies to ensnare with its projectile webs and dissolve with deadly poison.",
-		"it",
+	{"The spider's red eyes pierce the darkness in search of enemies to ensnare with $HISHER projectile webs and dissolve with deadly poison.",
 		"draining", "Feeding",
 		{"bites", "stings", {0}}},
-	{"This contraption pulses with electrical charge that its embedded crystals and magical sigils can direct at intruders in deadly arcs.",
-		"it",
+	{"This contraption hums with electrical charge that $HISHER embedded crystals and magical sigils can direct at intruders in deadly arcs.",
 		"gazing at", "Gazing",
 		{"shocks", {0}}},
-	{"An ethereal blue flame dances through the air, flickering and pulsing in time to an otherworldly beat.",
-		"it",
+	{"An ethereal blue flame dances through the air, flickering and pulsing in time to an otherworldly rhythm.",
 		"consuming", "Feeding",
 		{"scorches", "burns", {0}}},
-	{"The wraith's hollow eye sockets stare hungrily at the world from its emaciated frame, and its long, bloodstained nails grope ceaselessly at the air for a fresh victim.",
-		"it",
+	{"The wraith's hollow eye sockets stare hungrily at the world from $HISHER emaciated frame, and $HISHER long, bloodstained nails grope ceaselessly at the air for a fresh victim.",
 		"devouring", "Feeding",
 		{"clutches", "claws", "bites", {0}}},
-	{"The zombie is the accursed product of a long-forgotten ritual. Its perpetually decaying flesh releases a putrid and flammable stench that will induce violent nausea in any who inhale it. ",
-		"it",
+	{"The zombie is the accursed product of a long-forgotten ritual. Perpetually decaying flesh, hanging from $HISHER bones in shreds, releases a putrid and flammable stench that will induce violent nausea in anyone who inhales it.",
 		"rending", "Eating",
 		{"hits", "bites", {0}}},
-	{"An enormous, disfigured creature covered in phlegm and warts, the troll regenerates very quickly and attacks with astonishing strength. Many adventures have ended in its misshapen hands.",
-		"he",
+	{"An enormous, disfigured creature covered in phlegm and warts, the troll regenerates very quickly and attacks with astonishing strength. Many adventures have ended at $HISHER misshapen hands.",
 		"eating", "Eating",
 		{"cudgels", "clubs", "bludgeons", "pummels", "batters"}},
-	{"This ogre is bent with age, but what it has lost in physical strength, it has more than gained in occult power.",
-		"he",
+	{"This ogre is bent with age, but what $HESHE has lost in physical strength, $HESHE has more than gained in occult power.",
 		"performing a ritual on", "Performing ritual",
 		{"cudgels", "clubs", {0}},
 		{0},
 		"chants in a harsh, gutteral tongue!"},
 	{"The serpentine naga live beneath the subterranean waters and emerge to attack unsuspecting adventurers.",
-		"she",
 		"studying", "Studying",
 		{"claws", "bites", "tail-whips", {0}}},
 	{"A serpent wreathed in flames and carrying a burning lash, salamanders dwell in lakes of fire and emerge when they sense a nearby victim, leaving behind a trail of glowing embers.",
-		"it",
 		"studying", "Studying",
 		{"claws", "whips", "lashes", {0}}},
-	{"This rare subspecies of bloat is little more than a thin membrane surrounding a bladder of highly explosive gases. The slightest stress will cause it to rupture in spectacular and deadly fashion.",
-		"it",
+	{"This rare subspecies of bloat is little more than a thin membrane surrounding a bladder of highly explosive gases. The slightest stress will cause $HIMHER to rupture in spectacular and deadly fashion.",
 		"gazing at", "Gazing",
 		{"bumps", {0}},
 		"detonates with terrifying force!"},
-	{"An elf of the deep, the dar blademaster leaps toward his enemies with frightening speed to engage in deadly swordplay.",
-		"he",
+	{"An elf of the deep, the dar blademaster leaps toward $HISHER enemies with frightening speed to engage in deadly swordplay.",
 		"studying", "Studying",
 		{"grazes", "cuts", "slices", "slashes", "stabs"}},
-	{"The dar priestess carries a host of religious relics that jangle as she walks and glow faintly with arcane power.",
-		"she",
+	{"The dar priestess carries a host of religious relics that jangle as $HESHE walks.",
 		"praying over", "Praying",
 		{"cuts", "slices", {0}}},
-	{"The dar battlemage's eyes glow an angry shade of red, and her hands radiate an occult heat.",
-		"she",
+	{"The dar battlemage's eyes glow an angry shade of red, and $HISHER hands radiate an occult heat.",
 		"transmuting", "Transmuting",
 		{"cuts", {0}}},
 	{"Half man and half horse, the centaur carries an enormous bow and quiver of arrows -- hunter and steed fused into a single creature.",
-		"he",
 		"studying", "Studying",
 		{"shoots", {0}}},
+//	{"An ancient statue of a vaguely humanoid figure holding aloft a crystal that pulses with ancient magic.",
+//		"focusing on", "Focusing",
+//		{"hits", {0}}},
 	{"A green-flecked nozzle is embedded in the wall, ready to spew a stream of corrosive acid at intruders.",
-		"he",
 		"gazing at", "Gazing",
 		{"douses", "drenches", {0}}},
-	{"This tentacled nightmare will emerge from the subterranean waters to ensnare and devour any creature foolish enough to set foot into its lake.",
-		"it",
+	{"This tentacled nightmare will emerge from the subterranean waters to ensnare and devour any creature foolish enough to set foot into $HISHER lake.",
 		"devouring", "Feeding",
 		{"slaps", "smites", "batters", {0}}},
-	{"The desiccated form of an ancient sorcerer animated by dark arts and lust for power, the lich commands the obedience of the infernal planes and their foul inhabitants. Its essence is anchored to reality by a green phylactery that is always in its possession, and the lich cannot die unless the gem is destroyed.",
-		"it",
+	{"The desiccated form of an ancient sorcerer animated by dark arts and lust for power, the lich commands the obedience of the infernal planes and their foul inhabitants. Its essence is anchored to reality by a green phylactery that is always in $HISHER possession, and the lich cannot die unless the gem is destroyed.",
 		"enchanting", "Enchanting",
 		{"touches", {0}},
 		{0},
 		"rasps a terrifying incantation!"},
 	{"This gem was the fulcrum of a dark rite, performed centuries ago, that bound the soul of an ancient and terrible sorcerer. Hurry and destroy the gem, before the lich can gather its power and regenerate its corporeal form!",
-		"it",
 		"enchanting", "Enchanting",
 		{"touches", {0}},
 		{0},
 		"swirls with dark sorcery as the lich regenerates its form!"},
-	{"A peculiar airborne nymph, the pixie can cause all manner of trouble with a variety of spells. What it lacks in physical endurance, it makes up for with its wealth of mischievous magical abilities.",
-		"she",
+	{"A peculiar airborne humanoid, the pixie can cause all manner of trouble with a variety of spells. What $HESHE lacks in physical endurance, $HESHE makes up for with $HISHER wealth of mischievous magical abilities.",
 		"sprinkling dust on", "Dusting",
 		{"pokes", {0}}},
-	{"A silhouette of mournful rage against an empty backdrop, the phantom slips through the dungeon invisibly in clear air, leaving behind glowing droplets of ectoplasm and the terrified cries of its unsuspecting victims.",
-		"it",
+	{"A silhouette of mournful rage against an empty backdrop, the phantom slips through the dungeon invisibly in clear air, leaving behind glowing droplets of ectoplasm and the terrified cries of $HISHER unsuspecting victims.",
 		"permeating", "Permeating",
 		{"hits", {0}}},
 	{"This infernal contraption spits blasts of flame at intruders.",
-		"it",
 		"incinerating", "Incinerating",
 		{"pricks", {0}}},
-	{"This trickster demon moves with astonishing speed and delights in stealing from its enemies and teleporting away.",
-		"it",
+	{"This trickster demon moves with astonishing speed and delights in stealing from $HISHER enemies and blinking away.",
 		"dissecting", "Dissecting",
 		{"slices", "cuts", {0}}},
 	{"A creature of inchoate rage made flesh, the fury's moist wings beat loudly in the darkness.",
-		"she",
 		"flagellating", "Flagellating",
 		{"drubs", "fustigates", "castigates", {0}}},
-	{"This unholy specter from the abyss stalks the deep places of the earth without fear, impervious to all conventional attacks.",
-		"it",
+	{"This unholy specter stalks the deep places of the earth without fear, impervious to all conventional attacks.",
 		"desecrating", "Desecrating",
 		{"hits", {0}}},
-	{"This seething, towering nightmare of fleshy tentacles slinks through the bowels of the world. Its incredible strength and regeneration make it one of the most fearsome creatures of the dungeon.",
-		"it",
+	{"This seething, towering nightmare of fleshy tentacles slinks through the bowels of the world. The tentacle horror's incredible strength and regeneration make $HIMHER one of the most fearsome creatures of the dungeon.",
 		"sucking on", "Consuming",
 		{"slaps", "batters", "crushes", {0}}},
-	{"A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but its stone form can sustain an incredible amount of damage before being reduced to rubble.",
-		"it",
+	{"A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but $HISHER stone form can sustain an incredible amount of damage before collapsing into rubble.",
 		"cradling", "Cradling",
 		{"backhands", "punches", "kicks", {0}}},
-	{"An ancient serpent of the world's deepest places, the dragon's immense form belies its lightning-quick speed and testifies to its breathtaking strength. An undying furnace of white-hot flames burns within its scaly hide, and few could withstand a single moment under its infernal lash.",
-		"it",
+	{"An ancient serpent of the world's deepest places, the dragon's immense form belies its lightning-quick speed and testifies to $HISHER breathtaking strength. An undying furnace of white-hot flames burns within $HISHER scaly hide, and few could withstand a single moment under $HISHER infernal lash.",
 		"consuming", "Consuming",
 		{"claws", "bites", {0}}},
 	
-	{"Taller, stronger and smarter than other goblins, the chieftan commands the loyalty of its kind and can summon them into battle.",
-		"it",
+	{"Taller, stronger and smarter than other goblins, the chieftan commands the loyalty of $HISHER kind and can summon them into battle.",
 		"chanting over", "Chanting",
 		{"slashes", "cuts", "stabs", {0}},
 		{0},
 		"lets loose a deafening war cry!"},
-	{"This blob of jet-black goo is as rare as it is deadly. Few creatures of the dungeon can withstand its poisonous assault. Beware.",
-		"it",
+	{"This blob of jet-black goo is as rare as $HESHE is deadly. Few creatures of the dungeon can withstand $HISHER poisonous assault. Beware.",
 		"absorbing", "Feeding",
 		{"smears", "slimes", "drenches"}},
-	{"This vampire lives a solitary life deep underground, consuming any warm-blooded creature unfortunate to venture near his lair.",
-		"he",
+	{"This vampire lives a solitary life deep underground, consuming any warm-blooded creature unfortunate to venture near $HISHER lair.",
 		"draining", "Drinking",
 		{"grazes", "bites", "buries his fangs in", {0}},
 		{0},
-		"spreads his cape and bursts into a cloud of bats!"},
-	{"An elemental creature from another plane of existence, the infernal flamedancer burns with such intensity that it is painful to behold.",
-		"it",
+		"spreads his cloak and bursts into a cloud of bats!"},
+	{"An elemental creature from another plane of existence, the infernal flamedancer burns with such intensity that $HESHE is painful to behold.",
 		"immolating", "Consuming",
 		{"singes", "burns", "immolates", {0}}},
 	
 	{"Eldritch forces have coalesced to form this flickering, ethereal weapon.",
-		"it",
 		"gazing at", "Gazing",
 		{"nicks",  {0}}},
 	{"Mysterious energies bound up in your equipment have leapt forth to project this spectral image.",
-		"it",
 		"gazing at", "Gazing",
 		{"hits",  {0}}},
 };
@@ -1164,34 +1139,36 @@ const hordeType hordeCatalog[NUMBER_HORDES] = {
 	{MK_GOBLIN_CONJURER,0,		{0},									{{0}},							3,		10,		6},
 	{MK_TOAD,			0,		{0},									{{0}},							4,		11,		10},
 	{MK_PINK_JELLY,		0,		{0},									{{0}},							4,		13,		10},
-	{MK_GOBLIN_TOTEM,	1,		{MK_GOBLIN},							{{2,4,1}},						5,		13,		10,		0,			NO_PERIODIC_SPAWN},
+	{MK_GOBLIN_TOTEM,	1,		{MK_GOBLIN},							{{2,4,1}},						5,		13,		10,		0,			HORDE_NO_PERIODIC_SPAWN},
 	{MK_VAMPIRE_BAT,	1,		{MK_VAMPIRE_BAT},						{{0,2,1}},						5,		12,		10},
-	{MK_ARROW_TURRET,	0,		{0},									{{0}},							5,		13,		10,		TOP_WALL,	NO_PERIODIC_SPAWN},
+	{MK_ARROW_TURRET,	0,		{0},									{{0}},							5,		13,		10,		TOP_WALL,	HORDE_NO_PERIODIC_SPAWN},
 	{MK_MONKEY,			0,		{0},									{{0}},							5,		12,		10},
 	{MK_MONKEY,			1,		{MK_MONKEY},							{{2,4,1}},						5,		13,		3},
 	{MK_ACID_MOUND,		0,		{0},									{{0}},							6,		13,		10},
 	{MK_GOBLIN,			3,		{MK_GOBLIN, MK_KOBOLD, MK_JACKAL},		{{1, 3, 1}, {1,2,1}, {1,2,1}},	6,		12,		4},
 	{MK_CENTIPEDE,		0,		{0},									{{0}},							7,		14,		10},
 	{MK_BOG_MONSTER,	0,		{0},									{{0}},							7,		14,		8,		MUD},
-	{MK_OGRE,			0,		{0},									{{0}},							8,		13,		10},
+	{MK_OGRE,			0,		{0},									{{0}},							7,		13,		10},
 	{MK_EEL,			1,		{MK_EEL},								{{2, 4, 1}},					8,		22,		7,		DEEP_WATER},
 	{MK_ACID_MOUND,		1,		{MK_ACID_MOUND},						{{2, 4, 1}},					9,		13,		3},
 	{MK_SPIDER,			0,		{0},									{{0}},							9,		16,		10},
 	{MK_DAR_BLADEMASTER,1,		{MK_DAR_BLADEMASTER},					{{0, 1, 1}},					10,		14,		10},
 	{MK_WILL_O_THE_WISP,0,		{0},									{{0}},							10,		17,		10},
 	{MK_WRAITH,			0,		{0},									{{0}},							10,		17,		10},
-	{MK_SPARK_TURRET,	0,		{0},									{{0}},							11,		18,		10,		TOP_WALL,	NO_PERIODIC_SPAWN},
+	{MK_GOBLIN_TOTEM,	3,		{MK_GOBLIN_TOTEM, MK_GOBLIN_CONJURER, MK_GOBLIN}, {{1,2,1},{1,2,1},{2,3,1}},10,	17,		8,		0,			HORDE_NO_PERIODIC_SPAWN},
+	{MK_SPARK_TURRET,	0,		{0},									{{0}},							11,		18,		10,		TOP_WALL,	HORDE_NO_PERIODIC_SPAWN},
 	{MK_ZOMBIE,			0,		{0},									{{0}},							11,		18,		10},
 	{MK_TROLL,			0,		{0},									{{0}},							12,		19,		10},
-	{MK_OGRE_TOTEM,		1,		{MK_OGRE},								{{2,4,1}},						12,		19,		6,		0,			NO_PERIODIC_SPAWN},
+	{MK_OGRE_TOTEM,		1,		{MK_OGRE},								{{2,4,1}},						12,		19,		6,		0,			HORDE_NO_PERIODIC_SPAWN},
 	{MK_BOG_MONSTER,	1,		{MK_BOG_MONSTER},						{{2,4,1}},						12,		26,		10,		MUD},
 	{MK_NAGA,			0,		{0},									{{0}},							13,		20,		10,		DEEP_WATER},
 	{MK_SALAMANDER,		0,		{0},									{{0}},							13,		20,		10,		LAVA},
 	{MK_OGRE_SHAMAN,	1,		{MK_OGRE},								{{1, 3, 1}},					14,		20,		10},
 	{MK_CENTAUR,		1,		{MK_CENTAUR},							{{1, 1, 1}},					14,		21,		10},
-	{MK_ACID_TURRET,	0,		{0},									{{0}},							15,		22,		10,		TOP_WALL,	NO_PERIODIC_SPAWN},
+//	{MK_SENTINEL,		1,		{MK_SENTINEL},							{{2,2,1}},						15,		22,		6,		0,			(HORDE_NO_PERIODIC_SPAWN | HORDE_SPREAD_OUT)},
+	{MK_ACID_TURRET,	0,		{0},									{{0}},							15,		22,		10,		TOP_WALL,	HORDE_NO_PERIODIC_SPAWN},
 	{MK_PIXIE,			0,		{0},									{{0}},							14,		21,		8},
-	{MK_FLAME_TURRET,	0,		{0},									{{0}},							14,		24,		10,		TOP_WALL,	NO_PERIODIC_SPAWN},
+	{MK_FLAME_TURRET,	0,		{0},									{{0}},							14,		24,		10,		TOP_WALL,	HORDE_NO_PERIODIC_SPAWN},
 	{MK_DAR_BLADEMASTER,2,		{MK_DAR_BLADEMASTER, MK_DAR_PRIESTESS},	{{0, 1, 1}, {0, 1, 1}},			15,		17,		10},
 	{MK_KRAKEN,			0,		{0},									{{0}},							15,		30,		10,		DEEP_WATER},
 	{MK_PHANTOM,		0,		{0},									{{0}},							16,		23,		10},
@@ -1275,6 +1252,10 @@ const hordeType hordeCatalog[NUMBER_HORDES] = {
 	{MK_SPARK_TURRET,	0,		{0},									{{0}},							11,		18,		10,		TURRET_DORMANT,	HORDE_MACHINE_TURRET},
 	{MK_ACID_TURRET,	0,		{0},									{{0}},							15,		22,		10,		TURRET_DORMANT,	HORDE_MACHINE_TURRET},
 	{MK_FLAME_TURRET,	0,		{0},									{{0}},							17,		24,		10,		TURRET_DORMANT,	HORDE_MACHINE_TURRET},
+	
+	// machine mud monsters
+	{MK_BOG_MONSTER,	0,		{0},									{{0}},							12,		26,		10,		MACHINE_MUD_DORMANT, HORDE_MACHINE_MUD},
+	{MK_KRAKEN,			0,		{0},									{{0}},							17,		26,		3,		MACHINE_MUD_DORMANT, HORDE_MACHINE_MUD},
 };
 
 // LEVELS
@@ -1473,7 +1454,7 @@ itemTable scrollTable[NUMBER_SCROLL_KINDS] = {
 	{"protect armor",		itemTitles[5], "",	10,	400,	0,{0,0,0}, false, false, "The armor worn by the reader of this scroll will be permanently proofed against degradation from acid."},
 	{"protect weapon",		itemTitles[6], "",	10,	400,	0,{0,0,0}, false, false, "The weapon held by the reader of this scroll will be permanently proofed against degradation from acid."},
 	{"magic mapping",		itemTitles[7], "",	12,	500,	0,{0,0,0}, false, false, "When this scroll is read, a purple-hued image of crystal clarity will be etched into your memory, alerting you to the precise layout of the level and revealing all hidden secrets. The locations of items and creatures will remain unknown."},
-	{"cause fear",			itemTitles[8], "",	8,	500,	0,{0,0,0}, false, false, "A flash of red light will overwhelm all creatures in your field of view with terror, and they will turn and flee. Attacking a fleeing enemy will dispel the effect, and even fleeing creatures will turn to fight when they are cornered. The magic is powerful and will forever sweep away the loyalty of any allies caught within its blast."},
+	{"cause fear",			itemTitles[8], "",	8,	500,	0,{0,0,0}, false, false, "A flash of red light will overwhelm all creatures in your field of view with terror, and they will turn and flee. Attacking a fleeing enemy will dispel the effect, and even fleeing creatures will turn to fight when they are cornered. Any allies caught within its blast will return to your side after the effect wears off, provided that you do not attack them in the interim."},
 	{"negation",			itemTitles[9], "",	8,	400,	0,{0,0,0}, false, false, "This scroll contains a powerful anti-magic. When it is released, all creatures (including yourself) and all items lying on the ground within your field of view will be exposed to its blast and stripped of magic -- and creatures animated purely by magic will die. Potions, scrolls, items being held by other creatures and items in your inventory will not be affected."},
 	{"shattering",			itemTitles[10],"",	8,	500,	0,{0,0,0}, false, false, "The blast of sorcery unleashed by this scroll will alter the physical structure of nearby stone, causing it to dissolve away over the ensuing minutes."},
 	{"aggravate monsters",	itemTitles[11], "",	15,	50,		0,{0,0,0}, false, false, "When read aloud, this scroll will unleash a piercing shriek that will awaken all monsters and alert them to the reader's location."},
@@ -1581,7 +1562,7 @@ const char monsterBehaviorFlagDescriptions[32][COLS] = {
 	"is at home in water",						// MONST_IMMUNE_TO_WATER
 	"cannot venture onto dry land",				// MONST_RESTRICTED_TO_LIQUID
 	"submerges",								// MONST_SUBMERGES
-	"keeps its distance",						// MONST_MAINTAINS_DISTANCE
+	"keeps $HISHER distance",					// MONST_MAINTAINS_DISTANCE
 	"",											// MONST_WILL_NOT_USE_STAIRS
 	"is animated purely by magic",				// MONST_DIES_IF_NEGATED
 };
@@ -1589,26 +1570,26 @@ const char monsterBehaviorFlagDescriptions[32][COLS] = {
 const char monsterAbilityFlagDescriptions[32][COLS] = {
 	"can induce hallucinations",				// MA_HIT_HALLUCINATE
 	"can steal items",							// MA_HIT_STEAL_FLEE
-	"can possess its summoned allies",			// MA_ENTER_SUMMONS
-	"corrodes armor upon hitting",				// MA_HIT_DEGRADE_ARMOR
-	"can heal its allies",						// MA_CAST_HEAL
-	"can haste its allies",						// MA_CAST_HASTE
+	"can possess $HISHER summoned allies",		// MA_ENTER_SUMMONS
+	"corrodes armor when $HESHE hits",			// MA_HIT_DEGRADE_ARMOR
+	"can heal $HISHER allies",					// MA_CAST_HEAL
+	"can haste $HISHER allies",					// MA_CAST_HASTE
 	"can summon allies",						// MA_CAST_SUMMON
 	"can blink towards enemies",				// MA_CAST_BLINK
 	"can cast negation",						// MA_CAST_NEGATION
 	"can throw sparks of lightning",			// MA_CAST_SPARK
 	"can throw bolts of fire",					// MA_CAST_FIRE
-	"can slow its enemies",						// MA_CAST_SLOW
-	"can turn friends against one another",		// MA_CAST_DISCORD
+	"can slow $HISHER enemies",					// MA_CAST_SLOW
+	"can cast discord",							// MA_CAST_DISCORD
 	"can breathe gouts of white-hot flame",		// MA_BREATHES_FIRE
 	"can launch sticky webs",					// MA_SHOOTS_WEBS
 	"attacks from a distance",					// MA_ATTACKS_FROM_DISTANCE
-	"immobilizes its prey",						// MA_SEIZES
-	"injects poison upon hitting",				// MA_POISONS
+	"immobilizes $HISHER prey",					// MA_SEIZES
+	"injects poison when $HESHE hits",			// MA_POISONS
 	"",											// MA_DF_ON_DEATH
 	"divides in two when struck",				// MA_CLONE_SELF_ON_DEFEND
-	"dies when attacking",						// MA_KAMIKAZE
-	"recovers health when inflicting damage",	// MA_TRANSFERENCE
+	"dies when $HESHE attacks",					// MA_KAMIKAZE
+	"recovers health when $HESHE inflicts damage",// MA_TRANSFERENCE
 };
 
 const char monsterBookkeepingFlagDescriptions[32][COLS] = {
@@ -1622,9 +1603,9 @@ const char monsterBookkeepingFlagDescriptions[32][COLS] = {
 	"",											// MONST_FOLLOWER
 	"",											// MONST_CAPTIVE
 	"has been immobilized",						// MONST_SEIZED
-	"is currently holding prey immobile",		// MONST_SEIZING
+	"is currently holding $HISHER prey immobile",// MONST_SEIZING
 	"is submerged",								// MONST_SUBMERGED
 	"",											// MONST_JUST_SUMMONED
 	"",											// MONST_WILL_FLASH
-	"is anchored to reality by its summoner",	// MONST_BOUND_TO_LEADER
+	"is anchored to reality by $HISHER summoner",// MONST_BOUND_TO_LEADER
 };

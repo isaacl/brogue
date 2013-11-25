@@ -244,13 +244,18 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 			local_point = [theMainDisplay convertPoint:event_location fromView:nil];
 			x = local_point.x / [theMainDisplay horizPixels];
 			y = ROWS - local_point.y / [theMainDisplay vertPixels];
+			// Correct for the fact that truncation occurs in a positive direction when we're below zero:
+			if (local_point.x < 0) {
+				x--;
+			}
+			if (ROWS * [theMainDisplay vertPixels] < local_point.y) {
+				y--;
+			}
 			returnEvent->param1 = x;
 			returnEvent->param2 = y;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
 			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
-			if (/*x >= 0		&& x < COLS
-				&& y >= 0	&& y < ROWS
-				&&*/ (theEventType != NSMouseMoved || x != mouseX || y != mouseY)) {
+			if (theEventType != NSMouseMoved || x != mouseX || y != mouseY) {
 				mouseX = x;
 				mouseY = y;
 				break;
