@@ -224,8 +224,10 @@ void updateLighting() {
 	
 	// Miner's light:
 	paintLight(&rogue.minersLight, player.xLoc, player.yLoc, true, true);
-
-	if (playerInDarkness()) {
+    
+    if (player.status[STATUS_INVISIBLE]) {
+        player.info.foreColor = &playerInvisibleColor;
+	} else if (playerInDarkness()) {
 		player.info.foreColor = &playerInDarknessColor;
 	} else if (pmap[player.xLoc][player.yLoc].flags & IS_IN_SHADOW) {
 		player.info.foreColor = &playerInShadowColor;
