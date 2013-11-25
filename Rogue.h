@@ -31,7 +31,7 @@
 #define USE_UNICODE
 
 // version string -- no more than 16 bytes:
-#define BROGUE_VERSION_STRING "1.6"
+#define BROGUE_VERSION_STRING "1.6.1"
 
 // debug macros -- define DEBUGGING as 1 to enable debugging.
 
@@ -54,7 +54,8 @@
 #define DELETE_SAVE_FILE_AFTER_LOADING	true
 
 //#define BROGUE_ASSERTS	// introduces several assert()s -- useful to find certain array overruns
-//#define AUDIT_RNG		// VERY slow, but sometimes necessary to debug out-of-sync recording errors
+//#define AUDIT_RNG			// VERY slow, but sometimes necessary to debug out-of-sync recording errors
+//#define GENERATE_FONT_FILES	// Displays font in grid upon startup, which can be screen-captured into font files for PC.
 
 #ifdef BROGUE_ASSERTS
 #include <assert.h>
@@ -75,6 +76,8 @@
 #define GAME_SUFFIX				".broguesave"
 #define ANNOTATION_SUFFIX		".txt"
 #define RNG_LOG					"RNGLog.txt"
+
+#define BROGUE_FILENAME_MAX		(min(1024*4, FILENAME_MAX))
 
 // Allows unicode characters:
 #define uchar					unsigned short
@@ -129,8 +132,8 @@
 #define FIRE_CHAR		0x22CF
 #define GRASS_CHAR		'"'
 #define BRIDGE_CHAR		'='
-#define DOWN_CHAR		'>'
-#define UP_CHAR			'<'
+#define DESCEND_CHAR		'>'
+#define ASCEND_CHAR			'<'
 #define WALL_CHAR		'#'
 #define DOOR_CHAR		'+'
 #define OPEN_DOOR_CHAR	'\''
@@ -151,7 +154,7 @@
 #define AMULET_CHAR		0x2640
 #define FOOD_CHAR		':'
 #define SCROLL_CHAR		0x266A//'?'		// 0x039E
-#define RING_CHAR		0xffee
+#define RING_CHAR		0x26AA //0xffee 
 #define POTION_CHAR		'!'
 #define ARMOR_CHAR		'['
 #define WEAPON_CHAR		0x2191
@@ -162,6 +165,19 @@
 #define TOTEM_CHAR		0x26b2
 #define TURRET_CHAR		0x25cf
 #define KEY_CHAR		'-'
+
+#define UP_ARROW_CHAR		0x2191
+#define DOWN_ARROW_CHAR		0x2193
+#define LEFT_ARROW_CHAR		0x2190
+#define RIGHT_ARROW_CHAR	0x2192
+#define UP_TRIANGLE_CHAR	0x2206
+#define DOWN_TRIANGLE_CHAR	0x2207
+#define OMEGA_CHAR			0x03A9
+#define THETA_CHAR			0x03B8
+#define LAMDA_CHAR			0x03BB
+#define KOPPA_CHAR			0x03DE
+#define LOZENGE_CHAR		0x29EB
+#define CROSS_PRODUCT_CHAR	0x2A2F
 
 #define CHAIN_TOP_LEFT		'\\'
 #define CHAIN_BOTTOM_RIGHT	'\\'
@@ -184,8 +200,8 @@
 #define FIRE_CHAR		'^'
 #define GRASS_CHAR		'"'
 #define BRIDGE_CHAR		'='
-#define DOWN_CHAR		'>'
-#define UP_CHAR			'<'
+#define DESCEND_CHAR		'>'
+#define ASCEND_CHAR			'<'
 #define WALL_CHAR		'#'
 #define DOOR_CHAR		'+'
 #define OPEN_DOOR_CHAR	'\''
@@ -216,6 +232,19 @@
 #define TOTEM_CHAR		'0'
 #define TURRET_CHAR		'*'
 #define KEY_CHAR		'-'
+
+#define UP_ARROW_CHAR		'^'
+#define DOWN_ARROW_CHAR		'v'
+#define LEFT_ARROW_CHAR		'<'
+#define RIGHT_ARROW_CHAR	'>'
+#define UP_TRIANGLE_CHAR	'^'
+#define DOWN_TRIANGLE_CHAR	'v'
+#define OMEGA_CHAR			'^'
+#define THETA_CHAR			'0'
+#define LAMDA_CHAR			'\\'
+#define KOPPA_CHAR			'k'
+#define LOZENGE_CHAR		'+'
+#define CROSS_PRODUCT_CHAR	'x'
 
 #define CHAIN_TOP_LEFT		'\\'
 #define CHAIN_BOTTOM_RIGHT	'\\'
@@ -255,10 +284,14 @@ typedef struct rogueEvent {
 
 typedef struct rogueHighScoresEntry {
 	signed long score;
-	char date[DCOLS];
+	char date[100];
 	char description[DCOLS];
 } rogueHighScoresEntry;
 
+typedef struct fileEntry {
+	char *path;
+	char date[100];
+} fileEntry;
 
 enum RNGs {
 	RNG_SUBSTANTIVE,
@@ -496,7 +529,7 @@ enum itemCategory {
 	GEM					= Fl(10),
 	KEY					= Fl(11),
 	
-	CAN_BE_DETECTED		= (WEAPON | ARMOR | POTION | SCROLL | RING | WAND | STAFF),
+	CAN_BE_DETECTED		= (WEAPON | ARMOR | POTION | SCROLL | RING | WAND | STAFF | AMULET),
 	ALL_ITEMS			= (FOOD|POTION|WEAPON|ARMOR|STAFF|WAND|SCROLL|RING|GOLD|AMULET|GEM|KEY),
 	
 };
@@ -771,7 +804,7 @@ enum tileFlags {
 	DOORWAY						= Fl(18),	// so that waypoint paths don't cross open doorways
 	STABLE_MEMORY				= Fl(19),	// redraws will simply be pulled from the memory array, not recalculated
 	KNOWN_TO_BE_TRAP_FREE		= Fl(20),	// keep track of where the player has stepped as he knows no traps are there
-	TERRAIN_COLORS_DANCING		= Fl(21),
+	IS_IN_PATH					= Fl(21),	// the yellow trail leading to the cursor
 	IN_LOOP						= Fl(22),	// this cell is part of a terrain loop
 	IS_CHOKEPOINT				= Fl(23),	// if this cell is blocked, part of the map will be rendered inaccessible
 	IS_GATE_SITE				= Fl(24),	// consider placing a locked door here
@@ -779,7 +812,7 @@ enum tileFlags {
 	IS_IN_AREA_MACHINE			= Fl(26),
 	IS_POWERED					= Fl(27),	// has been activated by machine power this turn (can probably be eliminate if needed)
 	IMPREGNABLE					= Fl(28),	// no tunneling allowed!
-	NO_AUTO_DANCING				= Fl(29),	// colors here will not sparkle when the game is idle
+	TERRAIN_COLORS_DANCING		= Fl(29),	// colors here will sparkle when the game is idle
 	TELEPATHIC_VISIBLE			= Fl(30),	// potions of telepathy let you see through other creatures' eyes
 	WAS_TELEPATHIC_VISIBLE		= Fl(31),	// potions of telepathy let you see through other creatures' eyes
 	
@@ -787,7 +820,7 @@ enum tileFlags {
 	
 	PERMANENT_TILE_FLAGS = (DISCOVERED | MAGIC_MAPPED | ITEM_DETECTED | HAS_ITEM | HAS_DORMANT_MONSTER
 							| HAS_UP_STAIRS | HAS_DOWN_STAIRS | DOORWAY | PRESSURE_PLATE_DEPRESSED
-							| STABLE_MEMORY | KNOWN_TO_BE_TRAP_FREE | TERRAIN_COLORS_DANCING | IN_LOOP
+							| STABLE_MEMORY | KNOWN_TO_BE_TRAP_FREE | IN_LOOP
 							| IS_CHOKEPOINT | IS_GATE_SITE | IS_IN_MACHINE | IMPREGNABLE),
 	
 	ANY_KIND_OF_VISIBLE			= (VISIBLE | CLAIRVOYANT_VISIBLE | TELEPATHIC_VISIBLE),
@@ -876,7 +909,6 @@ typedef struct levelSpecProfile {
 #define MESSAGE_ARCHIVE_KEY	'M'
 #define HELP_KEY			'?'
 #define DISCOVERIES_KEY		'D'
-#define REPEAT_TRAVEL_KEY	RETURN_KEY
 #define EXPLORE_KEY			'x'
 #define AUTOPLAY_KEY		'A'
 #define SEED_KEY			'~'
@@ -901,6 +933,8 @@ typedef struct levelSpecProfile {
 #define NUMPAD_7			55
 #define NUMPAD_8			56
 #define NUMPAD_9			57
+#define PAGE_UP_KEY			63276
+#define PAGE_DOWN_KEY		63277
 
 #define UNKNOWN_KEY			(128+19)
 
@@ -1326,6 +1360,7 @@ enum dungeonFeatureTypes {
 	
 	// chasm catwalk:
 	DF_CHASM_HOLE,
+	DF_CATWALK_BRIDGE,
 	
 	// lake catwalk:
 	DF_LAKE_CELL,
@@ -1697,6 +1732,15 @@ typedef struct creature {
 	struct item *carriedItem;			// only used for monsters
 } creature;
 
+enum NGCommands {
+	NG_NOTHING = 0,
+	NG_NEW_GAME,
+	NG_OPEN_GAME,
+	NG_VIEW_RECORDING,
+	NG_HIGH_SCORES,
+	NG_QUIT,
+};
+
 // these are basically global variables pertaining to the game state and player's unique variables:
 typedef struct playerCharacter {
 	short depthLevel;					// which dungeon level are we on
@@ -1747,7 +1791,7 @@ typedef struct playerCharacter {
 	short upLoc[2];						// upstairs location this level
 	short downLoc[2];					// downstairs location this level
 	
-	short cursorLoc[2];				// used for the return key functionality
+	short cursorLoc[2];					// used for the return key functionality
 	
 	short rewardRoomsGenerated;			// to meter the number of machines
 	
@@ -1789,6 +1833,13 @@ typedef struct playerCharacter {
 	short awarenessBonus;
 	short transference;
 	short wisdomBonus;
+	
+	// cursor trail:
+	short cursorPathIntensity;
+	
+	// What do you want to do, player -- play, resume, recording, high scores or quit?
+	enum NGCommands nextGame;
+	char nextGamePath[BROGUE_FILENAME_MAX];
 } playerCharacter;
 
 // Probably need to ditch this crap:
@@ -2030,8 +2081,10 @@ extern "C" {
 	
 	void rogueMain();
 	void executeEvent(rogueEvent *theEvent);
-	boolean fileExists(char *pathname);
-	boolean openFile(char *prompt, char *defaultName, char *suffix, boolean promptPlayer);
+	boolean fileExists(const char *pathname);
+	boolean chooseFile(char *path, char *prompt, char *defaultName, char *suffix);
+	boolean openFile(const char *path);
+	boolean selectFile(char *prompt, char *defaultName, char *suffix);
 	void initializeRogue();
 	void gameOver(char *killedBy, boolean useCustomPhrasing);
 	void victory();
@@ -2115,6 +2168,9 @@ extern "C" {
 	short getHighScoresList(rogueHighScoresEntry returnList[HIGH_SCORES_COUNT]);
 	boolean saveHighScore(rogueHighScoresEntry theEntry);
 	void initializeBrogueSaveLocation();
+	fileEntry *listFiles(short *fileCount, char **dynamicMemoryBuffer);
+	void initializeLaunchArguments(enum NGCommands *command, char *path);
+	
 	char nextKeyPress(boolean textInput);
 	void refreshSideBar(creature *focusMonst, boolean focusedMonsterMustGoFirst);
 	void printHelpScreen();
@@ -2170,7 +2226,8 @@ extern "C" {
 	short wrapText(char *to, const char *sourceText, short width);
 	short printStringWithWrapping(char *theString, short x, short y, short width, color *foreColor,
 								  color*backColor, cellDisplayBuffer dbuf[COLS][ROWS]);
-	boolean getInputTextString(char *inputText, char *prompt, short maxLength, char *defaultEntry, char *suffix, short textEntryType);
+	boolean getInputTextString(char *inputText, const char *prompt, short maxLength,
+							   const char *defaultEntry, const char *promptSuffix, short textEntryType);
 	void displayChokeMap();
 	void displayLoops();
 	boolean pauseBrogue(short milliseconds);
@@ -2212,6 +2269,7 @@ extern "C" {
 	void populateCreatureCostMap(short **costMap, creature *monst);
 	void getExploreMap(short **map, boolean headingToStairs);
 	boolean explore(short frameDelay);
+	void clearCursorPath();
 	void mainInputLoop();
 	boolean isDisturbed(short x, short y);
 	void discover(short x, short y);
@@ -2233,7 +2291,7 @@ extern "C" {
 	void temporaryMessage(char *msg1, boolean requireAcknowledgment);
 	void messageWithColor(char *msg, color *theColor, boolean requireAcknowledgment);
 	void flavorMessage(char *msg);
-	void message(char *message, boolean requireAcknowledgment);
+	void message(const char *msg, boolean requireAcknowledgment);
 	void displayMoreSign();
 	short encodeMessageColor(char *msg, short i, const color *theColor);
 	short decodeMessageColor(const char *msg, short i, color *returnColor);
@@ -2293,6 +2351,7 @@ extern "C" {
 	void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed);
 	void teleport(creature *monst);
 	void chooseNewWanderDestination(creature *monst);
+	boolean canPass(creature *mover, creature *blocker);
 	boolean isPassableOrSecretDoor(short x, short y);
 	boolean moveMonster(creature *monst, short dx, short dy);
 	boolean monsterAvoids(creature *monst, short x, short y);
@@ -2360,7 +2419,7 @@ extern "C" {
 	item *keyOnTileAt(short x, short y);
 	void unequip(item *theItem);
 	void drop(item *theItem);
-	void findAlternativeHomeFor(creature *monst, short *x, short *y);
+	void findAlternativeHomeFor(creature *monst, short *x, short *y, boolean chooseRandomly);
 	boolean getQualifyingLocNear(short loc[2], short x, short y, boolean hallwaysAllowed, char blockingMap[DCOLS][DROWS],
 								 unsigned long forbiddenTerrainFlags, unsigned long forbiddenMapFlags, boolean forbidLiquid);
 	void demoteMonsterFromLeadership(creature *monst);
@@ -2398,7 +2457,7 @@ extern "C" {
 	void deleteItem(item *theItem);
 	void shuffleFlavors();
 	unsigned long itemValue(item *theItem);
-	short strLenWithoutEscapes(char *str);
+	short strLenWithoutEscapes(const char *str);
 	void combatMessage(char *theMsg, color *theColor);
 	void displayCombatText();
 	void flashMonster(creature *monst, const color *theColor, short strength);
@@ -2434,6 +2493,10 @@ extern "C" {
 	void RNGLog(char *message);
 	
 	void checkForDungeonErrors();
+	
+	boolean dialogChooseFile(char *path, const char *suffix, const char *prompt);
+	void dialogAlert(char *message);
+	void mainBrogueJunction();
 	
 	void initializeButton(brogueButton *button);
 	void drawButtonsInState(buttonState *state);

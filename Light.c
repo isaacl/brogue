@@ -125,23 +125,27 @@ void updateMinersLightRadius() {
 		lightRadius = max(lightRadius, (rogue.lightMultiplier * 2 + 2));
 	}
 	
-	if (lightRadius < 2) {
-		lightRadius = 2;
-	}
 	
 	if (player.status[STATUS_DARKNESS]) {
-		fraction = (float) (0.8 - 0.8 * player.status[STATUS_DARKNESS] / player.maxStatus[STATUS_DARKNESS]);
+		fraction = (float) pow(1.0 - (((float) player.status[STATUS_DARKNESS]) / player.maxStatus[STATUS_DARKNESS]), 3);
+		if (fraction < 0.05) {
+			fraction = 0.05;
+		}
 	} else {
 		fraction = 1;
 	}
 	lightRadius = lightRadius * fraction;
+	
+	if (lightRadius < 2) {
+		lightRadius = 2;
+	}
 	
 	if (rogue.inWater && lightRadius > 3) {
 		lightRadius = max(lightRadius / 2, 3);
 	}
 	
 	rogue.minersLight.radialFadeToPercent = 35 + max(0, min(65, rogue.lightMultiplier * 5)) * fraction;
-	rogue.minersLight.lightRadius.upperBound = rogue.minersLight.lightRadius.lowerBound = lightRadius;
+	rogue.minersLight.lightRadius.upperBound = rogue.minersLight.lightRadius.lowerBound = clamp(lightRadius, -30000, 30000);
 }
 
 void updateDisplayDetail() {

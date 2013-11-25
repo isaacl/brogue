@@ -57,7 +57,7 @@ char combatText[COLS * 2];
 short messageArchivePosition;
 char messageArchive[MESSAGE_ARCHIVE_LINES][COLS*2];
 
-char currentFilePath[FILENAME_MAX];
+char currentFilePath[BROGUE_FILENAME_MAX];
 
 char displayDetail[DCOLS][DROWS];		// used to make certain per-cell data accessible to external code (e.g. terminal adaptations)
 
@@ -72,7 +72,7 @@ unsigned long positionInPlaybackFile;
 unsigned long lengthOfPlaybackFile;
 unsigned long recordingLocation;
 unsigned long maxLevelChanges;
-char annotationPathname[FILENAME_MAX];	// pathname of annotation file
+char annotationPathname[BROGUE_FILENAME_MAX];	// pathname of annotation file
 
 const long levelPoints[MAX_EXP_LEVEL] = {
 	10L,		// level 2
@@ -159,7 +159,7 @@ const color firstStairsBackColor =	{10,	10,		25,		0,		0,			0,			0,		false};
 const color refuseBackColor =		{6,		5,		3,		2,		2,			0,			0,		false};
 const color rubbleBackColor =		{7,		7,		8,		2,		2,			1,			0,		false};
 
-const color obsidianBackColor =		{5,		0,		7,		2,		0,			3,			0,		false};
+const color obsidianBackColor =		{6,		0,		8,		2,		0,			3,			0,		false};
 const color carpetForeColor =		{23,	30,		38,		0,		0,			0,			0,		false};
 const color carpetBackColor =		{15,	8,		5,		0,		0,			0,			0,		false};
 const color doorForeColor =			{70,	35,		15,		0,		0,			0,			0,		false};
@@ -287,13 +287,14 @@ const color poisonGasColor =		{75,	25,		85,		0,		0,			0,			0,		false};
 const color confusionGasColor =		{60,	60,		60,		40,		40,			40,			0,		true};
 
 // interface colors
-const color itemColor =				{100,	95,	-30,		0,		0,			0,			0,		false};
+const color itemColor =				{100,	95,		-30,	0,		0,			0,			0,		false};
 const color blueBar =				{15,	10,		50,		0,		0,			0,			0,		false};
 const color redBar =				{45,	10,		15,		0,		0,			0,			0,		false};
 const color hiliteColor =			{100,	100,	0,		0,		0,			0,			0,		false};
 const color interfaceBoxColor =		{7,		6,		15,		0,		0,			0,			0,		false};
 const color interfaceButtonColor =	{18,	15,		38,		0,		0,			0,			0,		false};
 const color buttonHoverColor =		{100,	70,		40,		0,		0,			0,			0,		false};
+const color titleButtonColor =		{23,	15,		30,		0,		0,			0,			0,		false};
 
 const color playerInLightColor =	{100,	100,	30,		0,		0,			0,			0,		false};
 const color playerInShadowColor =	{60,	60,		100,	0,		0,			0,			0,		false};
@@ -305,6 +306,21 @@ const color advancementMessageColor ={50,	100,	60,		0,		0,			0,			0,		false};
 const color itemMessageColor =		{100,	100,	50,		0,		0,			0,			0,		false};
 const color flavorTextColor =		{50,	40,		90,		0,		0,			0,			0,		false};
 const color backgroundMessageColor ={60,	20,		70,		0,		0,			0,			0,		false};
+
+//const color flameSourceColor = {0, 0, 0, 65, 40, 100, 0, true}; // 1
+//const color flameSourceColor = {0, 0, 0, 80, 50, 100, 0, true}; // 2
+//const color flameSourceColor = {25, 13, 25, 50, 25, 50, 0, true}; // 3
+//const color flameSourceColor = {20, 20, 20, 60, 20, 40, 0, true}; // 4
+const color flameSourceColor = {20, 0, -20, 60, 60, 120, 0, true}; // 5
+//const color flameSourceColor = {10, 0, -10, 40, 30, 60, 50, true}; // 6
+//const color flameSourceColor = {30, 18, 18, 70, 36, 36, 0, true}; // 7
+
+//const color flameTitleColor = {0, 0, 0, 17, 10, 6, 0, true}; // pale orange
+//const color flameTitleColor = {0, 0, 0, 7, 7, 10, 0, true}; // *pale blue*
+const color flameTitleColor = {0, 0, 0, 9, 9, 15, 0, true}; // *pale blue*
+//const color flameTitleColor = {0, 0, 0, 11, 11, 18, 0, true}; // *pale blue*
+//const color flameTitleColor = {0, 0, 0, 15, 15, 9, 0, true}; // pale yellow
+//const color flameTitleColor = {0, 0, 0, 15, 9, 15, 0, true}; // pale purple
 
 #pragma mark Dynamic color references
 
@@ -379,9 +395,9 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	50,	DF_EMBERS,		DF_SHOW_DOOR,0,				0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_IS_SECRET | T_IS_FLAMMABLE | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),	"a stone wall",		"The rough stone wall is firm and unyielding."},
 	{DOOR_CHAR,		&ironDoorForeColor,		&ironDoorBackColor,		15,	50,	DF_EMBERS,		0,			DF_OPEN_IRON_DOOR_INERT,0,		NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_PROMOTES_WITH_KEY | T_STAND_IN_TILE),		"a locked iron door",	"you search your pack but do not have a matching key."},
 	{OPEN_DOOR_CHAR,&ironDoorForeColor,		&ironDoorBackColor,		90,	50,	DF_EMBERS,		0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE | T_OBSTRUCTS_SURFACE_EFFECTS),													"an open iron door",	"you pass through the doorway."},
-	{DOWN_CHAR,		&itemColor,				&stairsBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"a downward staircase",	"stairs spiral downward into the depths."},
-	{UP_CHAR,		&itemColor,				&stairsBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"an upward staircase",	"stairs spiral upward."},
-	{UP_CHAR,		&lightBlue,				&firstStairsBackColor,	30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"the dungeon exit",		"the gilded doors leading out of the dungeon are sealed by an invisible force."},
+	{DESCEND_CHAR,	&itemColor,				&stairsBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"a downward staircase",	"stairs spiral downward into the depths."},
+	{ASCEND_CHAR,	&itemColor,				&stairsBackColor,		30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"an upward staircase",	"stairs spiral upward."},
+	{ASCEND_CHAR,	&lightBlue,				&firstStairsBackColor,	30,	0,	DF_PLAIN_FIRE,	0,			DF_REPEL_CREATURES, 0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_SURFACE_EFFECTS | T_PROMOTES_ON_STEP),								"the dungeon exit",		"the gilded doors leading out of the dungeon are sealed by an invisible force."},
 	{WALL_CHAR,		&torchColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE),															"a wall-mounted torch",	"The torch is anchored firmly to the wall and sputters quietly in the gloom."},
 	{WALL_CHAR,		&wallCrystalColor,		&wallCrystalColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				CRYSTAL_WALL_LIGHT,(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_STAND_IN_TILE),"a crystal formation", "You feel the crystal's glossy surface and admire the dancing lights beneath."},
 	{WALL_CHAR,		&gray,					&floorBackColor,		10,	0,	DF_PLAIN_FIRE,	0,			DF_OPEN_PORTCULLIS,	0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION | T_PROMOTES_ON_STEP), "a heavy portcullis",	"The iron bars rattle but will not budge; they are firmly locked in place."},
@@ -391,9 +407,9 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{WALL_CHAR,		&doorForeColor,			&floorBackColor,		10,	100,DF_WOODEN_BARRICADE_BURN,0,	0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_STAND_IN_TILE | T_IS_FLAMMABLE | T_VANISHES_UPON_PROMOTION),"a dry wooden barricade","The wooden barricade is firmly set but has dried over the years. Might it burn?"},
 	{WALL_CHAR,		&torchLightColor,		&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_PILOT_LIGHT,	0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),				"a wall-mounted torch",	"The torch is anchored firmly to the wall, and sputters quietly in the gloom."},
 	{FIRE_CHAR,		&fireForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_FIRE),												"a fallen torch",		"The torch lies at the foot of the wall, spouting gouts of flame haphazardly."},
-	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_STAND_IN_TILE),					"a marble statue",		"The cold marble statue has weathered the years with grace."},
-	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_CRACKING_STATUE,0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
-	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_STATUE_SHATTER,3500,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),"a cracking statue",	"Deep cracks ramble down the side of the statue even as you watch."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_STAND_IN_TILE),					"a marble statue",		"The cold marble statue has weathered the years with grace."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_CRACKING_STATUE,0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_STATUE_SHATTER,3500,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),"a cracking statue",	"Deep cracks ramble down the side of the statue even as you watch."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_TURRET_EMERGE,0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),				"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_WALL_SHATTER,0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),				"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_DARKENING_FLOOR,	0,			NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
@@ -438,11 +454,11 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{LIQUID_CHAR,	&deepWaterForeColor,	&deepWaterBackColor,	40,	100,DF_STEAM_ACCUMULATION,	0,	0,				0,				NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_IS_FLAMMABLE | T_IS_DEEP_WATER | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),	"the murky waters",		"the current tugs you in all directions."},
 	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	55,	0,	DF_STEAM_ACCUMULATION,	0,	0,				0,				NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),										"shallow water",		"the water is cold and reaches your knees."},
 	{MUD_CHAR,		&mudForeColor,			&mudBackColor,			55,	0,	DF_PLAIN_FIRE,	0,			DF_METHANE_GAS_PUFF, 100,		NO_LIGHT,		(T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),															"a bog",				"you are knee-deep in thick, foul-smelling mud."},
-	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_AUTO_DESCENT | T_STAND_IN_TILE),											"a chasm",				"you plunge downward into the chasm!"},
+	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_AUTO_DESCENT | T_STAND_IN_TILE),																	"a chasm",				"you plunge downward into the chasm!"},
 	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"the brink of a chasm",	"chilly winds blow upward from the stygian depths."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_SPREADABLE_COLLAPSE,0,		NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
 	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	45,	0,	DF_PLAIN_FIRE,	0,			DF_COLLAPSE_SPREADS,2500,		NO_LIGHT,		(T_VANISHES_UPON_PROMOTION),																		"the crumbling ground",	"cracks are appearing in the ground beneath your feet!"},
-	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			DF_BRIDGE_APPEARS,0,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_AUTO_DESCENT | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),	"a chasm",				"you plunge downward into the chasm!"},
+	{CHASM_CHAR,	&chasmForeColor,		&black,					40,	0,	DF_PLAIN_FIRE,	0,			DF_BRIDGE_APPEARS,0,			NO_LIGHT,		(T_AUTO_DESCENT | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),						"a chasm",				"you plunge downward into the chasm!"},
 	{LIQUID_CHAR,	&fireForeColor,			&lavaBackColor,			40,	0,	DF_OBSIDIAN,	0,			0,				0,				LAVA_LIGHT,		(T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),										"lava",					"searing heat rises from the lava."},
 	{LIQUID_CHAR,	&fireForeColor,			&lavaBackColor,			40,	0,	DF_OBSIDIAN,	0,			DF_RETRACTING_LAVA,	0,			LAVA_LIGHT,		(T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),"lava","searing heat rises from the lava."},
 	{LIQUID_CHAR,	&fireForeColor,			&lavaBackColor,			40,	0,	DF_OBSIDIAN,	0,			DF_OBSIDIAN_WITH_STEAM,	-1500,	LAVA_LIGHT,		(T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION),			"cooling lava","searing heat rises from the lava."},
@@ -459,7 +475,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{MUD_CHAR,		&mudForeColor,			&mudBackColor,			55,	0,	DF_PLAIN_FIRE,	0,			DF_MUD_ACTIVATE,0,				NO_LIGHT,		(T_ALLOWS_SUBMERGING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),					"a bog",				"you are knee-deep in thick, foul-smelling mud."},
 		
 	// surface layer
-	{CHASM_CHAR,	&chasmForeColor,		&black,					15,	0,	DF_PLAIN_FIRE,	0,			DF_HOLE_DRAIN,	-1000,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_AUTO_DESCENT | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION),				"a hole",				"you plunge downward into the hole!"},
+	{CHASM_CHAR,	&chasmForeColor,		&black,					15,	0,	DF_PLAIN_FIRE,	0,			DF_HOLE_DRAIN,	-1000,			NO_LIGHT,		(T_AUTO_DESCENT | T_STAND_IN_TILE | T_VANISHES_UPON_PROMOTION),										"a hole",				"you plunge downward into the hole!"},
 	{FLOOR_CHAR,	&white,					&chasmEdgeBackColor,	90,	0,	DF_PLAIN_FIRE,	0,			0,				-500,			NO_LIGHT,		(T_VANISHES_UPON_PROMOTION),																		"translucent ground",	"chilly gusts of air blow upward through the translucent floor."},
 	{LIQUID_CHAR,	&deepWaterForeColor,	&deepWaterBackColor,	45,	100,DF_STEAM_ACCUMULATION,	0,	DF_FLOOD_DRAIN,	-200,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_IS_FLAMMABLE | T_VANISHES_UPON_PROMOTION | T_IS_DEEP_WATER | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE), "sloshing water", "roiling water floods the room."},
 	{0,				&shallowWaterForeColor,	&shallowWaterBackColor,	50,	0,	DF_STEAM_ACCUMULATION,	0,	DF_PUDDLE,		-100,			NO_LIGHT,		(T_EXTINGUISHES_FIRE | T_VANISHES_UPON_PROMOTION | T_ALLOWS_SUBMERGING | T_STAND_IN_TILE),			"shallow water",		"knee-deep water drains slowly into holes in the floor."},
@@ -731,6 +747,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	
 	// chasm catwalk:
 	{CHASM,						LIQUID,		0,		0,		DFF_CLEAR_OTHER_TERRAIN, "", 0, 0, 0, DF_SHOW_TRAPDOOR_HALO},
+	{STONE_BRIDGE,				LIQUID,		0,		0,		DFF_CLEAR_OTHER_TERRAIN},
 
 	// lake catwalk:
 	{DEEP_WATER,				LIQUID,		0,		0,		DFF_CLEAR_OTHER_TERRAIN, "", 0, 0, 0, DF_LAKE_HALO},
@@ -994,7 +1011,7 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 	// Chasm catwalk -- narrow bridge over a chasm, possibly under fire from a turret or two
 	{{1,100},			{40, 80},	0,		4,			(BP_REQUIRE_BLOCKING | BP_OPEN_INTERIOR), {
 		{DF_CHASM_HOLE,	0,		0,				{80, 80},	1,			0,			-1,			0,				0,				1,				0,			0,			(MF_TREAT_AS_BLOCKING | MF_REPEAT_UNTIL_NO_PROGRESS)},
-		{0,			STONE_BRIDGE, LIQUID,		{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
+		{DF_CATWALK_BRIDGE,0,	0,				{0,0},		0,			0,			-1,			0,				0,				0,				0,			0,			(MF_EVERYWHERE)},
 		{0,			MACHINE_TRIGGER_FLOOR, DUNGEON, {0,1},	0,			0,			0,			0,				0,				1,				0,			0,			(MF_NEAR_ORIGIN | MF_PERMIT_BLOCKING)},
 		{0,			TURRET_DORMANT,DUNGEON,		{1, 2},		1,			0,			-1,			0,				0,				2,				HORDE_MACHINE_TURRET,0,	(MF_TREAT_AS_BLOCKING | MF_GENERATE_HORDE | MF_MONSTERS_DORMANT | MF_BUILD_IN_WALLS | MF_IN_VIEW_OF_ORIGIN)}}},
 	// Lake walk -- narrow bridge of shallow water through a lake, possibly under fire from a turret or two
@@ -1298,7 +1315,7 @@ const monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
 	{"This seething, towering nightmare of fleshy tentacles slinks through the bowels of the world. The tentacle horror's incredible strength and regeneration make $HIMHER one of the most fearsome creatures of the dungeon.",
 		"sucking on", "Consuming",
 		{"slaps", "batters", "crushes", {0}}},
-	{"A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but $HISHER stone form can sustain an incredible amount of damage before collapsing into rubble.",
+	{"A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but $HISHER stone form can withstand an incredible amount of damage before collapsing into rubble.",
 		"cradling", "Cradling",
 		{"backhands", "punches", "kicks", {0}}},
 	{"An ancient serpent of the world's deepest places, the dragon's immense form belies its lightning-quick speed and testifies to $HISHER breathtaking strength. An undying furnace of white-hot flames burns within $HISHER scaly hide, and few could withstand a single moment under $HISHER infernal lash.",
@@ -1666,7 +1683,7 @@ const itemTable armorTable[NUMBER_ARMOR_KINDS] = {
 	{"chain mail",		"", "", 10, 500,		13, {50,50,0},		true, false, "Interlocking metal links make for a tough but flexible suit of armor."},
 	{"banded mail",		"", "", 10, 800,		15, {70,70,0},		true, false, "Overlapping strips of metal horizontally encircle a chain mail base, offering an additional layer of protection at the cost of greater weight."},
 	{"splint mail",		"", "", 10, 1000,		17, {90,90,0},		true, false, "Thick plates of metal are embedded into a chain mail base, providing the wearer with substantial protection."},
-	{"plate armor",		"", "", 10, 1300,		19, {120,120,0},	true, false, "Emormous plates of metal are joined together into a suit that provides unmatched protection to any adventurer strong enough to bear its staggering weight."}
+	{"plate armor",		"", "", 10, 1300,		19, {120,120,0},	true, false, "Enormous plates of metal are joined together into a suit that provides unmatched protection to any adventurer strong enough to bear its staggering weight."}
 };
 
 const char weaponRunicNames[NUMBER_WEAPON_RUNIC_KINDS][30] = {

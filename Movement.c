@@ -38,15 +38,17 @@ void checkForDungeonErrors() {
 }
 
 void playerRuns(short direction) {
-	short i, tempTile, newX, newY;
+	short newX, newY, dir;
 	boolean cardinalPassability[4];
 	
 	rogue.disturbed = (player.status[STATUS_CONFUSED] ? true : false);
 	
-	for (i = 0; i < 4; i++) {
-		tempTile = pmap[player.xLoc + nbDirs[i][0]][player.yLoc + nbDirs[i][1]].layers[DUNGEON];
-		cardinalPassability[i] = (tileCatalog[tempTile].flags & T_OBSTRUCTS_PASSABILITY ? -1 : 
-								  (tileCatalog[tempTile].flags & T_IS_SECRET ? FLOOR : tempTile));
+	for (dir = 0; dir < 4; dir++) {
+		newX = player.xLoc + nbDirs[dir][0];
+		newY = player.yLoc + nbDirs[dir][1];
+		cardinalPassability[dir] = monsterAvoids(&player, newX, newY);
+//		(tileCatalog[tempTile].flags & T_OBSTRUCTS_PASSABILITY ? -1 : 
+//		 (tileCatalog[tempTile].flags & T_IS_SECRET ? FLOOR : tempTile));
 	}
 	
 	while (!rogue.disturbed) {
@@ -65,14 +67,13 @@ void playerRuns(short direction) {
 		if (isDisturbed(player.xLoc, player.yLoc)) {
 			rogue.disturbed = true;
 		} else if (direction < 4) {
-			for (i = 0; i < 4; i++) {
-				tempTile = pmap[player.xLoc + nbDirs[i][0]][player.yLoc + nbDirs[i][1]].layers[DUNGEON];
-				if (cardinalPassability[i] !=
-					((tileCatalog[tempTile].flags & T_OBSTRUCTS_PASSABILITY ? -1 : 
-					  (tileCatalog[tempTile].flags & T_IS_SECRET ? FLOOR : tempTile))) && 
-					// i is not the x-opposite or y-opposite of direction
-					!(nbDirs[i][0] + nbDirs[direction][0] == 0 &&
-					  nbDirs[i][1] + nbDirs[direction][1] == 0)) {
+			for (dir = 0; dir < 4; dir++) {
+				newX = player.xLoc + nbDirs[dir][0];
+				newY = player.yLoc + nbDirs[dir][1];
+				if (cardinalPassability[dir] != monsterAvoids(&player, newX, newY)
+					&& !(nbDirs[dir][0] + nbDirs[direction][0] == 0 &&
+						 nbDirs[dir][1] + nbDirs[direction][1] == 0)) {
+						// dir is not the x-opposite or y-opposite of direction
 					rogue.disturbed = true;
 				}
 			}
@@ -421,8 +422,8 @@ void printLocationDescription(short x, short y) {
 
 void exposeCreatureToFire(creature *monst) {
 	char buf[COLS], buf2[COLS];
-	if (monst->info.flags & MONST_IMMUNE_TO_FIRE
-		|| monst->bookkeepingFlags & MONST_SUBMERGED
+	if (monst->status[STATUS_IMMUNE_TO_FIRE]
+		|| (monst->bookkeepingFlags & MONST_SUBMERGED)
 		|| ((!monst->status[STATUS_LEVITATING]) && cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_EXTINGUISHES_FIRE))) {
 		return;
 	}
@@ -564,7 +565,8 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 	}
 	
 	// lava
-	if (!(monst->status[STATUS_LEVITATING]) && !(monst->info.flags & MONST_IMMUNE_TO_FIRE)
+	if (!(monst->status[STATUS_LEVITATING])
+		&& !(monst->status[STATUS_IMMUNE_TO_FIRE])
 		&& !cellHasTerrainFlag(*x, *y, T_ENTANGLES)
 		&& !cellHasTerrainFlag(*x, *y, T_OBSTRUCTS_PASSABILITY)
 		&& cellHasTerrainFlag(*x, *y, T_LAVA_INSTA_DEATH)) {
@@ -1217,7 +1219,7 @@ boolean playerMoves(short direction) {
 				   && (player.status[STATUS_LEVITATING] <= 1)
 				   && !player.status[STATUS_CONFUSED]
 				   && cellHasTerrainFlag(newX, newY, T_LAVA_INSTA_DEATH)
-				   && !(player.info.flags & MONST_IMMUNE_TO_FIRE)
+				   && !(player.status[STATUS_IMMUNE_TO_FIRE])
 				   && !cellHasTerrainFlag(newX, newY, T_IS_SECRET | T_ENTANGLES)
 				   && !player.status[STATUS_CONFUSED]) {
 			message("that would be certain death!", false);
@@ -1265,6 +1267,7 @@ boolean playerMoves(short direction) {
 		player.yLoc += nbDirs[direction][1];
 		pmap[x][y].flags &= ~HAS_PLAYER;
 		pmap[player.xLoc][player.yLoc].flags |= HAS_PLAYER;
+		pmap[player.xLoc][player.yLoc].flags &= ~IS_IN_PATH;		
 		if (pmap[player.xLoc][player.yLoc].flags & HAS_ITEM) {
 			pickUpItemAt(player.xLoc, player.yLoc);
 			rogue.disturbed = true;
@@ -1851,6 +1854,8 @@ boolean explore(short frameDelay) {
 	distanceMap = allocDynamicGrid();
 	// costMap = allocDynamicGrid();
 	
+	clearCursorPath();
+	
 	madeProgress	= false;
 	headingToStairs	= false;
 	foundDownStairs	= (pmap[rogue.downLoc[0]][rogue.downLoc[1]].flags & (DISCOVERED | MAGIC_MAPPED)) ? true : false;
@@ -2309,10 +2314,10 @@ boolean exposeTileToFire(short x, short y, boolean alwaysIgnite) {
 		}
 	}
 	
-	// Pick the fire type of the most flammable layer that is either gas or better priority than the best extinguishing layer.
+	// Pick the fire type of the most flammable layer that is either gas or equal-or-better priority than the best extinguishing layer.
 	for (layer=0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
 		if ((tileCatalog[pmap[x][y].layers[layer]].flags & T_IS_FLAMMABLE)
-			&& (layer == GAS || tileCatalog[pmap[x][y].layers[layer]].drawPriority < bestExtinguishingPriority)
+			&& (layer == GAS || tileCatalog[pmap[x][y].layers[layer]].drawPriority <= bestExtinguishingPriority)
 			&& tileCatalog[pmap[x][y].layers[layer]].chanceToIgnite > ignitionChance) {
 			ignitionChance = tileCatalog[pmap[x][y].layers[layer]].chanceToIgnite;
 		}
@@ -2503,7 +2508,8 @@ void updateEnvironment() {
 				if (tile->promoteChance < 0) {
 					promoteChance = 0;
 					for (direction = 0; direction < 4; direction++) {
-						if (!cellHasTerrainFlag(i + nbDirs[direction][0], j + nbDirs[direction][1], T_OBSTRUCTS_PASSABILITY)
+						if (coordinatesAreInMap(i + nbDirs[direction][0], j + nbDirs[direction][1])
+							&& !cellHasTerrainFlag(i + nbDirs[direction][0], j + nbDirs[direction][1], T_OBSTRUCTS_PASSABILITY)
 							&& pmap[i + nbDirs[direction][0]][j + nbDirs[direction][1]].layers[layer] != pmap[i][j].layers[layer]
 							&& !(pmap[i][j].flags & CAUGHT_FIRE_THIS_TURN)) {
 							promoteChance += -1 * tile->promoteChance;
@@ -2759,6 +2765,14 @@ void updateSafetyMap() {
 	
 	dijkstraScan(safetyMap, monsterCostMap, false);
 	
+	for (i=0; i<DCOLS; i++) {
+		for (j=0; j<DROWS; j++) {
+			if (monsterCostMap[i][j] < 0) {
+				safetyMap[i][j] = 30000;
+			}
+		}
+	}		
+	
 	freeDynamicGrid(playerCostMap);
 	freeDynamicGrid(monsterCostMap);
 }
@@ -2834,7 +2848,7 @@ void rechargeStaffs() {
 			
 			theItem->charges--;
 			if (theItem->charges <= 0) {
-				itemName(theItem, theItemName, false, true, NULL);
+				itemName(theItem, theItemName, false, false, NULL);
 				sprintf(buf, "you are now familiar enough with your %s to identify it.", theItemName);
 				messageWithColor(buf, &itemMessageColor, false);
 				
@@ -2914,6 +2928,7 @@ void monstersApproachStairs() {
 					
 					monst->status[STATUS_ENTERS_LEVEL_IN] = 0;
 					monst->bookkeepingFlags |= MONST_PREPLACED;
+					monst->bookkeepingFlags &= ~MONST_IS_FALLING;
 					restoreMonster(monst, NULL, NULL);
 					monst->ticksUntilTurn = monst->movementSpeed;
 					refreshDungeonCell(monst->xLoc, monst->yLoc);
@@ -3004,7 +3019,7 @@ void decrementPlayerStatus() {
 	}
 	
 	if (player.status[STATUS_IMMUNE_TO_FIRE] > 0 && !--player.status[STATUS_IMMUNE_TO_FIRE]) {
-		player.info.flags &= ~MONST_IMMUNE_TO_FIRE;
+		//player.info.flags &= ~MONST_IMMUNE_TO_FIRE;
 		message("you no longer feel immune to fire.", false);
 	}
 	
@@ -3286,6 +3301,7 @@ void playerTurnEnded() {
 	
 	if (player.bookkeepingFlags & MONST_IS_FALLING) {
 		playerFalls();
+		handleHealthAlerts();
 		return;
 	}
 	
@@ -3348,7 +3364,7 @@ void playerTurnEnded() {
 		
 		if (player.status[STATUS_BURNING] > 0) {
 			damage = rand_range(1, 3);
-			if (!(player.info.flags & MONST_IMMUNE_TO_FIRE) && inflictDamage(NULL, &player, damage, &orange)) {
+			if (!(player.status[STATUS_IMMUNE_TO_FIRE]) && inflictDamage(NULL, &player, damage, &orange)) {
 				gameOver("Burned to death", true);
 			}
 			if (!--player.status[STATUS_BURNING]) {
@@ -3615,7 +3631,8 @@ boolean isDisturbed(short x, short y) {
 			// Do not trigger for submerged or invisible or unseen monsters.
 			return true;
 		}
-		if (monst && !(monst->creatureState == MONSTER_ALLY)
+		if (monst
+			&& !(monst->creatureState == MONSTER_ALLY)
 			&& (canSeeMonster(monst) || player.status[STATUS_TELEPATHIC])) {
 			// Do not trigger for submerged or invisible or unseen monsters.
 			return true;

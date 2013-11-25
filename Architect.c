@@ -1669,7 +1669,7 @@ void digDungeon() {
 				// copy in lake
 				for (i = roomX; i < roomX + blobWidth; i++) {
 					for (j = roomY; j < roomY + blobHeight; j++) {
-						if (connectedMap[i][j] == -1) { // It's in the lake.
+						if (connectedMap[i][j] == 101) { // It's in the lake.
 							unfilledLakeMap[i][j] = true;
 							pmap[i][j].layers[LIQUID] = FLOOR; // Just need a non-NOTHING value so createWreath() works.
 							pmap[i][j].layers[DUNGEON] = FLOOR;
@@ -3033,10 +3033,10 @@ boolean checkLakePassability(short lakeX, short lakeY, char connectedMap[DCOLS][
 			if (i < lakeX + blobWidth && i >= lakeX &&
 				j < lakeY + blobHeight && j >= lakeY &&
 				buffer[i - lakeX + topBlobMinX][j - lakeY + topBlobMinY] == 1) {
-				// If it's in proposed lake, mark -1.
-				connectedMap[i][j] = -1;
+				// If it's in proposed lake, mark 101.
+				connectedMap[i][j] = 101;
 			} else if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY) || pmap[i][j].layers[LIQUID]) {
-				connectedMap[i][j] = -2;
+				connectedMap[i][j] = 102;
 			} else {
 				connectedMap[i][j] = 0;
 				// dry floor
@@ -3466,9 +3466,11 @@ void initializeLevel() {
 	char grid[DCOLS][DROWS];
 	short n = rogue.depthLevel - 1;
 	
-	getQualifyingLocNear(downLoc, levels[n].downStairsLoc[0], levels[n].downStairsLoc[1], false, 0,
-						 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING), // | IS_BRIDGE),
-						 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+	// Place the stairs.
+		getQualifyingLocNear(downLoc, levels[n].downStairsLoc[0], levels[n].downStairsLoc[1], false, 0,
+							 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING), // | IS_BRIDGE),
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+	
 	if (rogue.depthLevel < 100) {
 		pmap[downLoc[0]][downLoc[1]].layers[DUNGEON] = DOWN_STAIRS;
 	}
@@ -3480,9 +3482,9 @@ void initializeLevel() {
 	levels[n].downStairsLoc[0] = downLoc[0];
 	levels[n].downStairsLoc[1] = downLoc[1];
 	
-	getQualifyingLocNear(upLoc, levels[n].upStairsLoc[0], levels[n].upStairsLoc[1], false, 0,
-						 (T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING),
-						 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+		getQualifyingLocNear(upLoc, levels[n].upStairsLoc[0], levels[n].upStairsLoc[1], false, 0,
+							 (T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING),
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
 	
 	levels[n].upStairsLoc[0] = upLoc[0];
 	levels[n].upStairsLoc[1] = upLoc[1];
