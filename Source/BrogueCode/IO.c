@@ -186,46 +186,6 @@ boolean separateColors(color *fore, color *back) {
 	}
 }
 
-//#define CLIP(x, m, M) (max(m, min(M, x)))
-//#define LUMA(c) ((c).r * 0.3 + (c).g * 0.5 + (c).b * 0.2)
-//typedef struct workingcolor {double r, g, b;} workingcolor;
-//void storeColorComponents(char components[3], color *theColor) {
-//    workingcolor actual = {
-//        theColor->red + (rand_range(0, theColor->redRand) + rand_range(0, theColor->rand)) / 3,
-//        theColor->green + (rand_range(0, theColor->greenRand) + rand_range(0, theColor->rand)) / 3,
-//        theColor->blue + (rand_range(0, theColor->blueRand) + rand_range(0, theColor->rand)) / 3
-//    };
-//	
-//    double luma = LUMA(actual);
-//    // these just set the final color:
-//    
-//    // workingcolor memory = {0.6, 1.0, 0.4}; // sepia
-//    // workingcolor memory = {1.5, 1.5, 1.5}; // bright black & white
-//    // workingcolor memory = {0.5, 0.5, 0.5}; // dim black & white
-//    // workingcolor memory = {1.0, 0.2, 0.0}; // reddish
-//    // workingcolor memory = {0.0, 1.0, 0.0}; // pure green 
-//     workingcolor memory = {0.15, 0.2, 0.4}; // dim blue
-//    
-//    // dim blue is really as bright as it can be without being too bright down deep;
-//    // if it's too bright, then a lit region will show up darker than the surrounding
-//    // unseen regions!  But because both this effect and the underlying recoloration
-//    // are more obvious with brighter colors, all of the versions commented out are
-//    // brighter.
-//    
-//    // I haven't made saturation work very well, but tweak it if you like:
-//    workingcolor saturation = {0.2, 0.2, 0.2};
-//    
-//    workingcolor final = {
-//        luma * memory.r + actual.r * saturation.r,
-//        luma * memory.g + actual.g * saturation.g,
-//        luma * memory.b + actual.b * saturation.b
-//    };
-//	
-//    components[0] = CLIP(final.r, 0, 100);
-//    components[1] = CLIP(final.g, 0, 100);
-//    components[2] = CLIP(final.b, 0, 100);
-//}
-
 // okay, this is kind of a beast...
 void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeColor, color *returnBackColor) {	
 	short bestBCPriority, bestFCPriority, bestCharPriority;
@@ -1269,17 +1229,12 @@ void message(char *msg1, boolean primaryMessage, boolean requireAcknowledgment) 
 	char message[COLS];
 	short i;
 	
-	if (strlen(msg1) > DCOLS) {
-		msg1[DCOLS] = '\0';
+	for (i=0; i < DCOLS && msg1[i] != '\0'; i++) {
+		message[i] = msg1[i];
 	}
-	
-	strcpy(message, msg1);
+	message[i] = '\0';
 	
 	upperCase(message);
-	
-	if (strlen(message) > DCOLS) {
-		message[DCOLS] = '\0';
-	}
 	
 	if (primaryMessage) {
 		rogue.disturbed = true;
@@ -2139,7 +2094,7 @@ void printMonsterDetails(creature *monst, cellDisplayBuffer rbuf[COLS][ROWS]) {
 		x = STAT_BAR_WIDTH + 10;
 		width = monst->xLoc - 20;
 	}
-	y = MESSAGE_LINES + 3;
+	y = MESSAGE_LINES + 2;
 	
 	if (width < MIN_MONSTER_DETAILS_WIDTH) {
 		x -= (MIN_MONSTER_DETAILS_WIDTH - width) / 2;

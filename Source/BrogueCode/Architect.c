@@ -75,7 +75,7 @@ boolean checkLoopiness(short x, short y) {
 			inString = false;
 		}
 	}
-	if (numStrings == 1 && maxStringLength <= 3) {
+	if (numStrings == 1 && maxStringLength <= 4) {
 		pmap[x][y].flags &= ~IN_LOOP;
 		
 		for (dir = 0; dir < 8; dir++) {
@@ -422,19 +422,29 @@ void digDungeon() {
 			}
 		}
 	}
-	//findLoops();
+	findLoops();
 }
 
 // Scans from the top-left to the bottom-right looking for a good place to build a bridge.
 // If it finds one, it builds a bridge there, halts and returns true.
 boolean buildABridge() {
-	short i, j, k, l;
+	short i, j, k, l, i2, j2, nCols[DCOLS], nRows[DROWS];
 	boolean foundExposure;
 	
-	for (i=1; i<DCOLS-1; i++) {
-		for (j=1; j<DROWS-1; j++) {
-			if (!cellHasTerrainFlag(i, j, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))
-				&& (pmap[i][j].layers[LIQUID] != BRIDGE || rand_percent(15))) {
+	for (i=0; i<DCOLS; i++) {
+		nCols[i] = i;
+	}
+	for (i=0; i<DROWS; i++) {
+		nRows[i] = i;
+	}
+	shuffleList(nCols, DCOLS);
+	shuffleList(nRows, DROWS);
+	
+	for (i2=1; i2<DCOLS-1; i2++) {
+		i = nCols[i2];
+		for (j2=1; j2<DROWS-1; j2++) {
+			j = nRows[j2];
+			if (!cellHasTerrainFlag(i, j, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))) {
 				
 				// try a horizontal bridge
 				foundExposure = false;

@@ -523,7 +523,7 @@ void pickUpItemAt(short x, short y) {
 		
 		itemName(theItem, buf2, true, true); // include suffix, article
 		
-		sprintf(buf, "you now have %s (%c)", buf2, theItem->inventoryLetter);
+		sprintf(buf, "you now have %s (%c).", buf2, theItem->inventoryLetter);
 		message(buf, true, false);
 	} else {
 		itemName(theItem, buf2, false, true); // include article
@@ -1605,6 +1605,7 @@ void getImpactLoc(short returnLoc[2], short originLoc[2], short targetLoc[2],
 		}
 		
 	} while ((!(pmap[currentLoc[0]][currentLoc[1]].flags & HAS_MONSTER)
+			  || !monst
 			  || ((monst->info.flags & MONST_INVISIBLE) || (monst->bookkeepingFlags & MONST_SUBMERGED)))
 			 && !(pmap[currentLoc[0]][currentLoc[1]].flags & HAS_PLAYER)
 			 && !cellHasTerrainFlag(currentLoc[0], currentLoc[1], (OBSTRUCTS_VISION | OBSTRUCTS_PASSABILITY))
@@ -1884,19 +1885,16 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			updateVision();
 		}
 		
-		// dynamic lighting
-		//if (!fastForward) {
-			demoteVisibility();
-			updateLighting();
-			for (k = min(i, boltLength + 2); k >= 0; k--) {
-				if (k < initialBoltLength && (!fastForward || k == 0)) {
-					boltLights[k].xLoc = listOfCoordinates[i-k][0];
-					boltLights[k].yLoc = listOfCoordinates[i-k][1];
-					paintLight(&boltLights[k]);
-				}
+		demoteVisibility();
+		updateLighting();
+		for (k = min(i, boltLength + 2); k >= 0; k--) {
+			if (k < initialBoltLength && (!fastForward || k == 0)) {
+				boltLights[k].xLoc = listOfCoordinates[i-k][0];
+				boltLights[k].yLoc = listOfCoordinates[i-k][1];
+				paintLight(&boltLights[k]);
 			}
-			updateFieldOfViewDisplay(false);
-		//}
+		}
+		updateFieldOfViewDisplay(false);
 		
 		for (k = min(i, boltLength + 2); k >= 0; k--) {
 			if (pmap[listOfCoordinates[i-k][0]][listOfCoordinates[i-k][1]].flags & (IN_FIELD_OF_VIEW | CLAIRVOYANT_VISIBLE)) {
@@ -1926,7 +1924,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			continue;
 		}
 		
-		if (bolt == BOLT_FIRE) {
+		if (!monst && bolt == BOLT_FIRE) {
 			if (exposeTileToFire(x, y, true)) {
 				updateVision();
 				autoID = true;
@@ -1945,7 +1943,8 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 		}
 		
 		// does the bolt bounce off the wall?
-		if (cellHasTerrainFlag(listOfCoordinates[i+1][0], listOfCoordinates[i+1][1],
+		if (i + 1 < numCells
+			&& cellHasTerrainFlag(listOfCoordinates[i+1][0], listOfCoordinates[i+1][1],
 							   (OBSTRUCTS_VISION | OBSTRUCTS_PASSABILITY))
 			&& projectileReflects(shootingMonst, NULL)
 			&& i < DCOLS*2) {
@@ -1966,6 +1965,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 		
 		// some bolts halt the square before they hit something
 		if ((bolt == BOLT_BLINKING || bolt == BOLT_OBSTRUCTION)
+			&& i + 1 < numCells
 			&& (cellHasTerrainFlag(listOfCoordinates[i+1][0], listOfCoordinates[i+1][1],
 								   (OBSTRUCTS_VISION | OBSTRUCTS_PASSABILITY))
 				|| (pmap[listOfCoordinates[i+1][0]][listOfCoordinates[i+1][1]].flags & (HAS_PLAYER | HAS_MONSTER)))) {
@@ -1979,7 +1979,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			}
 		}
 		
-		if (pmap[x][y].flags & (HAS_PLAYER | HAS_MONSTER) && (bolt == BOLT_LIGHTNING) && (!monst || !(monst->bookkeepingFlags & MONST_SUBMERGED))) {
+		if (monst && (pmap[x][y].flags & (HAS_PLAYER | HAS_MONSTER)) && (bolt == BOLT_LIGHTNING) && (!monst || !(monst->bookkeepingFlags & MONST_SUBMERGED))) {
 			monsterName(monstName, monst, true);
 			
 			autoID = true;
@@ -2020,7 +2020,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 		}
 		
 		if (cellHasTerrainFlag(x, y, (OBSTRUCTS_PASSABILITY | OBSTRUCTS_VISION))
-			|| ((pmap[x][y].flags & HAS_PLAYER || (pmap[x][y].flags & (HAS_MONSTER) && !(monst->bookkeepingFlags & MONST_SUBMERGED)))
+			|| ((pmap[x][y].flags & HAS_PLAYER || (pmap[x][y].flags & (HAS_MONSTER) && monst && !(monst->bookkeepingFlags & MONST_SUBMERGED)))
 				&& bolt != BOLT_LIGHTNING)) {
 			
 			if (bolt == BOLT_TUNNELING && x > 0 && y > 0 && x < DCOLS - 1 && y < DROWS - 1) {
@@ -2095,7 +2095,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			}
 			break;
 		case BOLT_BECKONING:
-			if (beckonedMonster) {
+			if (beckonedMonster && monst) {
 				if (canSeeMonster(monst)) {
 					autoID = true;
 				}
@@ -2725,13 +2725,21 @@ boolean hitMonsterWithProjectileWeapon(creature *thrower, creature *monst, item 
 		
 		if (inflictDamage(thrower, monst, damage, &red)) { // monster killed
 			sprintf(buf, "the %s killed %s.", theItemName, targetName);
+			message(buf, true, false);
 		} else {
 			sprintf(buf, "the %s hit %s.", theItemName, targetName);
 			if (theItem->flags & ITEM_RUNIC) {
 				magicWeaponHit(monst, theItem, false);
 			}
+			message(buf, true, false);
+			if (monst->info.abilityFlags & MA_CLONE_SELF_ON_DEFEND) {
+				fadeInMonster(cloneMonster(monst));
+				if (canSeeMonster(monst)) {
+					sprintf(targetName, "%s splits in two!", targetName);
+					message(targetName, true, false);
+				}
+			}
 		}
-		message(buf, true, false);
 		if (armorRunicString[0]) {
 			message(armorRunicString, true, false);
 		}

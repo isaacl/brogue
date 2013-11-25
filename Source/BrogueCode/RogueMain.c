@@ -352,6 +352,13 @@ void initializeRogue() {
 		//identify(theItem);
 		theItem = addItemToPack(theItem);
 		
+		theItem = generateItem(STAFF, STAFF_ENTRANCEMENT);
+		theItem->enchant1 = 10;
+		theItem->charges = 300;
+		theItem->flags &= ~ITEM_CURSED;
+		identify(theItem);
+		theItem = addItemToPack(theItem);
+		
 		theItem = generateItem(STAFF, STAFF_POISON);
 		theItem->enchant1 = 10;
 		theItem->charges = 300;
