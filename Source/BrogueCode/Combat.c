@@ -317,7 +317,7 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
 	short runicType = theItem->enchant2;
 	short chance;
 	
-	if (customEnchantLevel) {
+	if (!customEnchantLevel) {
 		enchantLevel = netEnchant(theItem);
 	}
 	chance = max(effectChances[runicType][0],
