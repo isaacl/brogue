@@ -25,6 +25,7 @@ void recordChar(unsigned char c) {
 	}
 }
 
+// compresses a uchar into a char, discarding stuff we don't need
 unsigned char compressKeystroke(uchar c) {
 	const uchar ucharTable[] = {UP_ARROW, LEFT_ARROW, DOWN_ARROW, RIGHT_ARROW,
 		ESCAPE_KEY, RETURN_KEY, ENTER_KEY, DELETE_KEY, TAB_KEY, NUMPAD_0, NUMPAD_1,
@@ -56,8 +57,7 @@ void numberToString(unsigned long number, short numberOfBytes, unsigned char *re
 	}
 }
 
-// numberOfBytes can't be greater than 10, but that's cool as arithmetic generally
-// isn't supported above 4 bytes (long int)
+// numberOfBytes can't be greater than 10
 void recordNumber(unsigned long number, short numberOfBytes) {
 	short i;
 	unsigned char c[10];
@@ -278,8 +278,6 @@ void playbackPanic() {
 		
 		message("Playback is out of sync. The file is corrupted.", true, false);
 		
-		
-		
 		printTextBox(OOS_APOLOGY, 0, 0, 0, &white, &black, rbuf);
 		
 		rogue.playbackMode = false;
@@ -287,7 +285,6 @@ void playbackPanic() {
 		rogue.playbackMode = true;
 		
 		overlayDisplayBuffer(rbuf, 0);
-		
 		
 		printf("\n\nPlayback panic at location %li!", recordingLocation - 1);
 		
@@ -324,11 +321,12 @@ void recallEvent(rogueEvent *event) {
 			case END_OF_RECORDING:
 			case EVENT_ERROR:
 			default:
-				message("Unrecognized event type in playback.", true, false);
-				playbackPanic();
+				message("Unrecognized event type in playback.", true, true);
+				tryAgain = true;
+//				playbackPanic();
 				break;
 		}
-	} while (tryAgain);
+	} while (tryAgain && !rogue.gameHasEnded);
 	
 	// record the modifier keys
 	c = recallChar();
@@ -418,14 +416,14 @@ void initRecording() {
 	FILE *recordFile;
 	
 	initializeBrogueSaveLocation();
-		
+	
 #ifdef AUDIT_RNG
-		if (fileExists(RNG_LOG)) {
-			remove(RNG_LOG);
-		}
-		RNGLogFile = fopen(RNG_LOG, "a");
+	if (fileExists(RNG_LOG)) {
+		remove(RNG_LOG);
+	}
+	RNGLogFile = fopen(RNG_LOG, "a");
 #endif
-		
+	
 	locationInRecordingBuffer	= 0;
 	positionInPlaybackFile		= 0;
 	recordingLocation			= 0;
@@ -508,7 +506,7 @@ void RNGCheck() {
 	
 //#ifdef AUDIT_RNG
 //reportRNGState();
-	//#endif
+//#endif
 	
 	randomNumber = (unsigned long) rand_range(0, 255);
 	OOSCheck(randomNumber, 1);
@@ -527,7 +525,8 @@ boolean unpause() {
 }
 
 void printPlaybackHelpScreen() {
-	short i;
+	short i, j;
+	cellDisplayBuffer dbuf[COLS][ROWS], rbuf[COLS][ROWS];
 	const char helpText[16][80] = {
 		"Commands:",
 		"",
@@ -547,19 +546,27 @@ void printPlaybackHelpScreen() {
 		"        -- press space to continue --"
 	};
 	
-	blackOutScreen();
+	clearDisplayBuffer(dbuf);
 	
 	for (i=0; i<16; i++) {
-		printString(helpText[i], 1 + STAT_BAR_WIDTH + 4, i + MESSAGE_LINES, &white, &black, 0);
+		printString(helpText[i], mapToWindowX(5), mapToWindowY(i), &white, &black, dbuf);
 	}
+	
+	for (i=0; i<COLS; i++) {
+		for (j=0; j<ROWS; j++) {
+			dbuf[i][j].opacity = (i < STAT_BAR_WIDTH ? 0 : INTERFACE_OPACITY);
+		}
+	}
+	overlayDisplayBuffer(dbuf, rbuf);
 	
 	rogue.playbackMode = false;
 	waitForAcknowledgment();
 	rogue.playbackMode = true;
-	refreshSideBar(NULL);
-	displayLevel();
-	updateFlavorText();
-	updateMessageDisplay();
+	overlayDisplayBuffer(rbuf, NULL);
+//	refreshSideBar(NULL);
+//	displayLevel();
+//	updateFlavorText();
+//	updateMessageDisplay();
 }
 
 void advanceToLocation(short keystroke) {
@@ -567,6 +574,8 @@ void advanceToLocation(short keystroke) {
 	unsigned long destinationFrame, progressBarInterval, initialFrameNumber;
 	rogueEvent theEvent;
 	boolean enteredText;
+	
+	cellDisplayBuffer dbuf[COLS][ROWS];
 	
 	if (!rogue.playbackPaused || unpause()) {
 		buf[0] = keystroke;
@@ -587,18 +596,26 @@ void advanceToLocation(short keystroke) {
 				sprintf(buf, " Already at turn %li ", destinationFrame);
 				flashTemporaryAlert(buf, 1000);
 			} else {
+				//blackOutScreen();
+				
+				clearDisplayBuffer(dbuf);
+				rectangularShading((COLS - 20) / 2, ROWS / 2, (COLS + 20) / 2, ROWS / 2, &black, dbuf);
+				overlayDisplayBuffer(dbuf, 0);
+				commitDraws();
+				displayMoreSign();
+				
 				rogue.playbackFastForward = true;
 				progressBarInterval = max(1, (destinationFrame - rogue.turnNumber) / 500);
 				initialFrameNumber = rogue.turnNumber;
-				blackOutScreen();
+				
 				while (rogue.turnNumber < destinationFrame && !rogue.gameHasEnded && !rogue.playbackOOS) {
 					if (!(rogue.turnNumber % progressBarInterval)) {
 						rogue.playbackFastForward = false;
 						printProgressBar((COLS - 20) / 2, ROWS / 2, "[     Loading...   ]",
 										 rogue.turnNumber - initialFrameNumber,
 										 destinationFrame - initialFrameNumber, &darkPurple, false);
-						pauseBrogue(1);
 						rogue.playbackFastForward = true;
+						pauseBrogue(1);
 					}
 					
 					rogue.RNG = RNG_COSMETIC; // dancing terrain colors can't influence recordings
@@ -724,7 +741,6 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				
 				// advance by the right number of turns
 				if (!rogue.playbackPaused || unpause()) {
-					initialState = rogue.turnNumber;
 					while (rogue.turnNumber < destinationFrame && !rogue.gameHasEnded && !rogue.playbackOOS) {
 						rogue.RNG = RNG_COSMETIC; // dancing terrain colors can't influence recordings
 						rogue.playbackDelayThisTurn = 0;
@@ -772,7 +788,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 //				break;
 			case SEED_KEY:
 				printSeed();
-				displayLoops();
+				//displayLoops();
 				break;
 			default:
 				if (key >= '0' && key <= '9'
@@ -887,6 +903,8 @@ void loadSavedGame() {
 	short progressBarInterval;
 	rogueEvent theEvent;
 	
+	cellDisplayBuffer dbuf[COLS][ROWS];
+	
 	blackOutScreen();
 	pauseBrogue(1);
 	freeEverything();
@@ -899,6 +917,10 @@ void loadSavedGame() {
 	if (rogue.howManyTurns > 0) {
 		
 		progressBarInterval = max(1, lengthOfPlaybackFile / 100);
+		
+		clearDisplayBuffer(dbuf);
+		rectangularShading((COLS - 20) / 2, ROWS / 2, (COLS + 20) / 2, ROWS / 2, &black, dbuf);
+		overlayDisplayBuffer(dbuf, 0);
 		
 		while (recordingLocation < lengthOfPlaybackFile && !rogue.gameHasEnded && !rogue.playbackOOS) {
 			rogue.RNG = RNG_COSMETIC;
@@ -997,7 +1019,7 @@ void parseFile() {
 		numDepths	= recallNumber(4);
 		fileLength	= recallNumber(4);
 		
-		fprintf(descriptionFile, "Parsed file \"%s\":\n\tVersion:\n\tSeed: %li\n\tNumber of turns: %li\n\tNumber of depth changes: %li\n\tFile length: %li\n",
+		fprintf(descriptionFile, "Parsed file \"%s\":\n\tVersion: %s\n\tSeed: %li\n\tNumber of turns: %li\n\tNumber of depth changes: %li\n\tFile length: %li\n",
 				currentFilePath,
 				versionString,
 				seed,
