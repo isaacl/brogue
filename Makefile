@@ -1,7 +1,7 @@
 
 LIBTCODDIR=src/libtcod-1.5.1
 CFLAGS=-Isrc/brogue -Isrc/platform -Wall -Wno-parentheses ${DEFINES}
-RELEASENAME=brogue-1.5.1
+RELEASENAME=brogue-1.5.2
 
 %.o : %.c
 	gcc $(CFLAGS) -g -o $@ -c $< 

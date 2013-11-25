@@ -15,6 +15,7 @@ struct term_t {
 	void (*wait)();
 	int (*hasKey)();
 	void (*title)(const char *);
+	void (*resize)(int w, int h);
 
 	struct {
 		int up, down, left, right, backspace, del, quit;

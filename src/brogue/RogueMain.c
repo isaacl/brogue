@@ -48,6 +48,7 @@ void rogueMain() {
 			rogue.RNG = RNG_SUBSTANTIVE;
 			
 			executeEvent(&theEvent);
+			//inputLoop();
 		} else {
 			inputLoop();
 		}
@@ -113,7 +114,8 @@ boolean openFile(char *prompt, char *defaultName, char *suffix) {
 
 void welcome() {
 	message("Hello and welcome, adventurer, to the Dungeons of Doom!", false);
-	messageWithColor("The mouse can be used for navigation. Press <?> for help at any time.", &backgroundMessageColor, false);
+	messageWithColor("The mouse can be used for navigation.", &backgroundMessageColor, false);
+	messageWithColor("Press <?> for help at any time.", &backgroundMessageColor, false);
 	flavorMessage("The doors to the dungeon slam shut behind you.");
 }
 
@@ -267,8 +269,12 @@ void initializeRogue() {
 	shuffleFlavors();
 	
 	deleteMessages();
+	for (i = 0; i < MESSAGE_ARCHIVE_LINES; i++) { // Clear the message archive.
+		messageArchive[i][0] = '\0';
+	}
+	messageArchivePosition = 0;
 	
-	// seed the stacks
+	// Seed the stacks.
 	floorItems = (item *) malloc(sizeof(item));
 	memset(floorItems, '\0', sizeof(item));
 	floorItems->nextItem = NULL;
@@ -307,6 +313,7 @@ void initializeRogue() {
 	
 	memset(&player, '\0', sizeof(creature));
 	player.info = monsterCatalog[0];
+	initializeGender(&player);
 	player.movementSpeed = player.info.movementSpeed;
 	player.attackSpeed = player.info.attackSpeed;
 	clearStatus(&player);
@@ -457,7 +464,7 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(WAND, WAND_DOMINATION);
+		theItem = generateItem(WAND, WAND_POLYMORPH);
 		theItem->enchant1 = 300;
 		theItem->charges = 300;
 		theItem->flags &= ~ITEM_CURSED;
@@ -482,14 +489,17 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(RING, RING_AWARENESS);
-		theItem->enchant1 = 30;
-		theItem->flags &= ~ITEM_CURSED;
+		theItem = generateItem(ARMOR, LEATHER_ARMOR);
+		theItem->enchant1 = 10;
+		theItem->enchant2 = A_MULTIPLICITY;
+		theItem->flags &= ~(ITEM_CURSED | ITEM_RUNIC_HINTED);
+		theItem->flags |= (ITEM_PROTECTED | ITEM_RUNIC);
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(SCROLL, SCROLL_SHATTERING);
-		theItem->quantity = 5;
+		theItem = generateItem(RING, RING_AWARENESS);
+		theItem->enchant1 = 30;
+		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 	}
@@ -520,6 +530,9 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	boolean connectingStairsDiscovered;
 	
 	rogue.howManyDepthChanges++;
+	
+	rogue.lastTravelLoc[0] = -1;
+	rogue.lastTravelLoc[1] = -1;
 	
 	if (stairDirection == 0) { // fallen
 		connectingStairsDiscovered = (pmap[rogue.downLoc[0]][rogue.downLoc[1]].flags & (DISCOVERED | MAGIC_MAPPED) ? true : false);
@@ -779,18 +792,24 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	flushBufferToFile();
 }
 
+void freeGlobalDynamicGrid(short ***grid) {
+	if (*grid) {
+		freeDynamicGrid(*grid);
+		*grid = NULL;
+	}
+}
+
 void freeCreature(creature *monst) {
-	if (monst->mapToMe) {
-		freeDynamicGrid(monst->mapToMe);
-	}
-	if (monst->safetyMap) {
-		freeDynamicGrid(monst->safetyMap);
-	}
+	freeGlobalDynamicGrid(&(monst->mapToMe));
+	freeGlobalDynamicGrid(&(monst->mapToMe));
+	freeGlobalDynamicGrid(&(monst->safetyMap));
 	if (monst->carriedItem) {
 		free(monst->carriedItem);
+		monst->carriedItem = NULL;
 	}
 	if (monst->carriedMonster) {
 		freeCreature(monst->carriedMonster);
+		monst->carriedMonster = NULL;
 	}
 	free(monst);
 }
@@ -813,19 +832,13 @@ void freeEverything() {
 	fclose(RNGLogFile);
 #endif
 	
-	freeDynamicGrid(scentMap);
-	freeDynamicGrid(safetyMap);
-	freeDynamicGrid(allySafetyMap);
-	freeDynamicGrid(playerPathingMap);
-	freeDynamicGrid(chokeMap);
-	if (rogue.mapToShore) {
-		freeDynamicGrid(rogue.mapToShore);
-		rogue.mapToShore = NULL;
-	}
-	if (rogue.mapToSafeTerrain) {
-		freeDynamicGrid(rogue.mapToSafeTerrain);
-		rogue.mapToSafeTerrain = NULL;
-	}
+	freeGlobalDynamicGrid(&scentMap);
+	freeGlobalDynamicGrid(&safetyMap);
+	freeGlobalDynamicGrid(&allySafetyMap);
+	freeGlobalDynamicGrid(&playerPathingMap);
+	freeGlobalDynamicGrid(&chokeMap);
+	freeGlobalDynamicGrid(&rogue.mapToShore);
+	freeGlobalDynamicGrid(&rogue.mapToSafeTerrain);
 	
 	for (i=0; i<101; i++) {
 		for (monst = levels[1].monsters; monst != NULL; monst = monst2) {

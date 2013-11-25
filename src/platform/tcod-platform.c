@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <SDL/SDL.h>
 #include "libtcod.h"
 #include "platform.h"
 
@@ -163,6 +164,14 @@ boolean processSpecialKeystrokes(TCOD_key_t k) {
 	return false;
 }
 
+
+void getModifiers(rogueEvent *returnEvent) {
+	Uint8 *keystate = SDL_GetKeyState(NULL);
+	returnEvent->controlKey = keystate[SDLK_LCTRL] || keystate[SDLK_RCTRL];
+	returnEvent->shiftKey = keystate[SDLK_LSHIFT] || keystate[SDLK_RSHIFT];
+}
+
+
 // returns true if input is acceptable
 boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 	
@@ -171,8 +180,7 @@ boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 	}
 	
 	returnEvent->eventType = KEYSTROKE;
-	returnEvent->controlKey = (key.rctrl || key.lctrl);
-	returnEvent->shiftKey = key.shift;
+	getModifiers(returnEvent);
 	switch (key.vk) {
 		case TCODK_CHAR:
 		case TCODK_0:
@@ -285,7 +293,6 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 	TCOD_console_flush();
 	
 	for (;;) {
-		
 		theTime = TCOD_sys_elapsed_milli();
 		
 		if (TCOD_console_is_window_closed()) {
@@ -329,32 +336,38 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDanc
 		}
 		
 		mouse = TCOD_mouse_get_status();
-		x = mouse.cx;
-		y = mouse.cy;
+		// x = mouse.cx;
+		// y = mouse.cy;
+		int fontWidth, fontHeight;
+
+		if ((SDL_GetAppState() & SDL_APPMOUSEFOCUS)) {
+			x = mouse.cx;
+			y = mouse.cy;
+		} else {
+			x = 0;
+			y = 0;
+		}
+
 		if (mouse.lbutton_pressed || mouseX !=x || mouseY != y) {
-			if (x > 0 && y > 0 && x < COLS && y < ROWS) {
-				returnEvent->param1 = x;
-				returnEvent->param2 = y;
-				mouseX = x;
-				mouseY = y;
-				if (TCOD_console_is_key_pressed(TCODK_CONTROL)) {
-					returnEvent->controlKey = true;
-				}
-				if (TCOD_console_is_key_pressed(TCODK_SHIFT)) {
-					returnEvent->shiftKey = true;
-				}
-				if (mouse.lbutton_pressed) {
-					returnEvent->eventType = MOUSE_UP;
-				} else {
-					returnEvent->eventType = MOUSE_ENTERED_CELL;
-				}
-				if (returnEvent->eventType == MOUSE_ENTERED_CELL && !hasMouseMoved) {
-					hasMouseMoved = true;
-				} else {
-					return;
-				}
+			returnEvent->param1 = x;
+			returnEvent->param2 = y;
+			mouseX = x;
+			mouseY = y;
+
+			getModifiers(returnEvent);
+
+			if (mouse.lbutton_pressed) {
+				returnEvent->eventType = MOUSE_UP;
+			} else {
+				returnEvent->eventType = MOUSE_ENTERED_CELL;
+			}
+			if (returnEvent->eventType == MOUSE_ENTERED_CELL && !hasMouseMoved) {
+				hasMouseMoved = true;
+			} else {
+				return;
 			}
 		}
+
 		waitTime = PAUSE_BETWEEN_EVENT_POLLING + theTime - TCOD_sys_elapsed_milli();
 		
 		if (waitTime > 0 && waitTime <= PAUSE_BETWEEN_EVENT_POLLING) {

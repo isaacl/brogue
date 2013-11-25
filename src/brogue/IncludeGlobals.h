@@ -49,9 +49,13 @@ extern room *rooms;
 extern waypoint waypoints[MAX_WAYPOINTS];
 extern short numberOfWaypoints;
 extern levelProfile *thisLevelProfile;
+
 extern char displayedMessage[MESSAGE_LINES][COLS];
 extern boolean messageConfirmed[3];
 extern char combatText[COLS];
+short messageArchivePosition;
+char messageArchive[MESSAGE_ARCHIVE_LINES][COLS*2];
+
 extern long levelPoints[MAX_EXP_LEVEL];
 extern char currentFilePath[FILENAME_MAX];
 extern unsigned long randomNumbersGenerated;

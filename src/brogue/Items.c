@@ -472,14 +472,15 @@ void populateItems(short upstairsX, short upstairsY) {
 	
 	for (j=0; j<DROWS; j++) {
 		for (i=0; i<DCOLS; i++) {
+			
 			if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_ITEMS | T_PATHING_BLOCKER)
-				|| (pmap[i][j].flags & (IS_CHOKEPOINT | IN_LOOP | IS_IN_MACHINE))) { // not in hallways or quest rooms, please
+				|| (pmap[i][j].flags & (IS_CHOKEPOINT | IN_LOOP | IS_IN_MACHINE))
+				|| passableArcCount(i, j) > 1) { // not in hallways or quest rooms, please
 				itemSpawnHeatMap[i][j] = 0;
-			}
-			if (itemSpawnHeatMap[i][j] == 50000) {
+			} else if (itemSpawnHeatMap[i][j] == 50000) {
 				itemSpawnHeatMap[i][j] = 0;
 				pmap[i][j].layers[DUNGEON] = PERM_WALL; // due to a bug that created occasional isolated one-cell islands;
-														// not sure if it's still around, but this is a good-enough failsafe
+				// not sure if it's still around, but this is a good-enough failsafe
 			}
 #ifdef AUDIT_RNG
 			sprintf(RNGmessage, "%u%s%s\t%s",
@@ -491,6 +492,19 @@ void populateItems(short upstairsX, short upstairsY) {
 #endif
 			totalHeat += itemSpawnHeatMap[i][j];
 		}
+	}
+
+	if (D_INSPECT_LEVELGEN) {
+		short **map = allocDynamicGrid();
+		for (i=0; i<DCOLS; i++) {
+			for (j=0; j<DROWS; j++) {
+				map[i][j] = itemSpawnHeatMap[i][j] * -1;
+			}
+		}
+		dumpLevelToScreen();
+		displayMap(map);
+		freeDynamicGrid(map);
+		message("Item spawn heat map:", true);
 	}
 	
 	for (i=0; i<numberOfItems; i++) {
@@ -547,6 +561,20 @@ void populateItems(short upstairsX, short upstairsY) {
 		
 		// Place the item.
 		placeItem(theItem, spawnLoc[0], spawnLoc[1]); // Random valid location already obtained according to heat map.
+		
+		if (D_INSPECT_LEVELGEN) {
+			short **map = allocDynamicGrid();
+			short i2, j2;
+			for (i2=0; i2<DCOLS; i2++) {
+				for (j2=0; j2<DROWS; j2++) {
+					map[i2][j2] = itemSpawnHeatMap[i2][j2] * -1;
+				}
+			}
+			dumpLevelToScreen();
+			displayMap(map);
+			freeDynamicGrid(map);
+			message("Added an item.", true);
+		}
 	}
 	
 	// Now generate gold.
@@ -554,6 +582,11 @@ void populateItems(short upstairsX, short upstairsY) {
 		theItem = generateItem(GOLD, -1);
 		getItemSpawnLoc(itemSpawnHeatMap, spawnLoc, &totalHeat);
 		placeItem(theItem, spawnLoc[0], spawnLoc[1]);
+	}
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Added gold.", true);
 	}
 	
 	scrollTable[SCROLL_ENCHANT_ITEM].frequency	= 0;	// No enchant scrolls or strength potions can spawn except via initial
@@ -814,8 +847,10 @@ void call() {
 	
 	confirmMessages();
 	
-	if (theItem->flags & ITEM_IDENTIFIED || theItem->category & (WEAPON|ARMOR|FOOD|GOLD|AMULET|GEM)) {
-		if (theItem->category & (WEAPON | ARMOR | STAFF | WAND | RING) && theItem->flags & ITEM_CAN_BE_IDENTIFIED) {
+	if ((theItem->flags & ITEM_IDENTIFIED) || theItem->category & (WEAPON|ARMOR|FOOD|GOLD|AMULET|GEM)) {
+		if (theItem->category & (WEAPON | ARMOR | STAFF | WAND | RING)
+			&& (theItem->flags & ITEM_CAN_BE_IDENTIFIED)) {
+			
 			if (inscribeItem(theItem)) {
 				command[c++] = '\0';
 				strcat((char *) command, theItem->inscription);
@@ -828,8 +863,8 @@ void call() {
 		return;
 	}
 	
-	if (theItem->flags & ITEM_CAN_BE_IDENTIFIED
-		&& theItem->category & (WEAPON | ARMOR | STAFF | WAND | RING)) {
+	if ((theItem->flags & ITEM_CAN_BE_IDENTIFIED)
+		&& (theItem->category & (WEAPON | ARMOR | STAFF | WAND | RING))) {
 		if (confirm("inscribe this particular item instead of all similar items? (y/n)", true, -1, -1)) {
 			command[c++] = 'y';
 			if (inscribeItem(theItem)) {
@@ -1207,7 +1242,7 @@ Who knows what %s will do when drunk or thrown?",
 						(singular ? "it" : "they"));
 				break;
 			case SCROLL:
-				sprintf(buf2, "%s parchment%s %s covered with magical writing, and bear%s a title of \"%s.\" \
+				sprintf(buf2, "%s parchment%s %s covered with unrecognizable writing, and bear%s a title of \"%s.\" \
 Who knows what %s will do when read aloud?",
 						(singular ? "This" : "These"),
 						(singular ? "" : "s"),
@@ -1217,7 +1252,7 @@ Who knows what %s will do when read aloud?",
 						(singular ? "it" : "they"));
 				break;
 			case STAFF:
-				sprintf(buf2, "This gnarled %s staff pulsates with an arcane power. \
+				sprintf(buf2, "This gnarled %s staff is warm to the touch. \
 Who knows what it will do when used?",
 						tableForItemCategory(theItem->category)[theItem->kind].flavor);
 				break;
@@ -1227,14 +1262,13 @@ Who knows what it will do when used?",
 						tableForItemCategory(theItem->category)[theItem->kind].flavor);
 				break;
 			case RING:
-				sprintf(buf2, "This metal band is adorned with a large %s gem that pulsates with arcane power. \
+				sprintf(buf2, "This metal band is adorned with a large %s gem that glitters in the darkness. \
 Who knows what effect it has when worn?",
 						tableForItemCategory(theItem->category)[theItem->kind].flavor);
 				break;
 			case AMULET:
 				strcpy(buf2, "Legends are told about this mysterious golden amulet, \
-and hundreds of adventurers have perished in its pursuit. \
-Unfathomable power and riches await the one skillful and ambitious \
+and hundreds of adventurers have perished in its pursuit. Unfathomable power and riches await anyone skillful and ambitious \
 enough to carry it into the light of day.");
 				break;
 			case GEM:
@@ -1463,7 +1497,7 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
 								}
 								break;
 							case A_MUTUALITY:
-								strcpy(buf2, "When worn, the damage from any physical attacks that you sustain will be split evenly among yourself and all other adjacent enemies. ");
+								strcpy(buf2, "When worn, the damage that you incur from physical attacks will be split evenly among yourself and all other adjacent enemies. ");
 								break;
 							case A_ABSORPTION:
 								sprintf(buf2, "It will reduce the damage of inbound attacks by a random amount between 0 and %i, which is %i%% of your current maximum health. (If the %s is enchanted, this maximum amount will %s %i.) ",
@@ -1731,6 +1765,17 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
 	}
 }
 
+boolean displayMagicCharForItem(item *theItem) {
+	if (!(theItem->flags & ITEM_MAGIC_DETECTED)
+		|| (theItem->category & (AMULET | FOOD | GEM | KEY | GOLD))) {
+		return false;
+	}
+	if (theItem->category & (STAFF | POTION | SCROLL | WAND)) {
+		return !(tableForItemCategory(theItem->category)[theItem->kind].identified);
+	}
+	return true;
+}
+
 char displayInventory(unsigned short categoryMask,
 					  unsigned long requiredFlags,
 					  unsigned long forbiddenFlags,
@@ -1770,7 +1815,7 @@ char displayInventory(unsigned short categoryMask,
 	
 	magicDetected = false;
 	for (theItem = packItems->nextItem; theItem != NULL; theItem = theItem->nextItem) {
-		if ((theItem->flags & ITEM_MAGIC_DETECTED) && !(theItem->flags & ITEM_IDENTIFIED)) {
+		if (displayMagicCharForItem(theItem)) {
 			magicDetected = true;
 		}
 	}
@@ -1780,10 +1825,10 @@ char displayInventory(unsigned short categoryMask,
 		itemColor[itemNumber] = *theItem->foreColor;
 		itemNameColor[itemNumber] = *theItem->inventoryColor;
 		
-		if (theItem->category & categoryMask &&
+		if ((theItem->category & categoryMask) &&
 			!(~(theItem->flags) & requiredFlags) &&
 			!(theItem->flags & forbiddenFlags)) {
-			
+			// do nothing
 		} else {
 			applyColorAverage(&itemColor[itemNumber], &black, 50);
 			applyColorAverage(&itemNameColor[itemNumber], &black, 50);
@@ -1842,9 +1887,7 @@ char displayInventory(unsigned short categoryMask,
 			
 			if (j == 4 && magicDetected // detect magic character
 				&& (!waitForAcknowledge || i < itemNumber - 2)
-				&& (itemList[i]->flags & ITEM_MAGIC_DETECTED)
-				&& !(itemList[i]->flags & ITEM_IDENTIFIED)
-				&& !(itemList[i]->category & (AMULET|FOOD|GEM))) {
+				&& displayMagicCharForItem(itemList[i])) {
 				plotCharToBuffer((itemMagicChar(itemList[i]) ? itemMagicChar(itemList[i]) : '-'),
 								 mapToWindowX(DCOLS - maxLength + j),
 								 mapToWindowY(i),
@@ -2445,6 +2488,64 @@ void negate(creature *monst) {
 	}
 }
 
+// True if the creature polymorphed; false if not.
+boolean polymorph(creature *monst) {
+	short previousExperience, previousDamageTaken;
+	float healthFraction;
+	
+	if (monst == &player || (monst->info.flags & MONST_INANIMATE)) {
+		return false; // Sorry, this is not Nethack.
+	}
+	
+	unAlly(monst); // Sorry, no cheap dragon allies.
+	healthFraction = monst->currentHP / monst->info.maxHP;
+	previousDamageTaken = monst->info.maxHP - monst->currentHP;
+	previousExperience = monst->info.expForKilling;
+	
+	do {
+		monst->info = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)]; // abra kadabra
+	} while (monst->info.flags & MONST_INANIMATE);
+	
+	monst->currentHP = max(1, max(healthFraction * monst->info.maxHP, monst->info.maxHP - previousDamageTaken));
+	monst->info.expForKilling = healthFraction * monst->info.expForKilling + (1 - healthFraction) * previousExperience;
+	
+	monst->movementSpeed = monst->info.movementSpeed;
+	monst->attackSpeed = monst->info.attackSpeed;
+	if (monst->status.hasted) {
+		monst->movementSpeed /= 2;
+		monst->attackSpeed /= 2;
+	}
+	if (monst->status.slowed) {
+		monst->movementSpeed *= 2;
+		monst->attackSpeed *= 2;
+	}
+	
+	clearStatus(monst);
+	
+	if (monst->info.flags & MONST_FIERY) {
+		monst->status.burning = monst->maxStatus.burning = 1000; // won't decrease
+	}
+	if (monst->info.flags & MONST_FLIES) {
+		monst->status.levitating = monst->maxStatus.levitating = 1000; // won't decrease
+	}
+	if (monst->info.flags & MONST_IMMUNE_TO_FIRE) {
+		monst->status.immuneToFire = monst->maxStatus.immuneToFire = 1000; // won't decrease
+	}
+	monst->status.nutrition = monst->maxStatus.nutrition = 1000;
+	
+	if (monst->bookkeepingFlags & MONST_CAPTIVE) {
+		demoteMonsterFromLeadership(monst);
+		monst->creatureState = MONSTER_TRACKING_SCENT;
+		monst->bookkeepingFlags &= ~MONST_CAPTIVE;
+	}
+	
+	monst->ticksUntilTurn = max(monst->ticksUntilTurn, 101);
+	
+	refreshDungeonCell(monst->xLoc, monst->yLoc);
+	flashMonster(monst, boltColors[BOLT_POLYMORPH], 100);
+	return true;
+}
+
 void slow(creature *monst, short turns) {
 	if (!(monst->info.flags & MONST_INANIMATE)) {
 		monst->status.slowed = monst->maxStatus.slowed = turns;
@@ -2475,13 +2576,11 @@ void haste(creature *monst, short turns) {
 
 void heal(creature *monst, short percent) {	
 	char buf[COLS], monstName[COLS];
-	if (!(monst->info.flags & MONST_INANIMATE)) {
-		monst->currentHP = min(monst->info.maxHP, monst->currentHP + percent * monst->info.maxHP / 100);
-		if (canSeeMonster(monst) && monst != &player) {
-			monsterName(monstName, monst, true);
-			sprintf(buf, "%s looks healthier", monstName);
-			combatMessage(buf, NULL);
-		}
+	monst->currentHP = min(monst->info.maxHP, monst->currentHP + percent * monst->info.maxHP / 100);
+	if (canSeeMonster(monst) && monst != &player) {
+		monsterName(monstName, monst, true);
+		sprintf(buf, "%s looks healthier", monstName);
+		combatMessage(buf, NULL);
 	}
 }
 
@@ -2619,8 +2718,7 @@ void restoreLighting(short lights[DCOLS][DROWS][3]) {
 boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short boltLevel, boolean hideDetails) {
 	short listOfCoordinates[MAX_BOLT_LENGTH][2];
 	short i, j, k, x, y, numCells, blinkDistance, boltLength, initialBoltLength, newLoc[2], lights[DCOLS][DROWS][3];
-	float healthFraction;
-	short previousExperience, poisonDamage;
+	short poisonDamage;
 	creature *monst = NULL, *shootingMonst, *newMonst;
 	char buf[COLS], monstName[COLS];
 	boolean autoID = false;
@@ -2963,47 +3061,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			break;
 		case BOLT_POLYMORPH:
 			if (monst && monst != &player && !(monst->info.flags & MONST_INANIMATE)) {
-				unAlly(monst); // not your ally anymore!
-				healthFraction = monst->currentHP / monst->info.maxHP;
-				previousExperience = monst->info.expForKilling;
-				do {
-					monst->info = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)]; // abra kadabra
-				} while (monst->info.flags & MONST_INANIMATE);
-				monst->currentHP = max(1, healthFraction * monst->info.maxHP);
-				monst->info.expForKilling = healthFraction * monst->info.expForKilling + (1 - healthFraction) * previousExperience;
-				
-				monst->movementSpeed = monst->info.movementSpeed;
-				monst->attackSpeed = monst->info.attackSpeed;
-				if (monst->status.hasted) {
-					monst->movementSpeed /= 2;
-					monst->attackSpeed /= 2;
-				}
-				if (monst->status.slowed) {
-					monst->movementSpeed *= 2;
-					monst->attackSpeed *= 2;
-				}
-				
-				clearStatus(monst);
-				
-				if (monst->info.flags & MONST_FIERY) {
-					monst->status.burning = monst->maxStatus.burning = 1000; // won't decrease
-				}
-				if (monst->info.flags & MONST_FLIES) {
-					monst->status.levitating = monst->maxStatus.levitating = 1000; // won't decrease
-				}
-				if (monst->info.flags & MONST_IMMUNE_TO_FIRE) {
-					monst->status.immuneToFire = monst->maxStatus.immuneToFire = 1000; // won't decrease
-				}
-				monst->status.nutrition = monst->maxStatus.nutrition = 1000;
-				
-				if (monst->bookkeepingFlags & MONST_CAPTIVE) {
-					demoteMonsterFromLeadership(monst);
-					monst->creatureState = MONSTER_TRACKING_SCENT;
-					monst->bookkeepingFlags &= ~MONST_CAPTIVE;
-				}
-				
-				refreshDungeonCell(monst->xLoc, monst->yLoc);
-				flashMonster(monst, boltColors[BOLT_POLYMORPH], 100);
+				polymorph(monst);
 				if (!(monst->info.flags & MONST_INVISIBLE)) {
 					autoID = true;
 				}
@@ -3054,7 +3112,8 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 		case BOLT_POISON:
 			if (monst && !(monst->info.flags & MONST_INANIMATE)) {
 				poisonDamage = staffPoison(boltLevel);
-				monst->status.poisoned = monst->maxStatus.poisoned = max(poisonDamage, monst->status.poisoned);
+				monst->status.poisoned = max(poisonDamage, monst->status.poisoned);
+				monst->maxStatus.poisoned = monst->info.maxHP;
 				if (canSeeMonster(monst)) {
 					flashMonster(monst, boltColors[BOLT_POISON], 100);
 					autoID = true;
@@ -3366,25 +3425,25 @@ boolean moveCursor(boolean *targetConfirmed,
 				   boolean colorsDance,
 				   boolean keysMoveCursor,
 				   boolean targetCanLeaveMap) {
-	uchar keystroke;
+	signed long keystroke;
 	short moveIncrement;
-	short movementVector[2];
-	boolean acceptableInput, again;
+	boolean cursorMovementCommand, again, movementKeystroke;
 	rogueEvent theEvent;
 	
 	*targetConfirmed = *canceled = *tabKey = false;
 	
 	do {
 		again = false;
-		acceptableInput = false;
-		movementVector[0] = movementVector[1] = 0;
+		cursorMovementCommand = false;
+		movementKeystroke = false;
 		
 		assureCosmeticRNG;
-		nextBrogueEvent(&theEvent, colorsDance, false);
+		nextBrogueEvent(&theEvent, colorsDance, true);
 		restoreRNG;
 		
-		if ((theEvent.eventType == MOUSE_UP || (theEvent.eventType == MOUSE_ENTERED_CELL))) {
-			if (coordinatesAreInMap(windowToMapX(theEvent.param1), windowToMapY(theEvent.param2)) || targetCanLeaveMap) {
+		if (theEvent.eventType == MOUSE_UP || theEvent.eventType == MOUSE_ENTERED_CELL) {
+			if (coordinatesAreInMap(windowToMapX(theEvent.param1), windowToMapY(theEvent.param2))
+				|| targetCanLeaveMap && theEvent.eventType != MOUSE_UP) {
 				if (theEvent.eventType == MOUSE_UP
 					&& !theEvent.shiftKey
 					&& (theEvent.controlKey || (targetLoc[0] == windowToMapX(theEvent.param1) && targetLoc[1] == windowToMapY(theEvent.param2)))) {
@@ -3393,10 +3452,10 @@ boolean moveCursor(boolean *targetConfirmed,
 				}
 				targetLoc[0] = windowToMapX(theEvent.param1);
 				targetLoc[1] = windowToMapY(theEvent.param2);
-				acceptableInput = true;
+				cursorMovementCommand = true;
 			} else {
-				acceptableInput = false;
-				again = true;
+				cursorMovementCommand = false;
+				again = theEvent.eventType != MOUSE_UP;
 			}
 		} else if (theEvent.eventType == KEYSTROKE) {
 			keystroke = theEvent.param1;
@@ -3409,7 +3468,7 @@ boolean moveCursor(boolean *targetConfirmed,
 					if (keysMoveCursor && targetLoc[0] > 0) {
 						targetLoc[0] -= moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case RIGHT_ARROW:
 				case RIGHT_KEY:
@@ -3417,7 +3476,7 @@ boolean moveCursor(boolean *targetConfirmed,
 					if (keysMoveCursor && targetLoc[0] < DCOLS - 1) {
 						targetLoc[0] += moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case UP_ARROW:
 				case UP_KEY:
@@ -3425,7 +3484,7 @@ boolean moveCursor(boolean *targetConfirmed,
 					if (keysMoveCursor && targetLoc[1] > 0) {
 						targetLoc[1] -= moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case DOWN_ARROW:
 				case DOWN_KEY:
@@ -3433,7 +3492,7 @@ boolean moveCursor(boolean *targetConfirmed,
 					if (keysMoveCursor && targetLoc[1] < DROWS - 1) {
 						targetLoc[1] += moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case UPLEFT_KEY:
 				case NUMPAD_7:
@@ -3441,7 +3500,7 @@ boolean moveCursor(boolean *targetConfirmed,
 						targetLoc[0] -= moveIncrement;
 						targetLoc[1] -= moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case UPRIGHT_KEY:
 				case NUMPAD_9:
@@ -3449,15 +3508,15 @@ boolean moveCursor(boolean *targetConfirmed,
 						targetLoc[0] += moveIncrement;
 						targetLoc[1] -= moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case DOWNLEFT_KEY:
 				case NUMPAD_1:
 					if (keysMoveCursor && targetLoc[0] > 0 && targetLoc[1] < DROWS - 1) {
 						targetLoc[0] -= moveIncrement;
 						targetLoc[1] += moveIncrement;
-						acceptableInput = keysMoveCursor;
 					}
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case DOWNRIGHT_KEY:
 				case NUMPAD_3:
@@ -3465,58 +3524,73 @@ boolean moveCursor(boolean *targetConfirmed,
 						targetLoc[0] += moveIncrement;
 						targetLoc[1] += moveIncrement;
 					}
-					acceptableInput = keysMoveCursor;
+					cursorMovementCommand = movementKeystroke = keysMoveCursor;
 					break;
 				case TAB_KEY:
 				case NUMPAD_0:
 					*tabKey = true;
-					acceptableInput = true;
 					break;
 				case RETURN_KEY:
 				case ENTER_KEY:
 					*targetConfirmed = true;
-					acceptableInput = true;
 					break;
 				case ESCAPE_KEY:
 				case ACKNOWLEDGE_KEY:
 					*canceled = true;
-					acceptableInput = true;
 					break;
 				default:
 					break;
 			}
 		} else {
-			acceptableInput = false;
 			again = true;
 		}
 		
-		if (targetCanLeaveMap) { // permit it to leave the map by up to 1 space in any direction if mouse controlled.
+		if (targetCanLeaveMap && !movementKeystroke) {
+			// permit it to leave the map by up to 1 space in any direction if mouse controlled.
 			targetLoc[0] = clamp(targetLoc[0], -1, DCOLS);
 			targetLoc[1] = clamp(targetLoc[1], -1, DROWS);
 		} else {
 			targetLoc[0] = clamp(targetLoc[0], 0, DCOLS - 1);
 			targetLoc[1] = clamp(targetLoc[1], 0, DROWS - 1);
 		}
-	} while (again && (!event || !acceptableInput));
+	} while (again && (!event || !cursorMovementCommand));
 	
 	if (event) {
 		*event = theEvent;
 	}
-	return !acceptableInput;
+	return !cursorMovementCommand;
 }
 
+void pullMouseClickDuringPlayback(short loc[2]) {
+	rogueEvent theEvent;
+	
+#ifdef BROGUE_ASSERTS
+	assert(rogue.playbackMode);
+#endif
+	nextBrogueEvent(&theEvent, false, false);
+	loc[0] = windowToMapX(theEvent.param1);
+	loc[1] = windowToMapY(theEvent.param2);
+}
+
+// Return true if a target is chosen, or false if canceled.
 boolean chooseTarget(short returnLoc[2], short maxDistance, boolean stopAtTarget, boolean autoTarget, boolean targetAllies, boolean passThroughCreatures) {
 	short originLoc[2], targetLoc[2], oldTargetLoc[2], coordinates[DCOLS][2], numCells, i, distance;
 	creature *monst;
 	boolean canceled, targetConfirmed, tabKey, cursorInTrajectory, focusedOnMonster = false;
+		
+	if (rogue.playbackMode) {
+		// In playback, pull the next event (a mouseclick) and use that location as the target.
+		pullMouseClickDuringPlayback(returnLoc);
+		return true;
+	}
 	
 	assureCosmeticRNG;
 	
 	originLoc[0] = player.xLoc;
 	originLoc[1] = player.yLoc;
 	
-	targetLoc[0] = player.xLoc;
-	targetLoc[1] = player.yLoc;
+	targetLoc[0] = oldTargetLoc[0] = player.xLoc;
+	targetLoc[1] = oldTargetLoc[1] = player.yLoc;
 	
 	if (autoTarget) {
 		monst = nextTargetAfter(targetLoc[0], targetLoc[1], targetAllies, true);
@@ -3536,15 +3610,10 @@ boolean chooseTarget(short returnLoc[2], short maxDistance, boolean stopAtTarget
 		numCells = min(numCells, distanceBetween(player.xLoc, player.yLoc, targetLoc[0], targetLoc[1]));
 	}
 	
-	hiliteTrajectory(coordinates, numCells, false, passThroughCreatures);
-	hiliteCell(targetLoc[0], targetLoc[1], &white, 75, true);
+	targetConfirmed = canceled = tabKey = false;
 	
 	do {
 		printLocationDescription(targetLoc[0], targetLoc[1]);
-		
-		oldTargetLoc[0] = targetLoc[0];
-		oldTargetLoc[1] = targetLoc[1];
-		moveCursor(&targetConfirmed, &canceled, &tabKey, targetLoc, NULL, false, true, false);
 		
 		if (canceled) {
 			refreshDungeonCell(oldTargetLoc[0], oldTargetLoc[1]);
@@ -3594,6 +3663,10 @@ boolean chooseTarget(short returnLoc[2], short maxDistance, boolean stopAtTarget
 			hiliteCell(targetLoc[0], targetLoc[1], &white, (cursorInTrajectory ? 100 : 35), true);	
 		}
 		
+		
+		oldTargetLoc[0] = targetLoc[0];
+		oldTargetLoc[1] = targetLoc[1];
+		moveCursor(&targetConfirmed, &canceled, &tabKey, targetLoc, NULL, false, true, false);
 	} while (!targetConfirmed);
 	if (maxDistance > 0) {
 		numCells = min(numCells, maxDistance);
@@ -3717,19 +3790,19 @@ void throwItem(item *theItem, creature *thrower, short targetLoc[2], short maxDi
 		if (pmap[x][y].flags & (HAS_MONSTER | HAS_PLAYER)) {
 			monst = monsterAtLoc(x, y);
 			
-			if (projectileReflects(thrower, monst) && i < DCOLS*2) {
-				if (projectileReflects(thrower, monst)) { // if it scores another reflection roll, reflect at caster
-					numCells = reflectBolt(originLoc[0], originLoc[1], listOfCoordinates, i, true);
-				} else {
-					numCells = reflectBolt(-1, -1, listOfCoordinates, i, false); // otherwise reflect randomly
-				}
-				
-				monsterName(buf2, monst, true);
-				itemName(theItem, buf3, false, false, NULL);
-				sprintf(buf, "%s deflect%s the %s", buf2, (monst == &player ? "" : "s"), buf3);
-				combatMessage(buf, 0);
-				continue;
-			}
+//			if (projectileReflects(thrower, monst) && i < DCOLS*2) {
+//				if (projectileReflects(thrower, monst)) { // if it scores another reflection roll, reflect at caster
+//					numCells = reflectBolt(originLoc[0], originLoc[1], listOfCoordinates, i, true);
+//				} else {
+//					numCells = reflectBolt(-1, -1, listOfCoordinates, i, false); // otherwise reflect randomly
+//				}
+//				
+//				monsterName(buf2, monst, true);
+//				itemName(theItem, buf3, false, false, NULL);
+//				sprintf(buf, "%s deflect%s the %s", buf2, (monst == &player ? "" : "s"), buf3);
+//				combatMessage(buf, 0);
+//				continue;
+//			}
 			
 			if ((theItem->category & WEAPON)
 				&& theItem->kind != INCENDIARY_DART
@@ -3891,7 +3964,7 @@ void throwCommand() {
 
 	}
 	
-	message("Direction? (<hjklyubn>, mouse, or <tab>; <return> to confirm)", false);
+	temporaryMessage("Direction? (<hjklyubn>, mouse, or <tab>; <return> to confirm)", false);
 	maxDistance = (12 + 2 * max(rogue.strength - 12, 0));
 	if (chooseTarget(zapTarget, maxDistance, true, true, false, false)) {
 		command[2] = '\0';
@@ -3947,6 +4020,13 @@ void apply(item *theItem) {
 	confirmMessages();
 	switch (theItem->category) {
 		case FOOD:
+			if (STOMACH_SIZE - player.status.nutrition < foodTable[theItem->kind].strengthRequired) { // Not hungry enough.
+				sprintf(buf, "You're not hungry enough to fully benefit from the %s. Eat it anyway? (y/n)",
+						(theItem->kind == RATION ? "food" : "mango"));
+				if (!confirm(buf, false, -1, -1)) {
+					return;
+				}
+			}
 			player.status.nutrition = min(foodTable[theItem->kind].strengthRequired + player.status.nutrition, STOMACH_SIZE);
 			if (theItem->kind == RATION) {
 				messageWithColor("That food tasted delicious!", &itemMessageColor, false);
@@ -3986,7 +4066,7 @@ void apply(item *theItem) {
 				messageWithColor(buf, &itemMessageColor, false);
 				return;
 			}
-			message("Direction? (<hjklyubn>, mouse, or <tab>; <return> to confirm)", false);
+			temporaryMessage("Direction? (<hjklyubn>, mouse, or <tab>; <return> to confirm)", false);
 			if (theItem->category & STAFF && theItem->kind == STAFF_BLINKING
 				&& theItem->flags & (ITEM_IDENTIFIED | ITEM_MAX_CHARGES_KNOWN)) {
 				maxDistance = theItem->enchant1 * 2 + 2;
@@ -4221,8 +4301,7 @@ void crystalize(short radius) {
 				
 				if (i == 0 || i == DCOLS - 1 || j == 0 || j == DROWS - 1) {
 					pmap[i][j].layers[DUNGEON] = CRYSTAL_WALL; // don't dissolve the boundary walls
-				} else if ((tileCatalog[pmap[i][j].layers[DUNGEON]].flags & (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_VISION))
-						   || ((player.xLoc - i) * (player.xLoc - i) + (player.yLoc - j) * (player.yLoc - j) > (radius - 2) * (radius - 2))) {
+				} else if (tileCatalog[pmap[i][j].layers[DUNGEON]].flags & (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_VISION)) {
 					
 					pmap[i][j].layers[DUNGEON] = FORCEFIELD;
 					
@@ -4439,7 +4518,7 @@ void readScroll(item *theItem) {
 					y = player.yLoc + nbDirs[i][1];
 					if (!cellHasTerrainFlag(x, y, T_OBSTRUCTS_PASSABILITY) && !(pmap[x][y].flags & HAS_MONSTER)
 						&& rand_percent(10) && (numberOfMonsters < 3)) {
-						monst = spawnHorde(0, x, y, (HORDE_LEADER_CAPTIVE | NO_PERIODIC_SPAWN | HORDE_IS_SUMMONED | HORDE_MACHINE_ONLY), 0);
+						monst = spawnHorde(0, x, y, (HORDE_LEADER_CAPTIVE | HORDE_NO_PERIODIC_SPAWN | HORDE_IS_SUMMONED | HORDE_MACHINE_ONLY), 0);
 						if (monst) {
 							// refreshDungeonCell(x, y);
 							// monst->creatureState = MONSTER_TRACKING_SCENT;
@@ -4464,7 +4543,7 @@ void readScroll(item *theItem) {
 				if (pmap[monst->xLoc][monst->yLoc].flags & IN_FIELD_OF_VIEW
 					&& monst->creatureState != MONSTER_FLEEING
 					&& !(monst->info.flags & MONST_INANIMATE)) {
-					unAlly(monst);
+					//unAlly(monst);
 					monst->status.magicalFear = monst->maxStatus.magicalFear = rand_range(150, 225);
 					monst->creatureState = MONSTER_FLEEING;
 					chooseNewWanderDestination(monst);
@@ -4531,7 +4610,7 @@ void readScroll(item *theItem) {
 			break;
 		case SCROLL_SHATTERING:
 			messageWithColor("the scroll emits a wave of turquoise light that pierces the nearby walls!", &itemMessageColor, false);
-			crystalize(8);
+			crystalize(9);
 			break;
 	}
 }

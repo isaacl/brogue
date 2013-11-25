@@ -27,6 +27,374 @@
 #include "Rogue.h"
 #include "IncludeGlobals.h"
 
+// Populates path[][] with a list of coordinates starting at origin and traversing down the map. Returns the number of steps in the path.
+short getPathOnMap(short path[1000][2], short **map, short originX, short originY) {
+	short dir, x, y, steps;
+	
+	x = originX;
+	y = originY;
+	
+	dir = 0;
+	
+	for (steps = 0; dir != -1;) {
+		dir = nextStep(map, x, y, false);
+		if (dir != -1) {
+			x += nbDirs[dir][0];
+			y += nbDirs[dir][1];
+			path[steps][0] = x;
+			path[steps][1] = y;
+			steps++;
+#ifdef BROGUE_ASSERTS
+			assert(coordinatesAreInMap(x, y));
+#endif
+		}
+	}
+	return steps;
+}
+
+void reversePath(short path[1000][2], short steps) {
+	short i, x, y;
+	
+	for (i=0; i<steps / 2; i++) {
+		x = path[steps - i - 1][0];
+		y = path[steps - i - 1][1];
+		
+		path[steps - i - 1][0] = path[i][0];
+		path[steps - i - 1][1] = path[i][1];
+		
+		path[i][0] = x;
+		path[i][1] = y;
+	}
+}
+
+void hilitePath(short path[1000][2], short steps, color *theColor, short intensity, boolean unhilite) {
+	short i;
+	if (unhilite) {
+		for (i=0; i<steps; i++) {
+			refreshDungeonCell(path[i][0], path[i][1]);
+			pmap[path[i][0]][path[i][1]].flags &= ~NO_AUTO_DANCING;
+		}
+	} else {
+		for (i=0; i<steps; i++) {
+			hiliteCell(path[i][0], path[i][1], theColor, intensity, true);
+			pmap[path[i][0]][path[i][1]].flags |= NO_AUTO_DANCING;
+		}
+	}
+}
+
+void getClosestValidLocationOnMap(short loc[2], short **map, short x, short y) {
+	short i, j, dist, closestDistance, lowestMapScore;
+	
+	closestDistance = 10000;
+	lowestMapScore = 10000;
+	for (i=1; i<DCOLS-1; i++) {
+		for (j=1; j<DROWS-1; j++) {
+			if (map[i][j] >= 0
+				&& map[i][j] < 30000) {
+				
+				dist = (i - x)*(i - x) + (j - y)*(j - y);
+				//hiliteCell(i, j, &purple, min(dist / 2, 100), false);
+				if (dist < closestDistance
+					|| dist == closestDistance && map[i][j] < lowestMapScore) {
+					
+					loc[0] = i;
+					loc[1] = j;
+					closestDistance = dist;
+					lowestMapScore = map[i][j];
+				}
+			}
+		}
+	}
+}
+
+// This is basically the main loop.
+void inputLoop() {
+	short originLoc[2], targetLoc[2], pathDestination[2], oldTargetLoc[2],
+	path[1000][2], explorePath[1000][2], steps, exploreSteps, oldRNG, dir;
+	creature *monst;
+	item *theItem;
+	cellDisplayBuffer rbuf[COLS][ROWS];
+	boolean canceled, targetConfirmed, tabKey, focusedOnMonster, focusedOnItem, playingBack, doEvent, textDisplayed, cursorMode, justDisabledCursorMode;
+	rogueEvent theEvent;
+	short **exploreMap;
+	
+	canceled = false;
+	justDisabledCursorMode = false;
+	cursorMode = false; // Controls whether the keyboard moves the cursor or the character.
+	
+	playingBack = rogue.playbackMode;
+	rogue.playbackMode = false;
+	exploreMap = allocDynamicGrid();
+	
+	targetLoc[0] = targetLoc[1] = -1;
+	
+	while (!rogue.gameHasEnded && (!playingBack || !canceled)) { // repeats until the game ends
+		
+		oldRNG = rogue.RNG;
+		rogue.RNG = RNG_COSMETIC;
+		
+		focusedOnMonster = focusedOnItem = false;
+		steps = 0;
+		
+		originLoc[0] = player.xLoc;
+		originLoc[1] = player.yLoc;
+		
+		if (playingBack && cursorMode) {
+			temporaryMessage("Examine what? (<hjklyubn>, mouse, or <tab>)", false);
+		}
+		
+		if (rogue.lastTravelLoc[0] >= 0 || rogue.lastTravelLoc[1] >= 0) {
+			targetLoc[0] = rogue.lastTravelLoc[0];
+			targetLoc[1] = rogue.lastTravelLoc[1];
+		}
+		
+		if (//!justEnabledCursorMode &&
+			!playingBack
+			&& player.xLoc == targetLoc[0]
+			&& player.yLoc == targetLoc[1]
+			&& oldTargetLoc[0] == targetLoc[0]
+			&& oldTargetLoc[1] == targetLoc[1]) {
+			
+			// Path hides when you reach your destination.
+			cursorMode = false;
+			targetLoc[0] = -1;
+			targetLoc[1] = -1;
+			justDisabledCursorMode = true;
+		}
+		
+		// else if (cursorMode) {
+//			targetLoc[0] = player.xLoc;
+//			targetLoc[1] = player.yLoc;
+//		}
+		
+		//justDisabledCursorMode = false;
+		
+		oldTargetLoc[0] = targetLoc[0];
+		oldTargetLoc[1] = targetLoc[1];
+		
+		calculateDistances(playerPathingMap, player.xLoc, player.yLoc, 0, &player, false, true);
+		
+		if (!playingBack) {
+			getExploreMap(exploreMap, false);
+			exploreSteps = getPathOnMap(explorePath, exploreMap, player.xLoc, player.yLoc);
+			//exploreSteps = min(exploreSteps, 15);
+		}
+		
+		do {
+			textDisplayed = false;
+			
+			// Draw the cursor and path
+			if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
+				refreshDungeonCell(oldTargetLoc[0], oldTargetLoc[1]);						// Remove old cursor.
+				pmap[oldTargetLoc[0]][oldTargetLoc[1]].flags &= ~NO_AUTO_DANCING;
+			}
+			if (!playingBack) {
+				if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
+					hilitePath(path, steps, NULL, 0, true);									// Unhilite old path.
+				}
+				if (coordinatesAreInMap(targetLoc[0], targetLoc[1])) {
+					if (playerPathingMap[targetLoc[0]][targetLoc[1]] >= 0
+						&& playerPathingMap[targetLoc[0]][targetLoc[1]] < 30000) {
+						
+						pathDestination[0] = targetLoc[0];
+						pathDestination[1] = targetLoc[1];
+					} else {
+						// If the cursor is aimed at an inaccessible area, find the nearest accessible area to path toward.
+						getClosestValidLocationOnMap(pathDestination, playerPathingMap, targetLoc[0], targetLoc[1]);
+					}
+					steps = getPathOnMap(path, playerPathingMap, pathDestination[0], pathDestination[1]) - 1;	// Get new path.
+					reversePath(path, steps);												// Flip it around, back-to-front.
+					//if (steps > 0) {
+						path[steps][0] = pathDestination[0];
+						path[steps][1] = pathDestination[1];
+						steps++;
+					//}
+//					if (!(distanceBetween(player.xLoc, player.yLoc, targetLoc[0], targetLoc[1]) == 1
+//						  && !cellHasTerrainFlag(player.xLoc, targetLoc[1], T_OBSTRUCTS_PASSABILITY)
+//						  && !cellHasTerrainFlag(targetLoc[0], player.yLoc, T_OBSTRUCTS_PASSABILITY))) {
+					if (playerPathingMap[targetLoc[0]][targetLoc[1]] != 1
+						|| pathDestination[0] != targetLoc[0]
+						|| pathDestination[1] != targetLoc[1]) {
+						hilitePath(path, steps, &yellow, (cursorMode ? 50 : 20), false);		// Hilite new path.
+					}
+				}
+				//if (cursorMode) {
+				//hilitePath(explorePath, exploreSteps, &purple, 50, false);				// Hilite explore path.	
+				//}
+			}
+			if (coordinatesAreInMap(targetLoc[0], targetLoc[1])) {
+				hiliteCell(targetLoc[0],
+						   targetLoc[1],
+						   &white,
+						   ((path[steps-1][0] == targetLoc[0] && path[steps-1][1] == targetLoc[1])
+							|| distanceBetween(player.xLoc, player.yLoc, targetLoc[0], targetLoc[1]) <= 1 ? 100 : 25),
+						   true);
+				pmap[targetLoc[0]][targetLoc[1]].flags |= NO_AUTO_DANCING;
+				
+				oldTargetLoc[0] = targetLoc[0];
+				oldTargetLoc[1] = targetLoc[1];
+				
+				monst = monsterAtLoc(targetLoc[0], targetLoc[1]);
+				if (monst != NULL && monst != &player && (canSeeMonster(monst) || rogue.playbackOmniscience)) {
+					
+					rogue.playbackMode = playingBack;
+					refreshSideBar(monst);
+					rogue.playbackMode = false;
+					
+					focusedOnMonster = true;
+					if (!player.status.hallucinating || playingBack) {
+						printMonsterDetails(monst, rbuf);
+						textDisplayed = true;
+					}
+				} else {
+					theItem = itemAtLoc(targetLoc[0], targetLoc[1]);
+					if (theItem != NULL
+						&& ((theItem->flags & ITEM_NAMED) || rogue.playbackOmniscience || (theItem->category & (GOLD | KEY | AMULET | GEM)))
+						&& (!player.status.hallucinating || playingBack)
+						&& ((pmap[targetLoc[0]][targetLoc[1]].flags & (VISIBLE | CLAIRVOYANT_VISIBLE)) || rogue.playbackOmniscience)) {
+						
+						focusedOnItem = true;
+						printItemDetails(theItem, rbuf);
+						textDisplayed = true;
+					}
+				}
+				
+				printLocationDescription(targetLoc[0], targetLoc[1]);
+			}
+			
+			rogue.playbackMode = playingBack;
+			doEvent = moveCursor(&targetConfirmed, &canceled, &tabKey, targetLoc, &theEvent, !textDisplayed, cursorMode, true);
+			rogue.playbackMode = false;
+			
+			//hilitePath(explorePath, exploreSteps, NULL, 0, true);						// Unhilite old explore path.
+			
+			if (playingBack) {
+				targetConfirmed = false;
+			}
+			
+			if (focusedOnMonster) {
+				rogue.playbackMode = playingBack;
+				refreshSideBar(NULL);
+				rogue.playbackMode = false;
+				
+				focusedOnMonster = false;
+				if (!player.status.hallucinating || playingBack) {
+					overlayDisplayBuffer(rbuf, 0);
+				}
+			}
+			
+			if (focusedOnItem) {
+				focusedOnItem = false;
+				overlayDisplayBuffer(rbuf, 0);
+			}
+			
+			if (tabKey) {
+				monst = nextTargetAfter(targetLoc[0], targetLoc[1], false, false);
+				if (monst) {
+					targetLoc[0] = monst->xLoc;
+					targetLoc[1] = monst->yLoc;
+				}
+			}
+			
+			rogue.lastTravelLoc[0] = targetLoc[0];
+			rogue.lastTravelLoc[1] = targetLoc[1];
+			
+		} while (!targetConfirmed && !canceled && !doEvent && !rogue.gameHasEnded);
+		
+		if (coordinatesAreInMap(oldTargetLoc[0], oldTargetLoc[1])) {
+			refreshDungeonCell(oldTargetLoc[0], oldTargetLoc[1]);						// Remove old cursor.
+			pmap[oldTargetLoc[0]][oldTargetLoc[1]].flags &= ~NO_AUTO_DANCING;
+		}
+		if (!playingBack) {
+			hilitePath(path, steps, NULL, 0, true);										// Unhilite old path.
+		}
+		
+		restoreRNG;
+		
+		if (canceled && !playingBack) {
+			// Drop out of cursor mode if we're in it, and hide the path either way.
+			confirmMessages();
+			cursorMode = false;
+			targetLoc[0] = rogue.lastTravelLoc[0] = -1;
+			targetLoc[1] = rogue.lastTravelLoc[1] = -1;
+			justDisabledCursorMode = true;
+		} else if (targetConfirmed && !playingBack) {
+			if (coordinatesAreInMap(targetLoc[0], targetLoc[1])) {
+				if (theEvent.eventType == MOUSE_UP
+					&& theEvent.controlKey
+					&& steps > 1) {
+					// Control-clicking moves the player one step along the path.
+					
+					for (dir=0;
+						 dir<8 && (player.xLoc + nbDirs[dir][0] != path[0][0] || player.yLoc + nbDirs[dir][1] != path[0][1]);
+						 dir++);
+					playerMoves(dir);
+				} else if (D_WORMHOLING) {
+					travel(targetLoc[0], targetLoc[1], true);
+				} else {
+					confirmMessages();
+					
+					if (originLoc[0] == targetLoc[0]
+						&& originLoc[1] == targetLoc[1]) {
+						
+						confirmMessages();
+					} else if (abs(player.xLoc - targetLoc[0]) + abs(player.yLoc - targetLoc[1]) == 1
+							   || (distanceBetween(player.xLoc, player.yLoc, targetLoc[0], targetLoc[1]) == 1
+								   && !cellHasTerrainFlag(player.xLoc, targetLoc[1], T_OBSTRUCTS_PASSABILITY)
+								   && !cellHasTerrainFlag(targetLoc[0], player.yLoc, T_OBSTRUCTS_PASSABILITY))) {
+								   // Clicking one space away will cause the player to try to move there directly irrespective of path.
+								   for (dir=0;
+										dir<8 && (player.xLoc + nbDirs[dir][0] != targetLoc[0] || player.yLoc + nbDirs[dir][1] != targetLoc[1]);
+										dir++);
+								   playerMoves(dir);
+							   } else if (steps) {
+								   //travel(pathDestination[0], pathDestination[1], true);
+								   travelRoute(path, steps);
+							   }
+				}
+			}
+		}
+		
+		if (theEvent.eventType == KEYSTROKE
+			&& (theEvent.param1 == RETURN_KEY || theEvent.param1 == ENTER_KEY)) {
+			
+			// Return or enter turns on cursor mode. When the path is hidden, move the cursor to the player.
+			if (!coordinatesAreInMap(targetLoc[0], targetLoc[1])) {
+				targetLoc[0] = player.xLoc;
+				targetLoc[1] = player.yLoc;
+			}
+			cursorMode = true;
+		}
+		
+		if (doEvent) {
+			// If the player entered input during moveCursor() that wasn't a cursor movement command.
+			// Mainly, we want to filter out directional keystrokes when we're in cursor mode, since
+			// those should move the cursor but not the player.
+			if (playingBack) {
+				rogue.playbackMode = true;
+				executePlaybackInput(&theEvent);
+				playingBack = rogue.playbackMode;
+				rogue.playbackMode = false;
+			} else {
+				executeEvent(&theEvent);
+				if (rogue.playbackMode) {
+					playingBack = true;
+					rogue.playbackMode = false;
+					confirmMessages();
+					break;
+				}
+			}
+		}
+	}
+	
+	rogue.lastTravelLoc[0] = targetLoc[0];
+	rogue.lastTravelLoc[1] = targetLoc[1];
+	
+	freeDynamicGrid(exploreMap);
+	rogue.playbackMode = playingBack;
+	refreshSideBar(NULL);
+}
+
 // accuracy depends on how many clock cycles occur per second
 #define MILLISECONDS	(clock() * 1000 / CLOCKS_PER_SEC)
 
@@ -294,14 +662,16 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 					cellForeColor = cellBackColor;
 				} else {
 					cellForeColor = *(monst->info.foreColor);
-					if (monst->creatureState == MONSTER_ALLY) {
+					if (monst->creatureState == MONSTER_ALLY
+						&& (monst->info.displayChar >= 'a' && monst->info.displayChar <= 'z' || monst->info.displayChar >= 'A' && monst->info.displayChar <= 'Z')) {
+						//applyColorAverage(&cellForeColor, &blue, 50);
 						applyColorAverage(&cellForeColor, &pink, 50);
 					}
 				}
 				//DEBUG if (monst->bookkeepingFlags & MONST_LEADER) applyColorAverage(&cellBackColor, &purple, 50);
 			}
 		} else if (player.status.telepathic > 0
-				   && pmap[x][y].flags & HAS_MONSTER
+				   && (pmap[x][y].flags & HAS_MONSTER)
 				   && !(monst->info.flags & MONST_INANIMATE)
 				   && (!playerCanSee(x, y) || (monst->info.flags & MONST_INVISIBLE || monst->bookkeepingFlags & MONST_SUBMERGED))) {
 			if (player.status.hallucinating && !rogue.playbackOmniscience) {
@@ -463,15 +833,13 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 		separateColors(&cellForeColor, &cellBackColor);
 	}
 	
-	DEBUG {
-		if (D_EMPHASIZE_LIGHTING_LEVELS) {
-			if (displayDetail[x][y] == DV_DARK) {
-				applyColorAverage(&cellForeColor, &purple, 25);
-				applyColorAverage(&cellBackColor, &purple, 25);
-			} else if (displayDetail[x][y] == DV_LIT) {
-				applyColorAverage(&cellForeColor, &yellow, 25);
-				applyColorAverage(&cellBackColor, &yellow, 25);
-			}
+	if (D_EMPHASIZE_LIGHTING_LEVELS) {
+		if (displayDetail[x][y] == DV_DARK) {
+			applyColorAverage(&cellForeColor, &purple, 25);
+			applyColorAverage(&cellBackColor, &purple, 25);
+		} else if (displayDetail[x][y] == DV_LIT) {
+			applyColorAverage(&cellForeColor, &yellow, 25);
+			applyColorAverage(&cellBackColor, &yellow, 25);
 		}
 	}
 	
@@ -1150,7 +1518,9 @@ void nextBrogueEvent(rogueEvent *returnEvent, boolean colorsDance, boolean realI
 		if (rogue.creaturesWillFlashThisTurn) {
 			displayMonsterFlashes(true);
 		}
-		nextKeyOrMouseEvent(returnEvent, colorsDance);
+		do {
+			nextKeyOrMouseEvent(returnEvent, colorsDance); // No mouse clicks outside of the window will register.
+		} while (returnEvent->eventType == MOUSE_UP && !coordinatesAreInWindow(returnEvent->param1, returnEvent->param2));
 		// recording done elsewhere
 	}
 	
@@ -1170,17 +1540,20 @@ void executeMouseClick(rogueEvent *theEvent) {
 	autoConfirm = theEvent->controlKey;
 	if (coordinatesAreInMap(windowToMapX(x), windowToMapY(y))) {
 		if (autoConfirm) {
-		travel(windowToMapX(x), windowToMapY(y), autoConfirm);
+			travel(windowToMapX(x), windowToMapY(y), autoConfirm);
 		} else {
 			rogue.lastTravelLoc[0] = windowToMapX(x);
 			rogue.lastTravelLoc[1] = windowToMapY(y);
 			inputLoop();
 		}
-
+		
+	} else if (windowToMapX(x) >= 0 && windowToMapX(x) < DCOLS && y >= 0 && y < MESSAGE_LINES) {
+		// If the click location is in the message block, display the message archive.
+		displayMessageArchive();
 	}
 }
 
-void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shiftKey) {
+void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKey) {
 	short direction = -1;
 	
 	confirmMessages();
@@ -1293,25 +1666,28 @@ void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shif
 		case CALL_KEY:
 			call();
 			break;
-		case REPEAT_TRAVEL_KEY:
-			considerCautiousMode();
-			if (rogue.lastTravelLoc[0] != 0 && rogue.lastTravelLoc[1] != 0 && (controlKey || shiftKey)) {
-				travel(rogue.lastTravelLoc[0], rogue.lastTravelLoc[1], (controlKey || shiftKey));
-			} else {
-				inputLoop();
-			}
-			break;
-		case EXAMINE_KEY:
-			//inputLoop();
-			considerCautiousMode();
-			explore(controlKey ? 1 : 30);
-			break;
+//		case REPEAT_TRAVEL_KEY:
+//			considerCautiousMode();
+//			if (rogue.lastTravelLoc[0] != 0 && rogue.lastTravelLoc[1] != 0 && (controlKey || shiftKey)) {
+//				travel(rogue.lastTravelLoc[0], rogue.lastTravelLoc[1], (controlKey || shiftKey));
+//			} else {
+//				inputLoop();
+//			}
+//			break;
+//		case EXAMINE_KEY:
+//			//inputLoop();
+//			considerCautiousMode();
+//			explore(controlKey ? 1 : 30);
+//			break;
 		case EXPLORE_KEY:
 			considerCautiousMode();
 			explore(controlKey ? 1 : 30);
 			break;
 		case AUTOPLAY_KEY:
 			autoPlayLevel(controlKey);
+			break;
+		case MESSAGE_ARCHIVE_KEY:
+			displayMessageArchive();
 			break;
 		case HELP_KEY:
 			printHelpScreen();
@@ -1326,6 +1702,7 @@ void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shif
 			confirmMessages();
 			if ((rogue.turnNumber < 50 || confirm("End this game and load a saved recording? (y/n)", false, -1, -1))
 				&& openFile("View recording: ", "Recording", RECORDING_SUFFIX)) {
+				
 				freeEverything();
 				randomNumbersGenerated = 0;
 				rogue.playbackMode = true;
@@ -1365,8 +1742,6 @@ void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shif
 			// parseFile();
 			// DEBUG spawnDungeonFeature(player.xLoc, player.yLoc, &dungeonFeatureCatalog[DF_METHANE_GAS_ARMAGEDDON], true, false);
 			printSeed();
-			// DEBUG victory();
-			// DEBUG crystalize();
 			break;
 		case EASY_MODE_KEY:
 			if (shiftKey) {
@@ -1385,7 +1760,7 @@ void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shif
 		}
 		refreshSideBar(NULL);
 		if (D_SAFETY_VISION) {
-			displaySafetyMap();
+			displayMap(safetyMap);
 		}
 		if (D_EMPHASIZE_LIGHTING_LEVELS) {
 			displayLevel();
@@ -1596,6 +1971,76 @@ void displayMonsterFlashes(boolean flashingEnabled) {
 	restoreRNG;
 }
 
+void dequeueEvent() {
+	rogueEvent returnEvent;
+	nextBrogueEvent(&returnEvent, false, true);
+}
+
+void displayMessageArchive() {
+	short i, j, k, reverse, fadePercent, totalMessageCount, currentMessageCount;
+	boolean fastForward;
+	cellDisplayBuffer dbuf[COLS][ROWS], rbuf[COLS][ROWS];
+	
+	// Count the number of lines in the archive.
+	for (totalMessageCount=0;
+		 totalMessageCount < MESSAGE_ARCHIVE_LINES && messageArchive[totalMessageCount][0];
+		 totalMessageCount++);
+	
+	if (totalMessageCount > MESSAGE_LINES) {
+		
+		currentMessageCount = totalMessageCount;
+		copyDisplayBuffer(rbuf, displayBuffer);
+		
+		// Pull-down/pull-up animation:
+		for (reverse = 0; reverse <= 1; reverse++) {
+			fastForward = false;
+			for (currentMessageCount = (reverse ? totalMessageCount : MESSAGE_LINES);
+				 (reverse ? currentMessageCount >= MESSAGE_LINES : currentMessageCount <= totalMessageCount);
+				 currentMessageCount += (reverse ? -1 : 1)) {
+				
+				clearDisplayBuffer(dbuf);
+				
+				// Print the message archive text to the dbuf.
+				for (j=0; j < currentMessageCount && j < ROWS; j++) {
+					printString(messageArchive[(messageArchivePosition - currentMessageCount + MESSAGE_ARCHIVE_LINES + j) % MESSAGE_ARCHIVE_LINES],
+								mapToWindowX(0), j, &white, &black, dbuf);
+				}
+				
+				// Set the dbuf opacity, and do a fade from bottom to top to make it clear that the bottom messages are the most recent.
+				for (j=0; j < currentMessageCount && j<ROWS; j++) {
+					fadePercent = 50 * (j + totalMessageCount - currentMessageCount) / totalMessageCount + 50;
+					for (i=0; i<DCOLS; i++) {
+						dbuf[mapToWindowX(i)][j].opacity = INTERFACE_OPACITY;
+						if (dbuf[mapToWindowX(i)][j].character != ' ') {
+							for (k=0; k<3; k++) {
+								dbuf[mapToWindowX(i)][j].foreColorComponents[k] = dbuf[mapToWindowX(i)][j].foreColorComponents[k] * fadePercent / 100;
+							}
+						}
+					}
+				}
+				
+				// Display.
+				overlayDisplayBuffer(rbuf, 0);
+				overlayDisplayBuffer(dbuf, 0);
+				
+				if (pauseBrogue(reverse ? 3 : 10) && !fastForward) {
+					fastForward = true;
+					dequeueEvent();
+					currentMessageCount = (reverse ? MESSAGE_LINES + 1 : totalMessageCount - 1); // skip to the end
+				}
+			}
+			
+			if (!reverse) {
+				displayMoreSign();
+			}
+		}
+		overlayDisplayBuffer(rbuf, 0);
+		updateFlavorText();
+		confirmMessages();
+		updateMessageDisplay();
+	}
+}
+
 void temporaryMessage(char *msg, boolean requireAcknowledgment) {
 	char message[COLS];
 	short i, j;
@@ -1653,6 +2098,10 @@ void flavorMessage(char *msg) {
 void messageWithoutCaps(char *msg, boolean requireAcknowledgment) {
 	short i;
 	
+#ifdef BROGUE_ASSERTS
+	assert(msg[0]);
+#endif
+	
 	// need to confirm the oldest message?
 	if (!messageConfirmed[MESSAGE_LINES - 1]) {
 		//refreshSideBar(NULL);
@@ -1668,6 +2117,10 @@ void messageWithoutCaps(char *msg, boolean requireAcknowledgment) {
 	}
 	messageConfirmed[0] = false;
 	strcpy(displayedMessage[0], msg);
+	
+	// Add the message to the archive.
+	strcpy(messageArchive[messageArchivePosition], msg);
+	messageArchivePosition = (messageArchivePosition + 1) % MESSAGE_ARCHIVE_LINES;
 	
 	// display the message:
 	updateMessageDisplay();
@@ -1686,7 +2139,7 @@ void messageWithoutCaps(char *msg, boolean requireAcknowledgment) {
 
 void message(char *msg, boolean requireAcknowledgment) {
 	char text[COLS*20], *msgPtr;
-	short i, len, lines;
+	short i, lines;
 	
 	assureCosmeticRNG;
 	
@@ -1703,7 +2156,6 @@ void message(char *msg, boolean requireAcknowledgment) {
 	upperCase(&(text[i]));
 	
 	if (lines > 1) {
-		len = strlen(text);
 		for (i=0; text[i] != '\0'; i++) {
 			if (text[i] == '\n') {
 				text[i] = '\0';
@@ -1833,6 +2285,7 @@ void updateMessageDisplay() {
 	}
 }
 
+// Does NOT clear the message archive.
 void deleteMessages() {
 	short i;
 	for (i=0; i<MESSAGE_LINES; i++) {
@@ -1849,7 +2302,7 @@ void confirmMessages() {
 	updateMessageDisplay();
 }
 
-void stripShiftFromMovementKeystroke(unsigned short *keystroke) {
+void stripShiftFromMovementKeystroke(signed long *keystroke) {
 	unsigned short newKey = *keystroke - ('A' - 'a');
 	if (newKey == LEFT_KEY
 		|| newKey == RIGHT_KEY
@@ -1891,6 +2344,11 @@ void refreshSideBar(creature *focusMonst) {
 		if (rogue.howManyTurns > 0) {
 			sprintf(buf, "Turn %li/%li", rogue.turnNumber, rogue.howManyTurns);
 			printProgressBar(0, printY++, buf, rogue.turnNumber, rogue.howManyTurns, &darkPurple, false);
+		}
+		if (rogue.playbackOOS) {
+			printString("    [OUT OF SYNC]   ", 0, printY++, &badMessageColor, &black, 0);
+		} else if (rogue.playbackPaused) {
+			printString("      [PAUSED]      ", 0, printY++, &gray, &black, 0);
 		}
 		printString("                    ", 0, printY++, &white, &black, 0);
 	}
@@ -2096,14 +2554,14 @@ void printHelpScreen() {
 		"             z: ****rest (do nothing for one turn)",
 		"             Z: ****sleep (rest until better or interrupted)",
 		"             s: ****search for secret doors and traps",
-		"             >: ****descend a flight of stairs (or travel to downstairs)",
-		"             <: ****ascend a flight of stairs (or travel to upstairs)",
+		"          <, >: ****ascend or descend a flight of stairs (or travel to stairs)",
 		"             i: ****view inventory (and then (A-Z) to examine an item)",
 		"             f: ****fight monster (shift-F: fight to the death)",
 		"             D: ****display discovered items",
 		"             x: ****auto-explore the level (control-x: fast forward)",
 		"             A: ****autopilot (control-A: fast forward)",
-		"             S: ****save game and quit",
+		"             M: ****display archived messages (or click in message region)",
+		"             S: ****suspend game and quit",
 		"             O: ****open saved game and resume play",
 		"             V: ****view saved recording",
 		"   <space/esc>: ****clear message or cancel command",
@@ -2306,7 +2764,7 @@ void showWaypoints() {
 	}
 }
 
-void displaySafetyMap() {
+void displayMap(short **map) {
 	short i, j, score, topRange, bottomRange;
 	color tempColor, foreColor, backColor;
 	uchar dchar;
@@ -2315,23 +2773,23 @@ void displaySafetyMap() {
 	bottomRange = 30000;
 	tempColor = black;
 	
-	if (!rogue.updatedSafetyMapThisTurn) {
+	if (map == safetyMap && !rogue.updatedSafetyMapThisTurn) {
 		updateSafetyMap();
 	}
 	
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
-			if (cellHasTerrainFlag(i, j, T_WAYPOINT_BLOCKER) || (safetyMap[i][j] == safetyMap[0][0]) || (i == player.xLoc && j == player.yLoc)) {
+			if (cellHasTerrainFlag(i, j, T_WAYPOINT_BLOCKER) || (map[i][j] == map[0][0]) || (i == player.xLoc && j == player.yLoc)) {
 				continue;
 			}
-			if (safetyMap[i][j] > topRange) {
-				topRange = safetyMap[i][j];
+			if (map[i][j] > topRange) {
+				topRange = map[i][j];
 				//if (topRange == 0) {
 					//printf("\ntop is zero at %i,%i", i, j);
 				//}
 			}
-			if (safetyMap[i][j] < bottomRange) {
-				bottomRange = safetyMap[i][j];
+			if (map[i][j] < bottomRange) {
+				bottomRange = map[i][j];
 			}
 		}
 	}
@@ -2339,11 +2797,11 @@ void displaySafetyMap() {
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
 			if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY | T_LAVA_INSTA_DEATH)
-				|| (safetyMap[i][j] == safetyMap[0][0])
+				|| (map[i][j] == map[0][0])
 				|| (i == player.xLoc && j == player.yLoc)) {
 				continue;
 			}
-			score = 300 - (safetyMap[i][j] - bottomRange) * 300 / max(1, (topRange - bottomRange));
+			score = 300 - (map[i][j] - bottomRange) * 300 / max(1, (topRange - bottomRange));
 			tempColor.blue = max(min(score, 100), 0);
 			score -= 100;
 			tempColor.red = max(min(score, 100), 0);
@@ -2370,6 +2828,10 @@ void printProgressBar(short x, short y, char barLabel[COLS], long amtFilled, lon
 	
 	if (y >= ROWS - 1) { // don't write over the depth number
 		return;
+	}
+	
+	if (amtFilled > amtMax) {
+		amtFilled = amtMax;
 	}
 	
 	if (amtMax <= 0) {
@@ -2417,7 +2879,7 @@ void printProgressBar(short x, short y, char barLabel[COLS], long amtFilled, lon
 short printMonsterInfo(creature *monst, short y, boolean dim) {
 	char buf[COLS], monstName[COLS];
 	uchar monstChar;
-	color monstForeColor, monstBackColor;
+	color monstForeColor, monstBackColor, healthBarColor;
 	long amtFilled, amtMax;
 	
 	char hallucinationStrings[10][COLS] = {
@@ -2460,7 +2922,13 @@ short printMonsterInfo(creature *monst, short y, boolean dim) {
 	
 	// hit points
 	if (monst->info.maxHP > 1) {
-		printProgressBar(0, y++, "Health", monst->currentHP, monst->info.maxHP, &blueBar, dim);
+		if (monst == &player) {
+			healthBarColor = redBar;
+			applyColorAverage(&healthBarColor, &blueBar, min(100, 100 * player.currentHP / player.info.maxHP));
+		} else {
+			healthBarColor = blueBar;
+		}
+		printProgressBar(0, y++, "Health", monst->currentHP, monst->info.maxHP, &healthBarColor, dim);
 	}
 	
 	if (monst == &player) {
@@ -2554,6 +3022,9 @@ short printMonsterInfo(creature *monst, short y, boolean dim) {
 			printString(hallucinationStrings[rand_range(0, 9)], 0, y++, (dim ? &darkGray : &gray), &black, 0);
 		} else if (monst->bookkeepingFlags & MONST_CAPTIVE && y < ROWS - 1) {
 			printString("     (Captive)      ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
+		} else if ((monst->info.flags & MONST_RESTRICTED_TO_LIQUID)
+				   && !cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_ALLOWS_SUBMERGING)) {
+			printString("     (Helpless)     ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 		} else if (monst->creatureState == MONSTER_SLEEPING && y < ROWS - 1) {
 			printString("     (Sleeping)     ", 0, y++, (dim ? &darkGray : &gray), &black, 0);
 		} else if (monst->creatureState == MONSTER_FLEEING && y < ROWS - 1) {

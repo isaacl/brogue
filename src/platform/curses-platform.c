@@ -16,7 +16,8 @@ static void gameLoop() {
 	if (!Term.start()) {
 		return;
 	}
-	Term.title("Brogue 1.5.1");
+	Term.title("Brogue 1.5.2");
+	Term.resize(COLS, ROWS);
 
 	do {
 		rogueMain();

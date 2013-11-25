@@ -11,7 +11,7 @@
 \b0\fs26 \
 
 \fs24 \
-v1.5.1\
+v1.5.2\
 \
 \pard\pardeftab720\ql\qnatural
 
@@ -80,38 +80,39 @@ The only purpose of gold is to establish a character's score upon death or victo
 \
 Deeper levels contain pit traps, fire traps, gas traps and flood traps. If you know where they are, you can trigger them from a distance by tossing an item onto them.\
 \
-Every level can be explored fully without venturing into or over lava, chasms, traps or deep water. If no path presents itself, search along likely walls with the search command.\
+Levels can generally be explored fully without venturing into or over lava, chasms, traps or deep water. If no path presents itself, search along likely walls with the search command.\
 \'a0\
 Scrolls are flammable and will be lost to brushfires.\
 \'a0\
 Do not be discouraged by the difficulty of the game. Very few characters will survive the Dungeons of Doom, but your odds will improve enormously once you're acquainted with the dungeon's treasures and inhabitants.\
 \
 
-\b New with v1.5.1:
+\b New with v1.5.2:
 \b0 \
 \pard\tx220\tx720\pardeftab720\li720\fi-720\ql\qnatural
-\ls1\ilvl0\cf0 {\listtext	\'95	}New mouse control features that combine examine mode with auto-travel, and that make the game fully playable without the use of vi-keys. Some related changes to key commands.\
-{\listtext	\'95	}New quest rooms, some tweaks to existing quest rooms, and some new flavor terrain throughout the dungeon.\
-{\listtext	\'95	}Added Scrolls of Shattering.\
-{\listtext	\'95	}Added a brief alert that pops up next to the player when your health drops below 40, 25, 10 or 5%.\
-{\listtext	\'95	}Added a message informing you what kind of item a scroll, potion, wand or staff is when its effects identify it (in addition to marking the item category as identified).\
-{\listtext	\'95	}Added flavor text for impassible terrain, accessible by \'93bumping\'94 the terrain.\
-{\listtext	\'95	}Items in certain treasure rooms will be pre-identified.\
-{\listtext	\'95	}Liches are now more interesting.\
-{\listtext	\'95	}Explore mode will not seek out keys, since picking them up often triggers traps, and it will be interrupted when a key or stairs are discovered.\
-{\listtext	\'95	}\'93Dungeon\'94 reward rooms now contain only two imprisoned allies.\
-{\listtext	\'95	}Starvation is now gradual. When your nutrition level reaches zero and you have no food, your health will decrease by 1 every turn and will not regenerate.\
-{\listtext	\'95	}Pink jellies have slightly less health.\
-{\listtext	\'95	}For balance reasons, allies will cast healing magic less frequently and less effectively, will absorb enemy abilities half as frequently, and will improve their other stats about 40% slower.\
-{\listtext	\'95	}Monsters with only one maximum health point will not display a health bar.\
-{\listtext	\'95	}The player\'92s throwing range has been shortened.\
-{\listtext	\'95	}When displaying the player\'92s armor while wearing unidentified armor, the strength penalty/bonus will be taken into account even though the armor enchantment level, if any, will not.\
-{\listtext	\'95	}Fixed a bug that could lead to insufficient food being generated.\
-{\listtext	\'95	}Fixed a bug that could cause an item placed randomly on the level by one quest room to be rendered inaccessible by another quest room.\
-{\listtext	\'95	}Fixed various issues with the item details screen for certain items, especially runic weapons and armor and the Staff of Tunneling.\
-{\listtext	\'95	}Fixed an errant message when drinking a potion of paralysis.\
-{\listtext	\'95	}The player turns a shade of blue instead of purple when standing in dark shadows.\
-{\listtext	\'95	}Scrolls of negation will now properly strip curses from rings on the floor in addition to enchantments.\
-{\listtext	\'95	}Wands of plenty will clone their target but also halve its health.\
-{\listtext	\'95	}On Mac OS X, saved games and recordings will be placed in ~/Library/Application Support/Brogue instead of the same folder as the application.\
-{\listtext	\'95	}When saving a recording or saved game, the suggested filename will be incremented as necessary to default to an unused name.}
+\ls1\ilvl0\cf0 {\listtext	\'95	}Message archive can be viewed by pressing shift-M or by clicking in the message block at the top of the screen.\
+{\listtext	\'95	}Further refinements to mouse mode.\
+{\listtext	\'95	}Tweaked experience point cut-offs at higher levels, with the goal of effectively capping growth at player level 12.\
+{\listtext	\'95	}Rewinding is now supported during playback in a limited fashion (via skipping to a turn that precedes the current turn).\
+{\listtext	\'95	}Fixed a bug that could corrupt a save file when you load and then immediately re-save the file.\
+{\listtext	\'95	}Fixed a bug that could cause a recording to hang if the player dies while paralyzed and you fast-forward to a turn during that paralysis.\
+{\listtext	\'95	}New quest room added.\
+{\listtext	\'95	}Player health bar fades to red at low health.\
+{\listtext	\'95	}Paralysis from paralytic gas lasts 10 turns after the gas dissipates instead of 15.\
+{\listtext	\'95	}New confirmation prompt when eating food when you\'92re not hungry enough to get the full benefit.\
+{\listtext	\'95	}Fixed an issue with a quest room that would cause steam vents to appear instead of mud patches.\
+{\listtext	\'95	}Polymorphed monsters will now have the greater of the previous monster\'92s health fraction or max HP less damage taken, and will be stunned for one turn afterward.\
+{\listtext	\'95	}Entrancing your allies will not turn them against you.\
+{\listtext	\'95	}Monsters now have genders that are properly reflected in pronouns that describe them.\
+{\listtext	\'95	}Changed the message "you hit the monster from the shadows" to the more accurate "you hit the monster, catching [him/her/it] unaware."\
+{\listtext	\'95	}Allies caught in the effect of a scroll of cause fear will flee like ordinary monsters, but will resume being your ally once the effect wears off if you haven\'92t attacked them in the interim.\
+{\listtext	\'95	}Firebolts cast by monsters do more damage on impact.\
+{\listtext	\'95	}Status bars indicating poison will use the creature's maximum health for its scale, so that a poison bar wider than the creature's health bar indicates that the creature has received a fatal dose.\
+{\listtext	\'95	}Scrolls of shattering no longer create a barrier around the perimeter of the area of effect.\
+{\listtext	\'95	}Thrown items (including non-spell projectiles from monsters) cannot be reflected, though they are still subject to ordinary combat rules with respect to accuracy and defense.\
+{\listtext	\'95	}Centaurs take only one turn to shoot an arrow.\
+{\listtext	\'95	}Turrets will no longer spawn on inaccessible walls, e.g. walls trapped behind a statue or crystal formation.\
+{\listtext	\'95	}Fixed an issue that would allow hasted players with the right key to sometimes pass through iron doors without unlocking them.\
+{\listtext	\'95	}Fixed an issue with armor of multiplicity creating the wrong number of images.\
+{\listtext	\'95	}Steam and gas vents have a different appearance.\
+{\listtext	\'95	}Waterbound monsters stranded on land are described as such.}

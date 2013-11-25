@@ -314,7 +314,7 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 			defender->maxStatus.poisoned = 0;
 		}
 		defender->status.poisoned = max(defender->status.poisoned, damage);
-		defender->maxStatus.poisoned = max(defender->maxStatus.poisoned, defender->status.poisoned);
+		defender->maxStatus.poisoned = defender->info.maxHP;
 	}
 }
 
@@ -556,11 +556,11 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 	switch (rogue.armor->enchant2) {
 		case A_MULTIPLICITY:
 			if (melee && !(attacker->info.flags & MONST_INANIMATE) && rand_percent(33)) {
-				for (i = 0; i < 3; i++) {
+				for (i = 0; i < armorImageCount(enchant); i++) {
 					monst = cloneMonster(attacker, false);
 					monst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER);
 					monst->info.flags |= MONST_DIES_IF_NEGATED;
-					monst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
+					monst->bookkeepingFlags &= ~(MONST_JUST_SUMMONED | MONST_SEIZED | MONST_SEIZING);
 					monst->info.abilityFlags &= ~MA_CAST_SUMMON; // No summoning by spectral images. Gotta draw the line!
 					monst->leader = &player;
 					monst->creatureState = MONSTER_ALLY;
@@ -692,7 +692,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 // returns whether the attack hit
 boolean attack(creature *attacker, creature *defender) {
 	short damage, transferenceAmount, poisonDamage;
-	char buf[COLS], buf2[COLS], attackerName[COLS], defenderName[COLS], verb[DCOLS], explicationClause[DCOLS] = "", armorRunicString[DCOLS];
+	char buf[COLS*2], buf2[COLS*2], attackerName[COLS], defenderName[COLS], verb[DCOLS], explicationClause[DCOLS] = "", armorRunicString[DCOLS*3];
 	boolean sneakAttack, defenderWasAsleep, degradesAttackerWeapon, sightUnseen;
 	
 	if (attacker->info.abilityFlags & MA_KAMIKAZE) {
@@ -743,7 +743,7 @@ boolean attack(creature *attacker, creature *defender) {
 	}
 	
 	if (sneakAttack || defenderWasAsleep || attackHit(attacker, defender)) {
-		
+		// If the attack hit:
 		damage = (defender->info.flags & MONST_IMMUNE_TO_WEAPONS ? 0 : randClump(attacker->info.damage));
 		
 		if (sneakAttack || defenderWasAsleep) {
@@ -789,15 +789,15 @@ boolean attack(creature *attacker, creature *defender) {
 				rogue.disturbed = true;
 			}
 		} else if (defenderWasAsleep) {
-			sprintf(explicationClause, " while %s sleep%s", monsterText[defender->info.monsterID].pronoun,
-					(defender == &player ? "" : "s"));
+			sprintf(explicationClause, " while $HESHE sleep%s", (defender == &player ? "" : "s"));
 		} else if (sneakAttack) {
-			strcpy(explicationClause, " from the shadows");
+			strcpy(explicationClause, ", catching $HIMHER unaware");
 		} else if (defender->status.stuck || defender->bookkeepingFlags & MONST_CAPTIVE) {
 			sprintf(explicationClause, " while %s dangle%s helplessly",
-					(canSeeMonster(defender) ? monsterText[defender->info.monsterID].pronoun : "it"),
+					(canSeeMonster(defender) ? "$HESHE" : "it"),
 					(defender == &player ? "" : "s"));
 		}
+		resolvePronounEscapes(explicationClause, defender);
 		
 		if ((attacker->info.abilityFlags & MA_POISONS) && damage > 0) {
 			poisonDamage = damage;
@@ -913,14 +913,12 @@ boolean attack(creature *attacker, creature *defender) {
 
 void addExperience(unsigned long exp) {	
 	rogue.experience += exp;
-	if (rogue.experience >= levelPoints[rogue.experienceLevel - 1] && rogue.experienceLevel < MAX_EXP_LEVEL) {
-		while (rogue.experience >= levelPoints[rogue.experienceLevel - 1] && rogue.experienceLevel < MAX_EXP_LEVEL) {
-			rogue.experienceLevel++;
-			player.info.maxHP += 5;
-			player.currentHP += (5 * player.currentHP / (player.info.maxHP - 5));
-			updatePlayerRegenerationDelay();
-			player.info.accuracy += 10;
-		}
+	while (rogue.experience >= levelPoints[rogue.experienceLevel - 1] && rogue.experienceLevel < MAX_EXP_LEVEL) {
+		rogue.experienceLevel++;
+		player.info.maxHP += 5;
+		player.currentHP += (5 * player.currentHP / (player.info.maxHP - 5));
+		updatePlayerRegenerationDelay();
+		player.info.accuracy += 10;
 		rogue.gainedLevel = true;
 	}
 }
@@ -1094,7 +1092,7 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, cons
 		wakeUp(defender);
 		chooseNewWanderDestination(defender);
 	} else if (defender != &player && attacker == &player && defender->creatureState == MONSTER_ALLY) {
-		// totally not your friend anymore
+		// Totally not your friend anymore.
 		unAlly(defender);
 	}
 	

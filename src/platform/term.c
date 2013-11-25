@@ -9,7 +9,9 @@
 #define COLOR_INDEX(color) (1 + ((color)&0x07) + (((color) >> 1) & 0x38))
 #define COLOR_ATTR(color) (COLOR_PAIR(COLOR_INDEX(color)) | (((color)&0x08) ? A_BOLD : 0))
 
-static struct { int curses, color; } videomode = { 0, 0 } ;
+static struct { int curses, color; } videomode = { 0, 0 };
+
+static struct { int width, height; } minsize = { 80, 24 };
 
 static void preparecolor ( ) {
 	static int pairParts[8] = {
@@ -56,7 +58,7 @@ static int curses_init( ) {
 	meta(stdscr, TRUE);
 	keypad(stdscr, TRUE);
 
-	mousemask(BUTTON1_PRESSED | BUTTON1_RELEASED | REPORT_MOUSE_POSITION, NULL);
+	mousemask(BUTTON1_PRESSED | BUTTON1_RELEASED | REPORT_MOUSE_POSITION | BUTTON_SHIFT | BUTTON_CTRL, NULL);
 	mouseinterval(0); //do no click processing, thank you
 	
 	videomode.curses = 1;
@@ -302,6 +304,8 @@ static void term_refresh() {
 	refresh();
 }
 
+static void ensure_size( );
+
 static int term_getkey( ) {
 	Term.mouse.justPressed = 0;
 	Term.mouse.justReleased = 0;
@@ -310,7 +314,7 @@ static int term_getkey( ) {
 	while (1) {
 		int got = getch();
 		if (got == KEY_RESIZE) {
-			getmaxyx(stdscr, Term.height, Term.width);
+			ensure_size( );
 		} else if (got == KEY_MOUSE) {
 			MEVENT mevent;
 			getmouse (&mevent);
@@ -331,6 +335,7 @@ static int term_getkey( ) {
 			}
 			return TERM_MOUSE;
 		} else {
+			if (got == KEY_ENTER) got = 13; // KEY_ENTER -> ^M for systems with odd values for KEY_ENTER
 			if (got == ERR) return TERM_NONE;
 			else return got;
 		}
@@ -347,6 +352,47 @@ static int term_has_key() {
 	}
 }
 
+static void ensure_size( ) {
+	int w = minsize.width, h = minsize.height;
+
+	getmaxyx(stdscr, Term.height, Term.width);
+	if (Term.height < h || Term.width < w) {
+		// resize_term(h, w);
+		getmaxyx(stdscr, Term.height, Term.width);
+		nodelay(stdscr, FALSE);
+		while (Term.height < h || Term.width < w) {
+			erase();
+			attrset(COLOR_ATTR(7));
+
+			mvprintw(1,0,"Brogue needs a terminal window that is at least [%d x %d]", w, h);
+
+			attrset(COLOR_ATTR(15));
+			mvprintw(2,0,"If your terminal can be resized, resize it now.\n");
+
+			attrset(COLOR_ATTR(7));
+			mvprintw(3,0,"Press ctrl-c at any time to quit.\n");
+#ifdef BROGUE_TCOD
+			mvprintw(5,0,"To use libtcod, start the game with the -gl or -s.\n\n");
+#endif
+
+			printw("Width:  %d/%d\n", Term.width, w);
+			printw("Height: %d/%d\n", Term.height, h);
+			
+			getch();
+			getmaxyx(stdscr, Term.height, Term.width);
+		}
+		nodelay(stdscr, TRUE);
+		erase();
+		refresh();
+	}
+}
+
+static void term_resize(int w, int h) {
+	minsize.width = w;
+	minsize.height = h;
+	ensure_size();
+}
+
 static void term_wait(int ms) {
 	napms(ms);
 }
@@ -360,6 +406,7 @@ struct term_t Term = {
 	term_wait,
 	term_has_key,
 	term_title,
+	term_resize,
 	{KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_BACKSPACE, KEY_DC, KEY_F(12)}
 };
 #endif

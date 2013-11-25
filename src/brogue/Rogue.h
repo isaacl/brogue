@@ -31,7 +31,7 @@
 #define USE_UNICODE
 
 // version string -- no more than 16 bytes:
-#define BROGUE_VERSION_STRING "1.5.1"
+#define BROGUE_VERSION_STRING "1.5.2"
 
 // debug macros -- define DEBUGGING as 1 to enable debugging.
 
@@ -46,7 +46,8 @@
 #define D_SAFETY_VISION					(DEBUGGING && 0)
 #define D_EMPHASIZE_LIGHTING_LEVELS		(DEBUGGING && 0)
 #define D_WORMHOLING					(DEBUGGING && 1)
-#define D_IMMORTAL						(DEBUGGING && 1)
+#define D_IMMORTAL						(DEBUGGING && 0)
+#define D_INSPECT_LEVELGEN				(DEBUGGING && 0)
 #define D_INSPECT_MACHINES				(DEBUGGING && 0)
 
 // set to false to allow multiple loads from the same saved file:
@@ -77,9 +78,10 @@
 #define uchar					unsigned short
 
 #define MESSAGE_LINES			3
+#define MESSAGE_ARCHIVE_LINES	ROWS
 
 // Size of the entire terminal window. These need to be hard-coded here and in Viewport.h
-#define COLS					100			// was 80
+#define COLS					100
 #define ROWS					(29 + MESSAGE_LINES)
 
 // Size of the portion of the terminal window devoted to displaying the dungeon:
@@ -135,6 +137,7 @@
 #define FOLIAGE_CHAR	0x2648 // Aries symbol
 #define ALTAR_CHAR		'|'
 #define STATUE_CHAR		0x00df
+#define VENT_CHAR		'='
 
 #define T_FOLIAGE_CHAR	'"'		// 0x2034 // 0x2037
 
@@ -187,6 +190,7 @@
 #define FOLIAGE_CHAR	'&'
 #define ALTAR_CHAR		'|'
 #define STATUE_CHAR		'&'
+#define VENT_CHAR		'='
 
 #define T_FOLIAGE_CHAR	'"'
 
@@ -235,8 +239,8 @@ enum eventTypes {
 
 typedef struct rogueEvent {
 	enum eventTypes eventType;
-	unsigned short int param1;
-	char param2;
+	signed long param1;
+	signed long param2;
 	boolean controlKey;
 	boolean shiftKey;
 } rogueEvent;
@@ -285,6 +289,7 @@ enum tileType {
 	NOTHING = 0,
 	GRANITE,
 	FLOOR,
+	FLOOR_FLOODABLE,
 	CARPET,
 	TOP_WALL,
 	BOTTOM_WALL,
@@ -355,6 +360,7 @@ enum tileType {
 	STONE_BRIDGE,
 	MACHINE_FLOOD_WATER_DORMANT,
 	MACHINE_FLOOD_WATER_SPREADING,
+	MACHINE_MUD_DORMANT,
 		
 	HOLE,
 	HOLE_EDGE,
@@ -426,6 +432,7 @@ enum lightType {
 	PIXIE_LIGHT,
 	LICH_LIGHT,
 	FLAMEDANCER_LIGHT,
+	SENTINEL_LIGHT,
 	SPECTRAL_BLADE_LIGHT,
 	SPECTRAL_IMAGE_LIGHT,
 	SPARK_TURRET_LIGHT,
@@ -451,7 +458,7 @@ enum lightType {
 	NUMBER_LIGHT_KINDS
 };
 
-#define NUMBER_BLUEPRINTS	21
+#define NUMBER_BLUEPRINTS	22
 
 // Item categories
 enum itemCategory {
@@ -668,6 +675,7 @@ enum monsterTypes {
 	MK_DAR_PRIESTESS,
 	MK_DAR_BATTLEMAGE,
 	MK_CENTAUR,
+//	MK_SENTINEL,
 	MK_ACID_TURRET,
 	MK_KRAKEN,
 	MK_LICH,
@@ -693,7 +701,7 @@ enum monsterTypes {
 	NUMBER_MONSTER_KINDS
 };
 
-#define	NUMBER_HORDES				109
+#define	NUMBER_HORDES				113
 
 // flavors
 
@@ -742,11 +750,11 @@ enum tileFlags {
 
 #define TURNS_FOR_FULL_REGEN				300
 #define STOMACH_SIZE						2150
-#define HUNGER_THRESHOLD					300
+#define HUNGER_THRESHOLD					(STOMACH_SIZE - 1800)
 #define WEAK_THRESHOLD						150
 #define FAINT_THRESHOLD						50
-#define MAX_EXP_LEVEL						21
-#define MAX_EXP								10000000L
+#define MAX_EXP_LEVEL						20
+#define MAX_EXP								100000000L
 
 #define XPXP_NEEDED_FOR_ABSORB				4000 // XPXP required for your allies to be eligible to absorb an enemy ability/behavior
 #define XPXP_NEEDED_FOR_LEVELUP				1100 // XPXP required per increase in your allies' stats
@@ -819,11 +827,11 @@ typedef struct levelSpecProfile {
 #define CALL_KEY			'c'
 #define FIGHT_KEY			'f'
 #define FIGHT_TO_DEATH_KEY	'F'
+#define MESSAGE_ARCHIVE_KEY	'M'
 #define HELP_KEY			'?'
 #define DISCOVERIES_KEY		'D'
 #define REPEAT_TRAVEL_KEY	RETURN_KEY
-#define EXAMINE_KEY			'x'
-#define EXPLORE_KEY			'X'
+#define EXPLORE_KEY			'x'
 #define AUTOPLAY_KEY		'A'
 #define SEED_KEY			'~'
 #define EASY_MODE_KEY		'&'
@@ -906,8 +914,8 @@ boolean cellHasTerrainFlag(short x, short y, unsigned long flagMask);
 #define weaponImageCount(enchant)			(clamp((int) (enchant) / 3, 1, 3))		//(max((int) (((enchant) + 1) / 2), 1))
 #define weaponImageDuration(enchant)		3										//(max((int) (1 + (enchant) / 3), 2))
 
-#define armorReprisalPercent(enchant)		max(5, (int) (enchant * 5))
-#define armorAbsorptionMax(enchant)			max(1, (int) (enchant))
+#define armorReprisalPercent(enchant)		(max(5, (int) (enchant * 5)))
+#define armorAbsorptionMax(enchant)			(max(1, (int) (enchant)))
 #define armorImageCount(enchant)			((int) (clamp((int) (enchant) / 3, 1, 3)))		//(max((int) (((enchant) + 1) / 2), 1))
 
 // structs
@@ -1177,6 +1185,7 @@ enum dungeonFeatureTypes {
 	// throwing tutorial -- button in chasm
 	DF_CAGE_DISAPPEARS,
 	DF_MEDIUM_HOLE,
+	DF_MEDIUM_LAVA_POND,
 	
 	// wooden barricade at entrance
 	DF_ADD_WOODEN_BARRICADE,
@@ -1227,6 +1236,10 @@ enum dungeonFeatureTypes {
 	// the room gradually darkens
 	DF_DARKENING_FLOOR,
 	DF_DARK_FLOOR,
+	
+	// bubbles rise from the mud and bog monsters spawn
+	DF_MUD_DORMANT,
+	DF_MUD_ACTIVATE,
 	
 	NUMBER_DUNGEON_FEATURES,
 };
@@ -1367,15 +1380,17 @@ enum hordeFlags {
 	HORDE_DIES_ON_LEADER_DEATH		= Fl(0),	// if the leader dies, the horde will die instead of electing new leader
 	HORDE_IS_SUMMONED				= Fl(1),	// minions summoned when any creature is the same species as the leader and casts summon
 	HORDE_LEADER_CAPTIVE			= Fl(2),	// the leader is in chains and the followers are guards
-	NO_PERIODIC_SPAWN				= Fl(3),	// can spawn only when the level begins -- not afterwards
+	HORDE_NO_PERIODIC_SPAWN			= Fl(3),	// can spawn only when the level begins -- not afterwards
+	HORDE_SPREAD_OUT				= Fl(4),	// minions will be placed randomly in leader's FOV, within 15 spaces
 	
-	HORDE_MACHINE_BOSS				= Fl(4),	// used in machines for a boss challenge
-	HORDE_MACHINE_WATER_MONSTER		= Fl(5),	// used in machines where the room floods with shallow water
-	HORDE_MACHINE_CAPTIVE			= Fl(6),	// powerful captive monsters without any captors
-	HORDE_MACHINE_STATUE			= Fl(7),	// the kinds of monsters that make sense in a statue
-	HORDE_MACHINE_TURRET			= Fl(8),	// turrets, for hiding in walls
+	HORDE_MACHINE_BOSS				= Fl(5),	// used in machines for a boss challenge
+	HORDE_MACHINE_WATER_MONSTER		= Fl(6),	// used in machines where the room floods with shallow water
+	HORDE_MACHINE_CAPTIVE			= Fl(7),	// powerful captive monsters without any captors
+	HORDE_MACHINE_STATUE			= Fl(8),	// the kinds of monsters that make sense in a statue
+	HORDE_MACHINE_TURRET			= Fl(9),	// turrets, for hiding in walls
+	HORDE_MACHINE_MUD				= Fl(10),	// bog monsters, for hiding in mud
 	
-	HORDE_MACHINE_ONLY				= (HORDE_MACHINE_BOSS | HORDE_MACHINE_WATER_MONSTER | HORDE_MACHINE_CAPTIVE | HORDE_MACHINE_STATUE | HORDE_MACHINE_TURRET),
+	HORDE_MACHINE_ONLY				= (HORDE_MACHINE_BOSS | HORDE_MACHINE_WATER_MONSTER | HORDE_MACHINE_CAPTIVE | HORDE_MACHINE_STATUE | HORDE_MACHINE_TURRET | HORDE_MACHINE_MUD),
 };
 
 enum monsterBehaviorFlags {
@@ -1404,6 +1419,8 @@ enum monsterBehaviorFlags {
 	MONST_MAINTAINS_DISTANCE		= Fl(22),	// monster tries to keep a distance of 3 tiles between it and player
 	MONST_WILL_NOT_USE_STAIRS		= Fl(23),	// monster won't chase the player between levels
 	MONST_DIES_IF_NEGATED			= Fl(24),	// monster is purely magical and will die if subjected to negation magic
+	MONST_MALE						= Fl(25),	// monster is male (or 50% likely to be male if also has MONST_FEMALE)
+	MONST_FEMALE					= Fl(26),	// monster is female (or 50% likely to be female if also has MONST_MALE)
 	
 	NEGATABLE_TRAITS				= (MONST_INVISIBLE | MONST_DEFEND_DEGRADE_WEAPON | MONST_IMMUNE_TO_WEAPONS | MONST_FLIES
 									   | MONST_FLITS | MONST_IMMUNE_TO_FIRE | MONST_IMMUNE_TO_WEBS | MONST_FIERY
@@ -1494,7 +1511,6 @@ typedef struct creatureType {
 
 typedef struct monsterWords {
 	char flavorText[COLS*5];
-	char pronoun[10]; // subjective
 	char absorbing[40];
 	char absorbStatus[40];
 	char attack[5][30];
@@ -1690,27 +1706,28 @@ typedef struct levelData {
 enum machineFeatureFlags {
 	MF_GENERATE_ITEM			= Fl(0),	// feature entails generating an item (overridden if the machine is adopting an item)
 	MF_OUTSOURCE_ITEM			= Fl(1),	// item must be adopted by another machine
-	MF_NO_THROWING_WEAPONS		= Fl(2),	// the generated item cannot be a throwing weapon
-	MF_GENERATE_HORDE			= Fl(3),	// generate a monster horde that has all of the horde flags
-	MF_BUILD_IN_DOORWAY			= Fl(4),	// generate this feature at the room entrance
-	MF_WIRE_TO_MACHINE			= Fl(5),	// wire it up to the machine
-	MF_PERMIT_BLOCKING			= Fl(6),	// permit the feature to block the map's passability (e.g. to add a locked door)
-	MF_TREAT_AS_BLOCKING		= Fl(7),	// treat this terrain as though it blocks, for purposes of deciding whether it can be placed there
-	MF_NEAR_GATE				= Fl(8),	// feature must spawn in the rough quarter of tiles closest to the door
-	MF_FAR_FROM_GATE			= Fl(9),	// feature must spawn in the rough quarter of tiles farthest from the door
-	MF_MONSTER_TAKE_ITEM		= Fl(10),	// the item associated with this feature (including if adopted) will be in possession of the horde leader that's generated
-	MF_MONSTER_SLEEPING			= Fl(11),	// the monsters should be asleep when generated
-	MF_EVERYWHERE				= Fl(12),	// generate the feature on every tile of the machine (e.g. carpeting)
-	MF_ALTERNATIVE				= Fl(13),	// build only one feature that has this flag per machine; the rest are skipped
-	MF_ALTERNATIVE_2			= Fl(14),	// same as MF_ALTERNATIVE, but provides for a second set of alternatives of which only one will be chosen
-	MF_REQUIRE_GOOD_RUNIC		= Fl(15),	// generated item must be uncursed runic
-	MF_MONSTERS_DORMANT			= Fl(16),	// monsters are dormant, and appear when a dungeon feature with DFF_ACTIVATE_DORMANT_MONSTER spawns on their tile
-	MF_GENERATE_MONSTER			= Fl(17),	// generate a single monster
-	MF_BUILD_IN_WALLS			= Fl(18),	// build in an impassable tile that is adjacent to the interior
-	MF_BUILD_ANYWHERE_ON_LEVEL	= Fl(19),	// build anywhere on the level, whether or not inside the machine
-	MF_REPEAT_UNTIL_NO_PROGRESS	= Fl(20),	// keep trying to build this feature set until no changes are made
-	MF_IMPREGNABLE				= Fl(21),	// this feature's location will be immune to tunneling
-	MF_IN_VIEW_OF_GATE			= Fl(22),	// this feature must be in view of the gate
+	MF_ADOPT_ITEM				= Fl(2),	// this feature will take the adopted item
+	MF_NO_THROWING_WEAPONS		= Fl(3),	// the generated item cannot be a throwing weapon
+	MF_GENERATE_HORDE			= Fl(4),	// generate a monster horde that has all of the horde flags
+	MF_BUILD_IN_DOORWAY			= Fl(5),	// generate this feature at the room entrance
+	MF_WIRE_TO_MACHINE			= Fl(6),	// wire it up to the machine
+	MF_PERMIT_BLOCKING			= Fl(7),	// permit the feature to block the map's passability (e.g. to add a locked door)
+	MF_TREAT_AS_BLOCKING		= Fl(8),	// treat this terrain as though it blocks, for purposes of deciding whether it can be placed there
+	MF_NEAR_GATE				= Fl(9),	// feature must spawn in the rough quarter of tiles closest to the door
+	MF_FAR_FROM_GATE			= Fl(10),	// feature must spawn in the rough quarter of tiles farthest from the door
+	MF_MONSTER_TAKE_ITEM		= Fl(11),	// the item associated with this feature (including if adopted) will be in possession of the horde leader that's generated
+	MF_MONSTER_SLEEPING			= Fl(12),	// the monsters should be asleep when generated
+	MF_EVERYWHERE				= Fl(13),	// generate the feature on every tile of the machine (e.g. carpeting)
+	MF_ALTERNATIVE				= Fl(14),	// build only one feature that has this flag per machine; the rest are skipped
+	MF_ALTERNATIVE_2			= Fl(15),	// same as MF_ALTERNATIVE, but provides for a second set of alternatives of which only one will be chosen
+	MF_REQUIRE_GOOD_RUNIC		= Fl(16),	// generated item must be uncursed runic
+	MF_MONSTERS_DORMANT			= Fl(17),	// monsters are dormant, and appear when a dungeon feature with DFF_ACTIVATE_DORMANT_MONSTER spawns on their tile
+	MF_GENERATE_MONSTER			= Fl(18),	// generate a single monster
+	MF_BUILD_IN_WALLS			= Fl(19),	// build in an impassable tile that is adjacent to the interior
+	MF_BUILD_ANYWHERE_ON_LEVEL	= Fl(20),	// build anywhere on the level, whether or not inside the machine
+	MF_REPEAT_UNTIL_NO_PROGRESS	= Fl(21),	// keep trying to build this feature set until no changes are made
+	MF_IMPREGNABLE				= Fl(22),	// this feature's location will be immune to tunneling
+	MF_IN_VIEW_OF_GATE			= Fl(23),	// this feature must be in view of the gate
 };
 
 typedef struct machineFeature {
@@ -1803,7 +1820,7 @@ extern "C" {
 	boolean levelIsConnectedWithBlockingMap(char blockingMap[DCOLS][DROWS]);
 	boolean checkLakePassability(short lakeX, short lakeY);
 	void liquidType(short *deep, short *shallow, short *shallowWidth);
-	void fillLake(short x, short y, short liquid, short scanWidth, char wreathMap[DCOLS][DROWS]);
+	void fillLake(short x, short y, short liquid, short scanWidth, char wreathMap[DCOLS][DROWS], char unfilledLakeMap[DCOLS][DROWS]);
 	void resetDFMessageEligibility();
 	void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char spawnMap[DCOLS][DROWS], boolean refresh, boolean duringGame);
 	boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refreshCell, boolean abortIfBlocking);
@@ -1847,7 +1864,7 @@ extern "C" {
 	void printDiscoveriesScreen();
 	void printHighScores(boolean hiliteMostRecent);
 	void showWaypoints();
-	void displaySafetyMap();
+	void displayMap(short **map);
 	void printSeed();
 	void printProgressBar(short x, short y, char barLabel[COLS], long amtFilled, long amtMax, color *fillColor, boolean dim);
 	short printMonsterInfo(creature *monst, short y, boolean dim);
@@ -1895,7 +1912,7 @@ extern "C" {
 	boolean pauseBrogue(short milliseconds);
 	void nextBrogueEvent(rogueEvent *returnEvent, boolean colorsDance, boolean realInputEvenInPlayback);
 	void executeMouseClick(rogueEvent *theEvent);
-	void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shiftKey);
+	void executeKeystroke(signed long keystroke, boolean controlKey, boolean shiftKey);
 	void initializeLevel(short stairDirection);
 	void startLevel (short oldLevelNumber, short stairDirection);
 	void updateMinersLightRadius();
@@ -1923,7 +1940,9 @@ extern "C" {
 							boolean eightWays);
 	short pathingDistance(short x1, short y1, short x2, short y2, unsigned long blockingTerrainFlags);
 	short nextStep(short **distanceMap, short x, short y, boolean reverseDirections);
+	void travelRoute(short path[1000][2], short steps);
 	void travel(short x, short y, boolean autoConfirm);
+	void getExploreMap(short **map, boolean headingToStairs);
 	boolean explore(short frameDelay);
 	void inputLoop();
 	boolean isDisturbed(short x, short y);
@@ -1942,6 +1961,7 @@ extern "C" {
 	void playerTurnEnded();
 	void resetTurnNumber();
 	void displayMonsterFlashes(boolean flashingEnabled);
+	void displayMessageArchive();
 	void temporaryMessage(char *msg1, boolean requireAcknowledgment);
 	void messageWithColor(char *msg, color *theColor, boolean requireAcknowledgment);
 	void flavorMessage(char *msg);
@@ -1954,7 +1974,7 @@ extern "C" {
 	void updateMessageDisplay();
 	void deleteMessages();
 	void confirmMessages();
-	void stripShiftFromMovementKeystroke(unsigned short *keystroke);
+	void stripShiftFromMovementKeystroke(signed long *keystroke);
 	
 	void updateFieldOfViewDisplay(boolean updateDancingTerrain, boolean refreshDisplay);
 	void updateFieldOfView(short xLoc, short yLoc, short radius, boolean paintScent,
@@ -1974,13 +1994,15 @@ extern "C" {
 	boolean removeMonsterFromChain(creature *monst, creature *theChain);
 	boolean monstersAreTeammates(creature *monst1, creature *monst2);
 	boolean monstersAreEnemies(creature *monst1, creature *monst2);
+	void initializeGender(creature *monst);
+	void resolvePronounEscapes(char *text, creature *monst);
 	short pickHordeType(short depth, enum monsterTypes summonerType, unsigned long forbiddenFlags, unsigned long requiredFlags);
 	creature *cloneMonster(creature *monst, boolean announce);
 	short **allocDynamicGrid();
 	void freeDynamicGrid(short **array);
 	void copyDynamicGrid(short **to, short **from);
 	void fillDynamicGrid(short **grid, short fillValue);
-	unsigned long forbiddenFlagsForMonster(creature *monst);
+	unsigned long forbiddenFlagsForMonster(creatureType *monsterType);
 	boolean monsterCanSubmergeNow(creature *monst);
 	void populateMonsters();
 	void updateMonsterState(creature *monst);
