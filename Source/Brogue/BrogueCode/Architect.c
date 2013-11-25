@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/10/09.
- *  Copyright 2009. All rights reserved.
+ *  Copyright 2010. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -28,8 +28,101 @@ short topBlobMinX, topBlobMinY, blobWidth, blobHeight;
 
 levelSpecProfile levelSpec;
 
-void digDungeon() {
+boolean checkLoopiness(short x, short y) {
+	boolean inString;
+	short newX, newY, dir, sdir;
+	short numStrings, maxStringLength, currentStringLength;
+	const short cDirs[8][2] = {{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
 	
+	if (!(pmap[x][y].flags & IN_LOOP)) {
+		return false;
+	}
+	
+	// find a closed neighbor to start on
+	for (sdir = 0; sdir < 8; sdir++) {
+		newX = x + cDirs[sdir][0];
+		newY = y + cDirs[sdir][1];
+		if (!coordinatesAreInMap(newX, newY)
+			|| !(pmap[newX][newY].flags & IN_LOOP)) {
+			break;
+		}
+	}
+	if (sdir == 8) { // no unloopy neighbors
+		return false; // leave cell loopy
+	}
+	
+	// starting on this unloopy neighbor, work clockwise and count up (a) the number of strings
+	// of loopy neighbors, and (b) the length of the longest such string.
+	numStrings = maxStringLength = currentStringLength = 0;
+	inString = false;
+	for (dir = sdir; dir < sdir + 8; dir++) {
+		newX = x + cDirs[dir % 8][0];
+		newY = y + cDirs[dir % 8][1];
+		if (coordinatesAreInMap(newX, newY) && (pmap[newX][newY].flags & IN_LOOP)) {
+			currentStringLength++;
+			if (!inString) {
+				if (numStrings > 0) {
+					return false; // more than one string here; leave loopy
+				}
+				numStrings++;
+				inString = true;
+			}
+		} else if (inString) {
+			if (currentStringLength > maxStringLength) {
+				maxStringLength = currentStringLength;
+			}
+			currentStringLength = 0;
+			inString = false;
+		}
+	}
+	if (numStrings == 1 && maxStringLength <= 3) {
+		pmap[x][y].flags &= ~IN_LOOP;
+		
+		for (dir = 0; dir < 8; dir++) {
+			newX = x + cDirs[dir][0];
+			newY = y + cDirs[dir][1];
+			if (coordinatesAreInMap(newX, newY)) {
+				//checkLoopiness(newX, newY);
+			}
+		}
+		return true;
+	} else {
+		return false;
+	}
+}
+
+void findLoops() {
+	short i, j;
+	boolean madeChange;
+	
+	for(i=0; i<DCOLS; i++) {
+		for(j=0; j<DROWS; j++) {	
+			if (cellHasTerrainFlag(i, j, PATHING_BLOCKER)
+				&& !cellHasTerrainFlag(i, j, IS_SECRET)) {
+				pmap[i][j].flags &= ~IN_LOOP;
+			} else {
+				pmap[i][j].flags |= IN_LOOP;
+			}
+		}
+	}
+	
+	do {
+		madeChange = false;
+		
+		for(i=0; i<DCOLS; i++) {
+			for(j=0; j<DROWS; j++) {
+				if (checkLoopiness(i, j)) {
+					madeChange = true;
+//					displayLevel();
+//					displayLoops();
+//					pauseBrogue(1);
+				}
+			}
+		}
+	} while (madeChange);
+}
+
+void digDungeon() {
 	short i, j, k, l;
 	short x1, x2, y1, y2;
 	short roomWidth, roomHeight, roomX, roomY;
@@ -45,6 +138,7 @@ void digDungeon() {
 	boolean isCross = false;
 	boolean roomWasPlaced = true;
 	boolean diagonalCornerRemoved;
+	boolean foundExposure;
 	room *builtRoom = NULL, *fromRoom = NULL, *seedRoom;
 	
 	rogue.scentTurnNumber = 10000;
@@ -60,13 +154,14 @@ void digDungeon() {
 			pmap[i][j].layers[LIQUID] = NOTHING;
 			pmap[i][j].layers[GAS] = NOTHING;
 			pmap[i][j].layers[SURFACE] = NOTHING;
+			pmap[i][j].rememberedTerrain = NOTHING;
+			pmap[i][j].rememberedItemCategory = 0;
 			pmap[i][j].flags = 0;
 			tmap[i][j].scent = 0;
 			pmap[i][j].volume = 0;
 		}
 	}
 	
-	// TODO: Tailor room sizes to depth?
 	//depthRoomSizeScaleFactor = 1000 - 500 * (min(rogue.depthLevel - 1, 25)) / 25;
 	depthRoomSizeScaleFactor = 1000;
 	levelSpec.roomMinWidth = max(MIN_SCALED_ROOM_DIMENSION, ROOM_MIN_WIDTH * depthRoomSizeScaleFactor / 1000);
@@ -210,63 +305,14 @@ void digDungeon() {
 		}
 	}
 	
-	// Now remove diagonal openings
-	do {
-		diagonalCornerRemoved = false;
-		for (i=0; i<DCOLS-1; i++) {
-			for (j=0; j<DROWS-1; j++) {
-				for (k=0; k<=1; k++) {
-					if (!(tileCatalog[pmap[i + k][j].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
-						&& (tileCatalog[pmap[i + (1-k)][j].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
-						&& (tileCatalog[pmap[i + k][j+1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
-						&& !(tileCatalog[pmap[i + (1-k)][j+1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)) {
-						diagonalCornerRemoved = true;
-						if (rand_percent(50)) {
-							x1 = i + (1-k);
-							x2 = i + k;
-							y1 = j;
-						} else {
-							x1 = i + k;
-							x2 = i + (1-k);
-							y1 = j + 1;
-						}
-						if (tileCatalog[pmap[x1][y1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY) {
-							pmap[x1][y1].layers[LIQUID] = pmap[x2][y1].layers[LIQUID];
-						}
-						pmap[x1][y1].layers[DUNGEON] = FLOOR;
-						//pmap[x1][y1].layers[LIQUID] = pmap[x2][y1].layers[LIQUID];
-					}
-				}
-			}
-		}
-	} while (diagonalCornerRemoved == true);
-	
 	// Now fill all the lakes with various liquids
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
 			if (pmap[i][j].layers[LIQUID] == UNFILLED_LAKE) {
 				liquidType(&deepLiquid, &shallowLiquid, &shallowLiquidWidth);
 				zeroOutGrid(wreathMap);
-				//fillLake(i, j, deepLiquid, max(1, shallowLiquidWidth), wreathMap);
 				fillLake(i, j, deepLiquid, 4, wreathMap);
 				createWreath(shallowLiquid, shallowLiquidWidth, wreathMap);
-			}
-		}
-	}
-	
-	// Now remove orphaned doors and upgrade some doors to secret doors
-	for (i=1; i<DCOLS-1; i++) {
-		for (j=1; j<DROWS-1; j++) {
-			if (pmap[i][j].layers[DUNGEON] == DOOR) {
-				// l = 0;
-				// if there's a floor to the left or right, and there's a floor above or below, then the door
-				// is orphaned and must die.
-				if ((pmap[i+1][j].layers[DUNGEON] == FLOOR || pmap[i-1][j].layers[DUNGEON] == FLOOR)
-					  && (pmap[i][j+1].layers[DUNGEON] == FLOOR || pmap[i][j-1].layers[DUNGEON] == FLOOR)) {
-					pmap[i][j].layers[DUNGEON] = FLOOR;
-				} else if (rand_percent(levelSpec.secretDoorChance)) {
-					pmap[i][j].layers[DUNGEON] = SECRET_DOOR;
-				}
 			}
 		}
 	}
@@ -296,6 +342,182 @@ void digDungeon() {
 			}
 		}
 	}
+	
+	// Now remove diagonal openings
+	do {
+		diagonalCornerRemoved = false;
+		for (i=0; i<DCOLS-1; i++) {
+			for (j=0; j<DROWS-1; j++) {
+				for (k=0; k<=1; k++) {
+					if (!(tileCatalog[pmap[i + k][j].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
+						&& (tileCatalog[pmap[i + (1-k)][j].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
+						&& (tileCatalog[pmap[i + k][j+1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
+						&& !(tileCatalog[pmap[i + (1-k)][j+1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)) {
+						diagonalCornerRemoved = true;
+						if (rand_percent(50)) {
+							x1 = i + (1-k);
+							x2 = i + k;
+							y1 = j;
+						} else {
+							x1 = i + k;
+							x2 = i + (1-k);
+							y1 = j + 1;
+						}
+						if (tileCatalog[pmap[x1][y1].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY) {
+							pmap[x1][y1].layers[LIQUID] = pmap[x2][y1].layers[LIQUID];
+						}
+						pmap[x1][y1].layers[DUNGEON] = FLOOR;
+					}
+				}
+			}
+		}
+	} while (diagonalCornerRemoved == true);
+	
+	// Now add some bridges
+	while (buildABridge());
+	
+	// Now remove orphaned doors and upgrade some doors to secret doors
+	for (i=1; i<DCOLS-1; i++) {
+		for (j=1; j<DROWS-1; j++) {
+			if (pmap[i][j].layers[DUNGEON] == DOOR) {
+				// if there's a floor to the left or right, and there's a floor above or below, then the door
+				// is orphaned and must die.
+				if ((pmap[i+1][j].layers[DUNGEON] == FLOOR || pmap[i-1][j].layers[DUNGEON] == FLOOR)
+					&& (pmap[i][j+1].layers[DUNGEON] == FLOOR || pmap[i][j-1].layers[DUNGEON] == FLOOR)) {
+					pmap[i][j].layers[DUNGEON] = FLOOR;
+				} else if (rand_percent(levelSpec.secretDoorChance)) {
+					pmap[i][j].layers[DUNGEON] = SECRET_DOOR;
+				}
+			}
+		}
+	}
+	
+	// Now finish any exposed granite with walls and revert any unexposed walls to granite
+	for (i=0; i<DCOLS; i++) {
+		for (j=0; j<DROWS; j++) {
+			if (pmap[i][j].layers[DUNGEON] == GRANITE) {
+				foundExposure = false;
+				for (direction = 0; direction < 8 && !foundExposure; direction++) {
+					x1 = i + nbDirs[direction][0];
+					y1 = j + nbDirs[direction][1];
+					if (coordinatesAreInMap(x1, y1)
+						&& (!cellHasTerrainFlag(x1, y1, OBSTRUCTS_VISION) || !cellHasTerrainFlag(x1, y1, OBSTRUCTS_PASSABILITY))) {
+						pmap[i][j].layers[DUNGEON] = TOP_WALL;
+						foundExposure = true;
+					}
+				}
+			} else if (pmap[i][j].layers[DUNGEON] == TOP_WALL || pmap[i][j].layers[DUNGEON] == PERM_WALL) {
+				foundExposure = false;
+				for (direction = 0; direction < 8 && !foundExposure; direction++) {
+					x1 = i + nbDirs[direction][0];
+					y1 = j + nbDirs[direction][1];
+					if (coordinatesAreInMap(x1, y1)
+						&& (!cellHasTerrainFlag(x1, y1, OBSTRUCTS_VISION) || !cellHasTerrainFlag(x1, y1, OBSTRUCTS_PASSABILITY))) {
+						foundExposure = true;
+					}
+				}
+				if (foundExposure == false) {
+					pmap[i][j].layers[DUNGEON] = GRANITE;
+				}
+			}
+		}
+	}
+	//findLoops();
+}
+
+// Scans from the top-left to the bottom-right looking for a good place to build a bridge.
+// If it finds one, it builds a bridge there, halts and returns true.
+boolean buildABridge() {
+	short i, j, k, l;
+	boolean foundExposure;
+	
+	for (i=1; i<DCOLS-1; i++) {
+		for (j=1; j<DROWS-1; j++) {
+			if (!cellHasTerrainFlag(i, j, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))
+				&& (pmap[i][j].layers[LIQUID] != BRIDGE || rand_percent(15))) {
+				
+				// try a horizontal bridge
+				foundExposure = false;
+				for (k = i + 1;
+					 k < DCOLS
+					 && cellHasTerrainFlag(k, j, CAN_BE_BRIDGED)
+					 && !cellHasTerrainFlag(k, j, OBSTRUCTS_PASSABILITY)
+					 && cellHasTerrainFlag(k, j-1, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))
+					 && cellHasTerrainFlag(k, j+1, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY));
+					 k++) {
+					if (!cellHasTerrainFlag(k, j-1, OBSTRUCTS_PASSABILITY)
+						&& !cellHasTerrainFlag(k, j+1, OBSTRUCTS_PASSABILITY)) {
+						foundExposure = true;
+					}
+				}
+				if (k < DCOLS
+					&& (k - i > 3)
+					&& foundExposure
+					&& !cellHasTerrainFlag(k, j, OBSTRUCTS_PASSABILITY | CAN_BE_BRIDGED)
+					&& pathingDistance(i, j, k, j, PATHING_BLOCKER) / (k - i) > 2) {
+					for (l=i+1; l < k; l++) {
+						pmap[l][j].layers[LIQUID] = BRIDGE;
+					}
+					pmap[i][j].layers[SURFACE] = BRIDGE_EDGE;
+					pmap[k][j].layers[SURFACE] = BRIDGE_EDGE;
+					return true;
+				}
+				
+				// try a vertical bridge
+				foundExposure = false;
+				for (k = j + 1;
+					 k < DROWS
+					 && cellHasTerrainFlag(i, k, CAN_BE_BRIDGED)
+					 && !cellHasTerrainFlag(i, k, OBSTRUCTS_PASSABILITY)
+					 && cellHasTerrainFlag(i-1, k, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY))
+					 && cellHasTerrainFlag(i+1, k, (CAN_BE_BRIDGED | OBSTRUCTS_PASSABILITY));
+					 k++) {
+					if (!cellHasTerrainFlag(i-1, k, OBSTRUCTS_PASSABILITY)
+						&& !cellHasTerrainFlag(i+1, k, OBSTRUCTS_PASSABILITY)) {
+						foundExposure = true;
+					}
+				}
+				if (k < DROWS
+					&& (k - j > 3)
+					&& foundExposure
+					&& !cellHasTerrainFlag(i, k, OBSTRUCTS_PASSABILITY | CAN_BE_BRIDGED)
+					&& pathingDistance(i, j, i, k, PATHING_BLOCKER) / (k - j) > 5) {
+					for (l=j+1; l < k; l++) {
+						pmap[i][l].layers[LIQUID] = BRIDGE;
+					}
+					pmap[i][j].layers[SURFACE] = BRIDGE_EDGE;
+					pmap[i][k].layers[SURFACE] = BRIDGE_EDGE;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void updateMapToShore() {
+	short i, j;
+	boolean passMap[DCOLS][DROWS];
+	
+	// Calculate the map to shore for this level
+	if (rogue.mapToShore) {
+		//freeDynamicGrid(rogue.mapToShore);
+	} else {
+		rogue.mapToShore = allocDynamicGrid();
+	}
+	for (i=0; i<DCOLS; i++) {
+		for (j=0; j<DROWS; j++) {
+			if (cellHasTerrainFlag(i, j, OBSTRUCTS_PASSABILITY)) {
+				passMap[i][j] = false;
+				rogue.mapToShore[i][j] = 30000;
+			} else {
+				passMap[i][j] = true;
+				rogue.mapToShore[i][j] = (cellHasTerrainFlag(i, j, LAVA_INSTA_DEATH | IS_DEEP_WATER | TRAP_DESCENT)
+										  && !cellHasTerrainFlag(i, j, IS_SECRET)) ? 30000 : 0;
+			}
+		}
+	}
+	dijkstraScan(rogue.mapToShore, NULL, passMap, true);
 }
 
 void augmentAccessMapWithWaypoint(char accessMap[DCOLS][DROWS], boolean WPactive[MAX_WAYPOINTS], short x, short y) {
@@ -1148,7 +1370,6 @@ void generateCave() {
 	}
 	
 	// Mark the corners as PERM_WALLs
-	// TODO: make corner designation more exacting
 	for (i = roomX; i < roomX + blobWidth; i++) {
 		for (j=roomY; j < roomY + blobHeight; j++) {
 			for (k=4; k<8; k++) {
@@ -1198,7 +1419,9 @@ void connectCell(short x, short y, char blockingMap[DCOLS][DROWS], char visited[
 		newY = y + nbDirs[dir][1];
 		
 		if (coordinatesAreInMap(newX, newY) && !visited[newX][newY] && !blockingMap[newX][newY]
-			&& (!cellHasTerrainFlag(newX, newY, PATHING_BLOCKER) || cellHasTerrainFlag(newX, newY, IS_SECRET))) {
+			&& (!cellHasTerrainFlag(newX, newY, PATHING_BLOCKER)
+				|| (cellHasTerrainFlag(newX, newY, IS_SECRET)
+					&& cellHasTerrainFlag(newX, newY, OBSTRUCTS_PASSABILITY)))) {
 			
 			connectCell(newX, newY, blockingMap, visited);
 		}
@@ -1214,7 +1437,7 @@ boolean levelIsConnectedWithBlockingMap(char blockingMap[DCOLS][DROWS]) {
 	startX = 0;
 	
 	// get starting location for the fill
-	for (i=0; i<DCOLS, startX == 0; i++) {
+	for (i=0; i<DCOLS && startX == 0; i++) {
 		for (j=0; j<DROWS; j++) {
 			if (!cellHasTerrainFlag(i, j, PATHING_BLOCKER) && !blockingMap[i][j]) {
 				startX = i;
@@ -1254,12 +1477,11 @@ void floodFillLakeCheck(short xLoc, short yLoc) {
 		if (newY < 0 || newY > DROWS) {
 			break;
 		}
-		if ((tmap[newX][newY].connected == 0) &&					// If there's no proposed water and it's unmarked
-			//(!(tileCatalog[pmap[newX][newY].layers[DUNGEON]].flags & OBSTRUCTS_PASSABILITY)
+		if ((tmap[newX][newY].connected == 0) &&					// If there's no proposed media and it's unmarked
 			(!cellHasTerrainFlag(newX, newY, PATHING_BLOCKER)
 			|| tileCatalog[pmap[newX][newY].layers[DUNGEON]].flags & IS_SECRET)	// and it's passable
-			&& pmap[newX][newY].layers[LIQUID] == NOTHING) {		// and there's no real water either
-			floodFillLakeCheck(newX, newY);						// ...then recurse.
+			&& pmap[newX][newY].layers[LIQUID] == NOTHING) {		// and there's no real media either
+			floodFillLakeCheck(newX, newY);							// ...then recurse.
 		}
 	}
 }
@@ -1302,27 +1524,32 @@ boolean checkLakePassability(short lakeX, short lakeY) {
 }
 
 void liquidType(short *deep, short *shallow, short *shallowWidth) {
-	switch(rand_range(0, 2)) {
+	short randMin, randMax, rand;
+	
+	randMin = (rogue.depthLevel < 4 ? 1 : 0); // no lava before level 4
+	randMax = (rogue.depthLevel < 17 ? 2 : 3); // no brimstone before level 18
+	rand = rand_range(randMin, randMax);
+	
+	switch(rand) {
 		case 0:
+			*deep = LAVA;
+			*shallow = NOTHING;
+			*shallowWidth = 0;
+			break;
+		case 1:
 			*deep = DEEP_WATER;
 			*shallow = SHALLOW_WATER;
 			*shallowWidth = 2;
-			break;
-		case 1:
-			if (rogue.depthLevel > 3 || rand_percent((rogue.depthLevel - 1) * 33)) {
-				*deep = LAVA;
-				*shallow = NOTHING;
-				*shallowWidth = 0;
-			} else {
-				*deep = DEEP_WATER;
-				*shallow = SHALLOW_WATER;
-				*shallowWidth = 2;
-			}
 			break;
 		case 2:
 			*deep = CHASM;
 			*shallow = CHASM_EDGE;
 			*shallowWidth = 1;
+			break;
+		case 3:
+			*deep = INERT_BRIMSTONE;
+			*shallow = OBSIDIAN;
+			*shallowWidth = 2;
 			break;
 	}
 }
@@ -1343,15 +1570,98 @@ void fillLake(short x, short y, short liquid, short scanWidth, char wreathMap[DC
 	}
 }
 
-void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char spawnMap[DCOLS][DROWS]) {
+void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char spawnMap[DCOLS][DROWS], boolean refresh) {
 	short i, j;
+	creature *monst;
+	item *theItem;
+	
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
-			if (spawnMap[i][j]) {
+			if (spawnMap[i][j]
+				&& pmap[i][j].layers[layer] != surfaceTileType
+				&& (refresh || pmap[i][j].layers[LIQUID] == NOTHING)
+				&& tileCatalog[pmap[i][j].layers[layer]].drawPriority >= tileCatalog[surfaceTileType].drawPriority
+				&& (layer != SURFACE || (!cellHasTerrainFlag(i, j, OBSTRUCTS_SURFACE_EFFECTS)))
+				&& (layer != SURFACE || tileCatalog[pmap[i][j].layers[highestPriorityLayer(i, j, true)]].drawPriority >= tileCatalog[surfaceTileType].drawPriority)) {
+				
+				if ((tileCatalog[surfaceTileType].flags & IS_FIRE)
+					&& !(tileCatalog[pmap[i][j].layers[layer]].flags & IS_FIRE)) {
+					pmap[i][j].flags |= CAUGHT_FIRE_THIS_TURN;
+				}
+				
 				pmap[i][j].layers[layer] = surfaceTileType;
+				
+				if (refresh) {
+					refreshDungeonCell(i, j);
+					if (player.xLoc == i && player.yLoc == j && !player.status.levitating) {
+						message(tileFlavor(player.xLoc, player.yLoc), false, false);
+					}
+					if (pmap[i][j].flags & (HAS_MONSTER | HAS_PLAYER)) {
+						monst = monsterAtLoc(i, j);
+						applyInstantTileEffectsToCreature(monst);
+						if (rogue.gameHasEnded) {
+							return;
+						}
+					}
+					
+					if (tileCatalog[surfaceTileType].flags & IS_FIRE) {
+						if (pmap[i][j].flags & HAS_ITEM) {
+							theItem = itemAtLoc(i, j);
+							if (theItem->flags & ITEM_FLAMMABLE) {
+								burnItem(theItem);
+							}
+						}
+					}
+				}
 			}
 		}
 	}
+}
+
+void spawnMapDF(short x, short y, enum dungeonLayers layer, enum tileType surfaceTileType,
+				enum tileType propagationTerrain, boolean requirePropTerrain, short startProb,
+				short probDec, char spawnMap[DCOLS][DROWS]) {
+	
+	short i, j, dir, t, x2, y2;
+	boolean madeChange;
+	
+	spawnMap[x][y] = t = 1;
+	
+	do {
+		madeChange = false;
+		t++;
+		for (i = 0; i < DCOLS; i++) {
+			for (j=0; j<DROWS; j++) {
+				if (spawnMap[i][j] == t - 1) {
+					for (dir = 0; dir < 4; dir++) {
+						x2 = i + nbDirs[dir][0];
+						y2 = j + nbDirs[dir][1];
+						if (coordinatesAreInMap(x2, y2)
+							&& (!requirePropTerrain || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
+							&& (!cellHasTerrainFlag(x2, y2, OBSTRUCTS_SURFACE_EFFECTS) || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
+							&& rand_percent(startProb)) {
+							
+							spawnMap[x2][y2] = t;
+							madeChange = true;
+						}
+					}
+				}
+			}
+		}
+		startProb -= probDec;
+		if (t > 100) {
+			for (i = 0; i < DCOLS; i++) {
+				for (j=0; j<DROWS; j++) {
+					if (spawnMap[i][j] == t) {
+						spawnMap[i][j] = 2;
+					} else if (spawnMap[i][j] > 0) {
+						spawnMap[i][j] = 1;
+					}
+				}
+			}
+			t = 2;
+		}
+	} while (madeChange && startProb > 0);
 }
 
 void spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refreshCell) {
@@ -1362,49 +1672,57 @@ void spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refresh
 		pmap[x][y].volume += randClump(feat->startProbability);
 		pmap[x][y].layers[GAS] = feat->tile;
 	} else {
-		if (blocking) {
-			zeroOutGrid(blockingMap);
-		}
-		spawnSurfaceEffect(x, y, feat->layer, feat->tile,
-						   randClump(feat->startProbability),
-						   randClump(feat->probabilityDecrement),
-						   (blocking ? blockingMap : NULL), refreshCell);
-		if (/*!*/blocking /*||*/ && levelIsConnectedWithBlockingMap(blockingMap)) {
-			fillSpawnMap(feat->layer, feat->tile, blockingMap);
+		zeroOutGrid(blockingMap);
+		spawnMapDF(x, y, feat->layer, feat->tile,
+						  feat->propagationTerrain,
+						  false,
+						  randClump(feat->startProbability),
+						  randClump(feat->probabilityDecrement),
+						  blockingMap);
+		if (!blocking || levelIsConnectedWithBlockingMap(blockingMap)) {
+			fillSpawnMap(feat->layer, feat->tile, blockingMap, refreshCell);
 		}		
 	}
 	if (feat->subsequentDF) {
 		spawnDungeonFeature(x, y, &dungeonFeatureCatalog[feat->subsequentDF], refreshCell);
 	}
+	if (tileCatalog[feat->tile].flags & (IS_DEEP_WATER | LAVA_INSTA_DEATH | TRAP_DESCENT)) {
+		updateMapToShore();
+	}
 }
 
-void spawnSurfaceEffect(short x, short y, enum dungeonLayers layer, enum tileType surfaceTileType, short startProbability,
+/*void spawnSurfaceEffect(short x, short y, enum dungeonLayers layer, enum tileType surfaceTileType,
+						enum tileType propagationTerrain, boolean requirePropTerrain, short startProbability,
 						short probabilityDecrement, char spawnMap[DCOLS][DROWS], boolean refreshCell) {
-	short i, x2, y2;
+	short i, x2, y2, dirs[4];
 	creature *monst;
 	item *theItem;
+	
 	if (rogue.gameHasEnded) {
 		return;
 	}
-	if ((tileCatalog[pmap[x][y].layers[layer]].drawPriority >= tileCatalog[surfaceTileType].drawPriority
-		 && pmap[x][y].layers[layer] != surfaceTileType) && (!spawnMap || !spawnMap[x][y])
-		&& (layer != SURFACE || (!cellHasTerrainFlag(x, y, OBSTRUCTS_SURFACE_EFFECTS))) && (refreshCell || pmap[x][y].layers[LIQUID] == NOTHING) ) {
+	if (tileCatalog[pmap[x][y].layers[layer]].drawPriority >= tileCatalog[surfaceTileType].drawPriority
+		&& pmap[x][y].layers[layer] != surfaceTileType
+		&& (!spawnMap || !spawnMap[x][y])
+		&& (layer != SURFACE || (!cellHasTerrainFlag(x, y, OBSTRUCTS_SURFACE_EFFECTS)))
+		&& (refreshCell || pmap[x][y].layers[LIQUID] == NOTHING) ) {
 		if (spawnMap) {
 			spawnMap[x][y] = 1;
 		} else {
 			if (tileCatalog[surfaceTileType].flags & IS_FIRE && !(tileCatalog[pmap[x][y].layers[layer]].flags & IS_FIRE)) {
 				pmap[x][y].flags |= CAUGHT_FIRE_THIS_TURN;
 			}
-			pmap[x][y].layers[layer] = surfaceTileType;
+			if (layer != SURFACE
+				|| tileCatalog[pmap[x][y].layers[highestPriorityLayer(x, y, true)]].drawPriority >= tileCatalog[surfaceTileType].drawPriority) {
+				pmap[x][y].layers[layer] = surfaceTileType;
+			}
 			
 			if (refreshCell) {
-				if (tileCatalog[surfaceTileType].flags & (IS_FIRE | CAUSES_EXPLOSIVE_DAMAGE)) {
-					if (pmap[x][y].flags & (HAS_MONSTER | HAS_PLAYER)) {
-						monst = monsterAtLoc(x, y);
-						applyTileEffectToCreature(monst);
-						if (rogue.gameHasEnded) {
-							return;
-						}
+				if (pmap[x][y].flags & (HAS_MONSTER | HAS_PLAYER)) {
+					monst = monsterAtLoc(x, y);
+					applyInstantTileEffectsToCreature(monst);
+					if (rogue.gameHasEnded) {
+						return;
 					}
 				}
 				
@@ -1422,34 +1740,47 @@ void spawnSurfaceEffect(short x, short y, enum dungeonLayers layer, enum tileTyp
 		if (refreshCell) {
 			refreshDungeonCell(x, y);
 			if (player.xLoc == x && player.yLoc == y && !player.status.levitating) {
-				message(tileFlavorText(player.xLoc, player.yLoc), false, false);
+				message(tileFlavor(player.xLoc, player.yLoc), false, false);
 			}
 		}
 	}
 	for (i=0; i<4; i++) {
-		x2 = x + nbDirs[i][0];
-		y2 = y + nbDirs[i][1];
-		if (coordinatesAreInMap(x2, y2) && !cellHasTerrainFlag(x2, y2, OBSTRUCTS_SURFACE_EFFECTS)
+		dirs[i] = i;
+	}
+	shuffleList(dirs, 4);
+	for (i=0; i<4; i++) {
+		x2 = x + nbDirs[dirs[i]][0];
+		y2 = y + nbDirs[dirs[i]][1];
+		if (coordinatesAreInMap(x2, y2)
+			&& ((startProbability / max(probabilityDecrement, 1) < 5) || pmap[x2][y2].layers[layer] != surfaceTileType)
+			&& (!requirePropTerrain || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
+			&& (!cellHasTerrainFlag(x2, y2, OBSTRUCTS_SURFACE_EFFECTS) || (propagationTerrain > 0 && cellHasTerrainType(x2, y2, propagationTerrain)))
 			&& rand_percent(startProbability)) {
-			spawnSurfaceEffect(x2, y2, layer, surfaceTileType, startProbability - probabilityDecrement,
-							   probabilityDecrement, spawnMap, refreshCell);
+			spawnSurfaceEffect(x2, y2, layer, surfaceTileType, propagationTerrain, requirePropTerrain,
+							   startProbability - probabilityDecrement, probabilityDecrement, spawnMap, refreshCell);
 		}
 	}
-}
+}*/
 
-void restoreMonster(creature *monst, short **mapToStairs) {
+void restoreMonster(creature *monst, short **mapToStairs, short **mapToPit) {
 	short i, *x, *y, loc[2], dir, turnCount;
 	creature *leader;
 	boolean foundLeader = false;
+	short **theMap;
 	
 	x = &(monst->xLoc);
 	y = &(monst->yLoc);
 	
 	if (monst->status.entersLevelIn > 0) {
-		if (mapToStairs) {
-			turnCount = ((mapToStairs[monst->xLoc][monst->yLoc] * monst->movementSpeed / 100) - monst->status.entersLevelIn);
+		if (monst->bookkeepingFlags & (MONST_APPROACHING_PIT)) {
+			theMap = mapToPit;
+		} else {
+			theMap = mapToStairs;
+		}
+		if (theMap) {
+			turnCount = ((theMap[monst->xLoc][monst->yLoc] * monst->movementSpeed / 100) - monst->status.entersLevelIn);
 			for (i=0; i < turnCount; i++) {
-				if ((dir = nextStep(mapToStairs, monst->xLoc, monst->yLoc)) != -1) {
+				if ((dir = nextStep(theMap, monst->xLoc, monst->yLoc)) != -1) {
 					monst->xLoc += nbDirs[dir][0];
 					monst->yLoc += nbDirs[dir][1];	
 				}
@@ -1470,7 +1801,7 @@ void restoreMonster(creature *monst, short **mapToStairs) {
 		*y = loc[1];
 	}
 	pmap[*x][*y].flags |= HAS_MONSTER;
-	monst->bookkeepingFlags &= ~(MONST_PREPLACED | MONST_APPROACHING_DOWNSTAIRS | MONST_APPROACHING_UPSTAIRS);
+	monst->bookkeepingFlags &= ~(MONST_PREPLACED | MONST_APPROACHING_DOWNSTAIRS | MONST_APPROACHING_UPSTAIRS | MONST_APPROACHING_PIT);
 	
 	if (monst->bookkeepingFlags & MONST_FOLLOWER) {
 		// is the leader on the same level?
@@ -1514,18 +1845,21 @@ void restoreItem(item *theItem) {
 		*y = loc[1];
 	}
 	pmap[*x][*y].flags |= HAS_ITEM;
+	if (theItem->flags & ITEM_MAGIC_DETECTED && itemMagicChar(theItem)) {
+		pmap[*x][*y].flags |= ITEM_DETECTED;
+	}
 }
 
 // Places the player, monsters, items and stairs.
 void initializeLevel(short oldLevelNumber, short stairDirection) {
-	short upLoc[2], downLoc[2], **mapToStairs;
+	short upLoc[2], downLoc[2], **mapToStairs, **mapToPit;
 	creature *monst;
 	item *theItem, *prevItem;
 	boolean amuletOnLevel;
 	short n = rogue.depthLevel - 1;
 	
 	getQualifyingLocNear(downLoc, levels[n].downStairsLoc[0], levels[n].downStairsLoc[1],
-						 DCOLS, (OBSTRUCTS_ITEMS | TRAP_DESCENT | IS_DEEP_WATER | LAVA_INSTA_DEATH | ALLOWS_SUBMERGING),
+						 DCOLS, (OBSTRUCTS_ITEMS | TRAP_DESCENT | IS_DEEP_WATER | LAVA_INSTA_DEATH | ALLOWS_SUBMERGING), // | IS_BRIDGE),
 						 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS), true);
 	if (rogue.depthLevel < 100) {
 		pmap[downLoc[0]][downLoc[1]].layers[DUNGEON] = DOWN_STAIRS;
@@ -1595,11 +1929,14 @@ void initializeLevel(short oldLevelNumber, short stairDirection) {
 	}
 	
 	mapToStairs = allocDynamicGrid();
+	mapToPit = allocDynamicGrid();
 	calculateDistances(mapToStairs, player.xLoc, player.yLoc, 0, &player);
+	calculateDistances(mapToStairs, levels[rogue.depthLevel - 1].playerExitedVia[0], levels[rogue.depthLevel - 1].playerExitedVia[1], 0, &player);
 	for (monst = monsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
-		restoreMonster(monst, mapToStairs);
+		restoreMonster(monst, mapToStairs, mapToPit);
 	}
 	freeDynamicGrid(mapToStairs);
+	freeDynamicGrid(mapToPit);
 	
 	if (!levels[rogue.depthLevel-1].visited) {
 		populateItems(upLoc[0], upLoc[1]);
@@ -1630,10 +1967,6 @@ boolean randomMatchingLocation(short *loc, short dungeonType, short liquidType, 
 		return false;
 	}
 	return true;
-}
-
-boolean coordinatesAreInMap(short x, short y) {
-	return (x >= 0 && x < DCOLS && y >= 0 && y < DROWS);
 }
 
 void logLevel() {

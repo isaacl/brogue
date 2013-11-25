@@ -1,37 +1,40 @@
-{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf250
+{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf320
 {\fonttbl\f0\fswiss\fcharset0 Helvetica;}
 {\colortbl;\red255\green255\blue255;}
-\margl1440\margr1440\vieww11600\viewh17120\viewkind0
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}}
+\margl1440\margr1440\vieww12000\viewh17120\viewkind0
+\deftab720
+\pard\pardeftab720\ql\qnatural
 
-\f0\b\fs48 \cf0 Brogue
-\fs24 \
+\f0\b\fs56 \cf0 Brogue
+\b0\fs26 \
 \
-v1.0.1\
+v1.3\
 \
-About
+\pard\pardeftab720\ql\qnatural
+
+\b \cf0 About
 \b0 \
 \
-Brogue is a Roguelike game for Mac OS X by Brian Walker.\
+Brogue is a Roguelike game for Mac OS X, Windows and Linux by Brian Walker.\
 \
 The latest version can be downloaded at http://sites.google.com/site/broguegame/ .\
 \
 I can be reached at penderprime@gmail.com -- feel free to send me any thoughts or bug reports.\
 \
-\pard\pardeftab720\sl380\ql\qnatural
-\cf0 Many thanks to Frank Brown for testing and to Kevin Walker for coding assistance and testing.\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
-
-\b \cf0 \
+Many thanks to Frank Brown, Kevin Walker and Joshua Day for brainstorming, coding assistance and testing, and to Jice for advice related to the Windows and Linux ports.\
 \
-How to Play
+\
+
+\b How to Play
 \b0 \
 \
 You are the @ symbol. Move around the dungeon with the vi-keys (hjklyubn) or keypad keys. The arrow keys will also work, but they do not allow diagonal movement.\
 \
-Other commands are as listed in the help screen, which you can access by typing a question mark. I strongly encourage at least a cursory inspection of this list of commands, as many are non-standard in the roguelike genre, and the player may not otherwise realize that some commands even exist (such as the command to list 'D'iscovered items).\
+Other commands are as listed in the help screen, which you can access by typing a question mark. I strongly encourage at least a cursory inspection of this list of commands, as many are non-standard in the roguelike genre, and the player may not otherwise realize that some commands even exist (such as the command to list 'D'iscovered items or automatically e'X'plore the dungeon).\
 \
-Your goal is to travel to the 26th subterranean floor of the dungeon, retrieve the Amulet of Yendor and return with it to the surface. For the truly skillful who desire further challenge, depths below 26 each contain three lumenstones -- items which confer no benefit except an increased score upon victory.\
+Your goal is to travel to the 26th subterranean floor of the dungeon, retrieve the Amulet of Yendor and return with it to the surface. For the truly skillful who desire further challenge, depths below 26 contain three lumenstones each -- items which confer no benefit except an increased score upon victory.\
 \
 The rest of the game should be broadly intuitive to someone who has played another roguelike game. Nevertheless, these are a few elements of the gameplay that may appear confusing at first.\
 \
@@ -40,89 +43,101 @@ The rest of the game should be broadly intuitive to someone who has played anoth
 \b Tips
 \b0 \
 \
-Scrolls of Enchantment are unique to Brogue and are indispensable to the success of any character. They may be used to enchant an item once, thereby permanently making that item more powerful. Enchanting a weapon provides a boost either to its damage or to your accuracy and also lowers its strength requirement. Enchanting a suit of armor increases its effectiveness in causing opponents to miss you and also lowers its strength requirement. Enchanting a ring increases the intensity of its magical effect. Enchanting a staff increases both its effect and its maximum number of charges. Enchanting a wand gives it one additional charge, but is generally not recommended because wands are disposable items and the benefit will not survive the use of that single charge.\
+Scrolls of Enchantment are unique to Brogue and are indispensable to the success of any character. Using one will permanently make a single item more powerful. Enchanting a weapon provides a boost to both its damage and accuracy and also lowers its strength requirement. Enchanting a suit of armor increases its effectiveness and also lowers its strength requirement. Enchanting a ring increases the power of its magical effect. Enchanting a staff increases both its effect and its maximum number of charges. Enchanting a wand gives it one additional disposable charge.\
 \
-Unlike wands, staves are permanent magical items. They have a maximum number of charges and will recharge from zero to maximum over a set period of time -- which means that increasing the maximum number of charges also increases the speed with which a single charge regenerates. Staves of Blinking and Staves of Obstruction recharge half as quickly as other staves.\
+If you encounter a monster you haven't seen before, examine the monster by pressing 'x' to learn more about the monster.\
+\'a0\
+Unlike wands, staves are permanent magical items. They have a maximum number of charges and will recharge from zero to maximum over a set period of time -- which means that increasing the maximum number of charges also increases the speed with which a single charge regenerates. Staves of Blinking and Staves of Obstruction recharge half as quickly as other staves. If you use a Scroll of Identify to identify a staff, its current and maximum charges will be permanently revealed. This is particularly useful for the Staff of Blinking, since its maximum distance will be illustrated while aiming the staff. If you zap with a staff when it has no charges, nothing will happen and you will lose that turn, but the maximum number of charges will be permanently revealed.\
 \
-Rings bestow a magical effect on their wearer as long as they are worn; they exact no cost to nutrition or otherwise, but only two may be worn simultaneously.\
+Rings bestow a magical effect on their wearer as long as they are worn. They impose no cost to nutrition or otherwise, but only two may be worn at the same time.\
 \
-Certain weapons, suits of armor and rings are cursed; they will start with negative enchantments and cannot be removed while the curse remains. Reading a scroll of remove curse will lift any curses from all the items in your inventory at once. Enchanting an item, protecting an armor or weapon, or vorpalizing a weapon will also remove a curse from that item. Cursed rings can be especially deadly to a character without means of removing the curse.\
+Certain weapons, suits of armor and rings are cursed; they will start with negative enchantments and cannot be removed while the curse remains. Reading a scroll of remove curse will lift curses from all of the items in your inventory at once. Enchanting an item or protecting an armor or weapon will also remove a curse from that item. Cursed rings can be especially deadly to a character without means of removing the curse.\
 \
-The Scroll of Vorpalize Weapon is exceedingly rare. It will enchant your weapon's accuracy and damage and will make it extremely effective against a single monster type. Other than subsequently using a Scroll of Identify, the only way to determine the weapon's unique proclivity is to wait for it to "gleam balefully" the first time you encounter that type of monster while holding the weapon.\
+When you first equip a weapon or suit of armor, you will not know if it already has magical enchantments. If you use the item for long enough, though, it will be revealed.\
 \
-Weapons and armor have strength requirements, which are denoted as "<X>" after the item name. You may equip an item even if you don't exceed the strength requirement, but your combat accuracy will suffer in proportion to the shortfall. The damage output and degree of protection conferred by weapons and armor correlate roughly to the item's strength requirement.\
-\
+Armor and weapons that are found in the dungeon with positive or negative enchantments might also have rare and powerful runic abilities. These will not be apparent at first. Some of them will be revealed when they activate. The rest will be flagged as "unknown runic" when you've used them for long enough. In any case, a Scroll of Identify will instantly reveal the item's runic enhancement, if it has one.\
+\'a0\
+Weapons and armor have strength requirements, which are specified as "<X>" after the item name. You can equip an item even if you don't exceed the strength requirement, but your combat accuracy will suffer in proportion to the shortfall, and overly heavy weapons and armors will slow your attack and movement speeds respectively. The damage and degree of protection conferred by weapons and armor correlate roughly to their strength requirements. The only way to raise your strength is by drinking potions of Gain Strength.\
+\'a0\
 Weapons and armor may be protected from corrosion with a Scroll of Protect Weapon or Armor. Unless protected, striking an acid mound will weaken a weapon, and being struck by an acid mound or a projectile from an acid turret will weaken a suit of armor. Protection status is indicated with a curly brace ('\}') following the inventory letter instead of a closing parenthesis.\
 \
-Potions of incineration can spell the untimely end of an unprepared character. Low-level characters are advised to try unidentified potions near a body of water to extinguish any resulting flames.\
+The monsters of the dungeon do not reserve all of their aggression for you: from time to time, they are known to capture and torture other monsters. Once freed, these captives will follow you and fight by your side through thick and thin. Staves of Healing and Haste can be put to good use on your allies.\
 \
-When targeting a projectile or magical bolt, it is often possible to hit targets that initially seem obscured by adjusting the targeting reticule to a position behind them.\
+Potions of incineration can spell the untimely end of an unprepared character. Low-level characters are advised to try unidentified potions near a body of water to extinguish any resulting flames -- but be careful, because if the burning liquid touches deep water, the cavern may quickly fill with scalding steam.\
+\'a0\
+When aiming a projectile or magical bolt, it is often possible to hit targets that at first seem out of reach. Try adjusting the targeting reticule to a position behind them.\
 \
-Physically attacking a monster that has not noticed the player (i.e. that is asleep or wandering) confers two benefits: the attack will never miss, and it will deal treble damage. Monsters are less likely to notice players at a distance and when the player is resting, outside of the range of any nearby light sources or wearing a ring of stealth.\
+Physically attacking a monster that has not noticed the player -- that is asleep or wandering -- makes for a very powerful attack: the attack will never miss, and it will deal three times as much damage. Monsters are less likely to notice players at a distance and when the player is resting, outside of the range of any nearby light sources or wearing a ring of stealth. One effective tactic is to lurk just behind a door that you know a monster is approaching and ambush it as soon as it opens the door.\
 \
-Mud-filled bogs will gradually accumulate a layer of swamp gas. Beware: the gas is highly explosive when exposed to an open flame, and an immunity to fire will not protect you from its percussive blast.\
-\
-It is generally optimal to eat a ration of food as soon as your character becomes hungry. No nutrition will be wasted with this approach. Eating an item of food is the only way to recover nutrition; there is no way around that requirement. Do not spend too much time in familiar territory or you may find yourself without sufficient food to survive.\
-\
+Mud-filled bogs will gradually accumulate a layer of swamp gas. Beware: the gas is highly explosive when exposed to an open flame, and an immunity to fire will not protect you from its percussive blast. Any creature, no matter how powerful, will lose at least half of its maximum health from a single explosion.\
+\'a0\
+It is generally optimal to eat a ration of food as soon as your character becomes hungry. No nutrition will be wasted with this approach. Eating an item of food is the only way to recover nutrition, and there is no way around the requirement. Do not spend too much time in familiar territory or you may find yourself without sufficient food to survive.\
+\'a0\
 The only purpose of gold is to establish a character's score upon death or victory.\
+\
+Deeper levels contain pit traps, fire traps, gas traps and flood traps. If you know where they are, you can trigger them from a distance by tossing an item onto them.\
 \
 Every level can be explored fully without venturing into or over lava, chasms, traps or deep water. If no path presents itself, search along likely walls with the search command.\
 \
 Most monsters that cannot fly will refuse to cross deep water, lava and chasms. Monsters will stumble into traps only when chasing you.\
-\
-Scrolls are flammable and will be quickly lost to brushfires or lava.\
-\
-Do not be discouraged by the difficulty of the game. Very few characters will survive the Dungeons of Doom.\
-\
-\
+\'a0\
+Scrolls are flammable and will be lost to brushfires.\
+\'a0\
+Do not be discouraged by the difficulty of the game. Very few characters will survive the Dungeons of Doom, but your odds will improve enormously once you're acquainted with the dungeon's treasures and inhabitants.\
+\'a0\
+\'a0\
 
 \b Item Compendium
 \b0 \
-\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
+\'a0\
+\pard\pardeftab720\ql\qnatural
 
 \i \cf0 Food:
 \i0 \
-\
+\'a0\
 Ration of food: The basic food item found in the Dungeons of Doom. Was it left by former adventurers? Is it a curious byproduct of the Dungeons' ecosystem?\
-\
-Mango: An odd fruit to be found so deep beneath the earth, the mango is slightly less filling than a ration of food.\
-\
+\'a0\
+Mango: An odd fruit to be found so deep beneath the surface of the earth, but only slightly less filling than a ration of food.\
+\'a0\
 
 \i Weapons:
 \i0 \
-\
+\'a0\
 Dagger: This trusty weapon, which you take with you into the Dungeons, is quickly outstripped by more powerful armaments. Average damage: 3.5; strength requirement: 0.\
-\
+\'a0\
 Short Sword: A step up from the dagger, but still beginners' fare. Average damage: 5; strength requirement: 12.\
-\
+\'a0\
 Mace: A strong intermediate weapon that can hew through clouds of vampire bats even though it falls short against the horrors that dwell in the depths of the earth. Average damage: 7.5; strength requirement: 14.\
-\
+\'a0\
 Long Sword: A highly capable blade, the long sword is light enough for anyone to use with enough experience, and also powerful enough to round out a late-game mage. Average damage: 11.5; strength requirement: 17.\
-\
+\'a0\
 Two-Handed Sword: This pinnacle of weaponry provides unmatched power at the expense of unmatched weight, and is the indispensable staple of a melee specialist. Average damage: 17.5; strength requirement: 21.\
-\
+\'a0\
 Darts: A stack of sharpened spikes, weighted for throwing, stocked by every starting adventurer. Average damage: 2; strength requirement: 0.\
-\
+\'a0\
 Shuriken: Small steel blades, shurikens are more powerful than darts. Average damage: 3.5; strength requirement: 0.\
-\
+\'a0\
 Javelins: A bundle of heavy wood shafts tipped by steel blades, javelins are thrown at distant enemies, or, in a pinch, wielded for use in hand-to-hand combat. Average damage: 7; strength requirement: 15.\
+\
+Runic weapon enchantments: Some weapons will already have magical enchantments, both good and bad, when you find them. A subset of those will have ancient and powerful runic effects. Upon striking an enemy, different runic weapons have a chance to inflict various status effects: paralyzing, confusing, poisoning, slowing, erasing the monster's magical abilities and effects, or even killing it instantly. Some runic weapons are designed to be used against a particular species of monster: they will gleam balefully the first time they are in the presence of the monster, and when they hit a monster of that species, the monster will die instantly. Some cursed weapons carry harmful runic effects, and can heal your enemies or even create clones of them! Smaller weapons are more likely to have runic enchantments than larger ones, and for any given attack, smaller runic weapons are more likely to activate their magical effect than larger ones. In any case, enchanting a runic weapon with a Scroll of Enchant will increase the likelihood of its effect, and in some cases will also increase the power of the effect.\
 \
 
 \i Armor:
 \i0 \
-\
+\'a0\
 Leather Armor: Supple and thin, this is the armor that new adventurers carry with them into the Dungeons. Protection: 3; strength requirement: 0.\
-\
+\'a0\
 Scale Mail: This armor comprises overlapping shingles of alternating leather and steel. Protection: 4; strength requirement: 11.\
-\
+\'a0\
 Chain Mail: Interlocking steel links make for a tough but flexible suit of armor. Protection: 5; strength requirement: 14.\
-\
+\'a0\
 Banded Mail: A strong intermediate armor, worthy of any mid-level adventurer. Protection: 7; strength requirement: 16.\
-\
+\'a0\
 Splint Mail: Strips of metal attacked together with tough leather to provide ample protection with only minimal concessions for comfort. Protection: 9; strength requirement: 18.\
-\
+\'a0\
 Plate Mail: Shining steel plates have been fashioned together to provide the utmost in protection for the strongest of adventurers. Protection: 12; strength requirement: 21.\
+\
+Runic armor enchantments: Much like weapons, the occasional suit of armor will have a powerful runic ability woven into its material. These can vary widely. Armor of Wisdom will increase the rate at which your staves recharge. Armor of Reprisal will cause any attacker to suffer a proportion of the damage it inflicts upon you with a melee attack. Armor of Absorption will reduce the damage that you take from a melee attack, even to zero. Armor of Toughness will increase your health while you wear it. Some runic armor is designed to protect the wearer from a particular species of monster: it will glow protectively the first time it is in the presence of the monster, and will render the wearer completely immune from all attacks and magic by that species of monster. Some cursed armor carries harmful runic effects, and may become heavier when struck or may cause you to take twice as much damage from each attack. Lower-tier armor is more likely to have runic enchantments than larger armor, and Plate Mail will never have a runic effect. In any case, enchanting runic armor with a Scroll of Enchantment will increase the strength of its effect.\
 \
 
 \i Scrolls:
@@ -135,201 +150,250 @@ Scroll of Teleportation: Instantly transports you to a random location on the du
 Scroll of Remove Curse: Instantly strips the reader's weapon, armor, rings and carried items of evil enchantments that prevent the wearer from removing them.\
 \
 Scroll of Enchantment: Imbues a single item with a powerful magical charge. A staff will increase in power and in number of charges; a weapon will inflict more damage or find its mark more frequently, a suit of armor will deflect additional blows, a ring will have its effect on the wearer intensified, and a wand will gain a single expendable charge. Weapons and armor will also require less strength to use. No adventurer can hope to survive the Dungeons of Doom without frequently enchanting his or her equipment, and the allocation of enchantments will largely determine that adventurer's strengths and weaknesses.\
-\
-Scroll of Protect Armor: The armor that the adventurer is wearing when the scroll's incantation is uttered will be proofed against degradation from acid, and may be worn without fear of an acid mound or acid turret.\
-\
+\'a0\
+Scroll of Protect Armor: The armor that is worn when the scroll is read will be proofed against degradation from acid, and may be worn without fear of an acid mound or acid turret.\
+\'a0\
 Scroll of Protect Weapon: The reader's current weapon will be proofed against acid and can thereafter strike acid mounds without fear of corrosion.\
-\
+\'a0\
 Scroll of Magic Mapping: A purple-hued image of crystal clarity will be etched into your memory, alerting you to the precise layout of the level and revealing all hidden secrets, though the locations of items and creatures will remain unknown.\
-\
+\'a0\
 Scroll of Aggravate Monsters: When read aloud, the scroll will unleash a piercing shriek that will awaken all monsters and alert them to your location.\
-\
-Scroll of Vorpalize Weapon: An exceedingly rare item, this scroll will instantly imbue your current weapon with an ancient and powerful magic. Thereafter, the weapon will be more powerful in accuracy and in damage and will gain an extreme advantage when striking a particular species of enemy. What species it will choose can be revealed only by a scroll of identify or by waiting for its telltale baleful gleam upon first exposure to its hated opponent.\
 \
 Scroll of Summon Monsters: The incantation on this scroll will call out to foul creatures in other planes of existence, drawing them through the fabric of reality to confront you.\
 \
-Scroll of Cause Fear: A sudden flash of red light will overwhelm all visible monsters with a sudden terror, and they will instantly turn and flee. Attacking a fleeing foe will dispel the effect. The magic is powerful and will forever sweep away the loyalty of any allies caught within its area of effect.\
+Scroll of Darkness: Reading this scroll will cause a cursed darkness to fall over your vision. At first, the reader will be completely blind to anything not illuminated by an independent light source, but over time her vision will regain its former strength.\
 \
-Scroll of Sanctuary: A sacred magic intertwines with the fabric of this scroll. When laid on the ground, no monster will step onto it or attack one who is standing atop it. Upon falling to the ground -- for any reason -- the scroll will become bound irrevocably to the floor. Reading the scroll will cause its power to dissipate uselessly into thin air. Monsters that can attack from a distance will continue to do so.\
-\
+Scroll of Cause Fear: A sudden flash of red light will overwhelm all visible monsters with a sudden terror, and they will instantly turn and flee. Attacking a fleeing foe will dispel the effect, and even fleeing monsters will attack you when they are cornered. The magic is powerful and will forever sweep away the loyalty of any allies caught within its area of effect.\
+\'a0\
+Scroll of Sanctuary: A sacred magic is intertwined with the fabric of this scroll. When laid on the ground, no monster will step onto it or attack one who is standing atop it. Upon leaving your possession -- for any reason -- the scroll will become bound irrevocably to the floor. Reading the scroll will cause its power to dissipate uselessly into thin air. Monsters that can attack from a distance will continue to do so.\
+\'a0\
 
 \i Potions:
 \i0 \
-\
-Potion of Healing: A potent medicine that will instantly restore half of the health of anyone who imbibes it. It will also cure confusion, nausea and magical slowness and will halve the intensity of any hallucinogenic substances in the bloodstream. If drunk when in good health, your vitality will increase to 120% of its natural maximum, though this excess will not regenerate once lost.\
-\
-Potion of Extra Healing: An elixir that will instantly return its imbiber to full health and cure confusion, nausea, magical slowness and hallucination. If drunk when in good health, your vitality will increase to 133% of its natural maximum, though this excess will not regenerate once lost.\
-\
+\'a0\
+Potion of Healing: A potent medicine that will instantly restore half of the health of anyone who imbibes it. It will also cure confusion, nausea, poison and magical slowness and will halve the intensity of magical darkness and any hallucinogenic substances in the bloodstream. If drunk when in good health, your vitality will increase to 120% of its natural maximum, though this excess will not regenerate once lost.\
+\'a0\
+Potion of Extra Healing: An elixir that will instantly return its imbiber to full health and cure confusion, nausea, poison, magical slowness, magical darkness and hallucination. If drunk when in good health, your vitality will increase to 133% of its natural maximum, though this excess will not regenerate once lost.\
+\'a0\
 Potion of Hallucination: A vicious and long-lasting hallucinogen. Under its dazzling effect, you will be unable to discern the form of any creatures or items you see.\
-\
-Potion of Incineration: This flask contains an unstable compound which will burst violently into flame upon exposure to open air. The clever adventurer may turn its potency to his or her favor by throwing the flask at distant enemies.\
-\
+\'a0\
+Potion of Incineration: This flask contains an unstable compound which will burst violently into flame upon exposure to open air. The clever adventurer may turn its potency to his or her favor by throwing the flask at distant enemies. When thrown into a deep lake, the cavern will fill with scalding steam that will quickly kill everything that is exposed to it.\
+\'a0\
 Potion of Gain Level: The storied experiences of a multitude of battles fought reduced to liquid form, this draught will instantly raise the experience level of any who drinks it.\
-\
+\'a0\
 Potion of Gain Strength: This powerful liquid will course through the muscles of any who drinks it, permanently increasing their strength by one point.\
-\
+\'a0\
 Potion of Restore Strength: A cure to unnatural weakness, this potion will purge the body of any enfeebling substances.\
-\
+\'a0\
 Potion of Weakness: Any unwary adventurer who drinks this concoction will be robbed of strength as though inflicted with the venom of a centipede. The loss will last until cured by a Potion of Restore Strength.\
-\
+\'a0\
 Potion of Poisonous Gas: Uncorking or shattering this pressurized glass will cause its contents to explode into a deadly cloud of caustic purple gas. Happy is the adventurer with the foresight to hurl this item at distant enemies rather than uncorking it by hand.\
-\
+\'a0\
 Potion of Paralysis: Upon exposure to open air, the liquid in this flask will vaporize into a numbing pink haze. Anyone who inhales the cloud will be paralyzed instantly, unable to move for some time after the cloud dissipates. This item can be turned toward the adventurer's use by throwing it at distant enemies, so as to catch them within the effect of the gas.\
-\
+\'a0\
 Potion of Telepathy: The imbiber's mind will become attuned to the psychic signature of distant creatures, enabling him or her to sense biological presences through walls and discern their physical stature even as their precise identity remains a mystery. Its effects will not reveal inanimate objects, such as totems, turrets and traps.\
-\
+\'a0\
 Potion of Levitation: Anyone who drinks this curious liquid will find herself hovering five to ten feet in the air, out of reach of items lying on the ground but also able to drift effortlessly over lava, water, chasms and traps -- though one should take great pains to return to safe terrain before the effects wear off. Flames, gases and spiderwebs fill the air, however, and cannot be bypassed by airborne adventurers. Monsters submerged beneath the surface of water or mud will be unable to attack you while airborne.\
-\
-Potion of Detect Magic: This drink will sensitize one's mind to the slight radiance of distant magic. Items imbued with a helpful magic will be marked on the map with a '$'; items corrupted by magic designed to entrap the unwary will be marked on the map with a '+'. The Amulet of Yendor, if in the vicinity, will be precisely revealed by its distinctive aura.\
-\
+\'a0\
+Potion of Detect Magic: This drink will sensitize one's mind to the slight radiance of distant magic. Items imbued with a helpful magic will be marked on the map with a full magical sigil; items corrupted by magic designed to entrap the unwary will be marked on the map with a hollow sigil. The Amulet of Yendor, if in the vicinity, will be precisely revealed by its distinctive aura.\
+\'a0\
 Potion of Confusion: This unstable chemical will quickly vaporize into a shimmering, glittering cloud upon contact with open air, whereupon any who breathe it will be unable to control the direction of their movements until the effect wears off (although one's ability to aim projectile attacks will not be affected). Its vertiginous intoxication can cause creatures and adventurers to careen into one another or into deep chasms or deadly lava pits, so extreme care should be taken when under its effect. Its contents can be weaponized by throwing the flask at distant enemies.\
-\
-Potion of Slowness: A single swig of this substance will halve one's movement speed for several turns.\
-\
+\'a0\
+Potion of Creeping Death: When the cork is popped or the flask is broken, tiny spores will immediately cover the floor and begin to grow a deadly lichen. Anything that steps on the lichen will be poisoned for ten turns by its clinging tendrils, and the lichen will slowly grow to fill the area. Fire is the only way to remove it.\
+\'a0\
 Potion of Speed: Quaffing the contents of this flask will enable one to move at double speed for several turns.\
-\
+\'a0\
 Potion of Fire Immunity: The only way for a human to experience immunity to fire, a drink of this draught will render you impervious to heat and able to wander through fire and lava and ignore otherwise deadly bolts of flame. It will not guard against the concussive impact of an explosion or from the physical attacks of enemy creatures, however.\
-\
+\'a0\
 
 \i Wands:
 \i0 \
-\
+\'a0\
 Wand of Teleportation: A blast from this wand will teleport a creature against his will to a random place on the current level. This can be particularly effective against aquatic or mud-bound creatures, which will be unable to attack on dry land.\
-\
+\'a0\
 Wand of Slow Monster: This wand will cause a creature to move at half speed for several turns.\
-\
-Wand of Haste Monster: The magical bolt from this wand will temporarily double the speed of any monster it hits.\
-\
-Wand of Polymorph: This mischievous magic can transform any creature into another creature at random. The effect can be invaluable when an enraged dragon is instantly reduced to a small mammal, but care should be taken, because the tamest of creatures could likewise turn into the most fearsome.\
-\
+\'a0\
+Wand of Polymorphism: This mischievous magic can transform any creature into another creature at random. The effect can be invaluable when an enraged dragon is instantly reduced to a small mammal, but care should be taken, because the tamest of creatures could likewise turn into the most fearsome.\
+\'a0\
 Wand of Invisibility: A charge from this wand will render a creature completely invisible to the naked eye. Only with telepathy or in the silhouette of a thick gas will an observer discern the creature's hazy outline.\
-\
+\'a0\
 Wand of Cancellation: The powerful anti-magic unleashed by this wand will strip a creature of any of a host of magical traits, including flight, invisibility, acidic corrosiveness, telepathy, speed or slowness, hypnosis, magical fear, immunity to physical attack, fire resistance and the ability to blink or teleport at will. Spell casters will lose their magical abilities and magical totems will be reduced to decoration.\
+\
+Wand of Plenty: The creature at the other end of the rainbow-colored burst from this mischievous bit of metal will be beside itself -- literally! Cloning an enemy in a moment of desperation is ill-advised, but the effect can be invaluable on a powerful ally.\
+\
+Wand of Beckoning: The force of this wand will magically yank the targeted creature right next to you! The effect is regrettable when unexpected, but can be used to great advantage with tactful positioning when an insightful adventurer surveys the various deadly terrains of the dungeon, considers the helplessness of certain monsters outside of their medium of choice or wishes to confront an enemy spellcaster without the protection of its bodyguards or extricate a captive from its imposing captors.\
 \
 
 \i Staffs:
 \i0 \
-\
+\'a0\
 Staff of Lightning: A blast of electricity will arc forth, dealing damage to any creature it hits and passing through it to hit creatures behind.\
-\
+\'a0\
 Staff of Fire: This staff unleashes a red-hot burst of magical fire. It will set aflame any flammable terrain over which it passes, and will set a creature it hits on fire as well as dealing direct damage. Creatures with an immunity to fire will not be affected by the bolt.\
 \
+Staff of Poison: The vile blast of this twisted bit of wood will imbue any that it touches with a deadly venom. A creature that is poisoned will suffer one point of damage per turn until the effect ends, and it will have no ability to regenerate lost hit points until then. The duration of the effect increases exponentially with the level of the staff, and a level 10 staff can fell even a deadly dragon with a single use -- eventually.\
+\'a0\
 Staff of Tunneling: This staff will reduce walls and other inanimate obstructions to rubble. It will affect a number of tiles equal to its level.\
-\
-Staff of Blinking: Use of this staff will permit you to teleport in any direction. Creatures and inanimate obstructions will block the teleportation, and the maximum distance permitted increases with the staff's level. Be careful around dangerous terrain, as nothing will prevent you from teleporting to a fiery death in a lava lake.\
-\
-Staff of Entrancement: This curious staff will send creatures into a deep but temporary trance, in which state they will mindlessly mimic your movements. The length of the trance varies inversely with the monster's maximum hit points but increases in proportion to the staff's level.\
-\
-Staff of Healing: The crimson bolts from this staff will heal the injuries of any it hits. This can be an unwanted effect against enemies but can prove useful when aimed at your allies. Unfortunately, you cannot use this or any staff on yourself.\
+\'a0\
+Staff of Blinking: Use of this staff will permit you to teleport in the chosen direction. Creatures and inanimate obstructions will block the teleportation, and the maximum distance permitted increases with the staff's level. Be careful around dangerous terrain, as nothing will prevent you from teleporting to a fiery death in a lake of lava.\
+\'a0\
+Staff of Entrancement: This curious staff will send creatures into a deep but temporary trance, in which state they will mindlessly mimic your movements. The length of the trance varies inversely with the monster's maximum hit points but increases in proportion to the staff's level. You can use the effect to cause one creature to attack another, but the spell will be broken if you attack the creature under the effect. Entranced creatures can be commanded to step into lava and other hazardous terrain.\
+\'a0\
+Staff of Healing: The crimson bolts from this staff will heal the injuries of any it hits. This can be an unfortunate result against enemies but can prove useful when aimed at your allies. Unfortunately, you cannot use this or any staff on yourself.\
 \
 Staff of Obstruction: A mass of impenetrable green crystal will spring forth from the point of contact, obstructing any who wish to move through the affected area. The crystal will dissolve into the air as time passes. Higher level staffs will create larger obstructions.\
 \
+Staff of Haste: The magical bolt from this staff will temporarily double the speed of any monster it hits, and the duration of the effect will rise with the level of the staff. This is a very useful item for an adventurer with allies.\
+\
+Staff of Discord: The purple light that this staff emits will alter the perceptions of all monsters to think the target is their enemy. Strangers and allies alike will turn on an affected creature.\
+\
+\'a0\
 
 \i Rings:
 \i0 \
-\
+\'a0\
 Ring of Clairvoyance: Wearing this ring will permit you to see through nearby walls and doors, within a radius determined by the level of the ring. A cursed ring of clairvoyance will cloak your immediate surroundings with darkness, thus preventing you from seeing anything nearby even as distant vision is unaffected.\
-\
+\'a0\
 Ring of Stealth: Monsters will be less likely to notice one wearing this ring. Wearers who stay motionless and who lurk in the shadows will be even harder to spot. At very high levels, even monsters giving chase may lose track of an adventurer wearing this ring if she stands in the shadows. Cursed rings of stealth will alert monsters who might otherwise not have noticed your presence.\
-\
+\'a0\
 Ring of Regeneration: This ring increases the body's regenerative properties, allowing one to recover lost hit points at an accelerated rate. Cursed rings will decrease or even halt one's natural regeneration.\
-\
+\'a0\
 Ring of Transference: Landing a melee attack while wearing this ring will cause a proportion of the inflicted damage to transfer to benefit of the attacker's own hit points. Cursed rings will cause you to lose hit points with each attack you land.\
-\
+\'a0\
 Ring of Perception: This ring enhances your vision, enabling you to see farther in dimming light of the deeper dungeon levels.\
-\
+\'a0\
 Ring of Awareness: Wearing this ring will allow the wearer to notice hidden secrets -- traps and secret doors -- without taking time to search. Cursed rings of awareness will dull your senses, making it harder to notice secrets even when actively searching for them.\
 \
+Ring of Reflection: Under this ring's protective aura, projectiles and spells will sometimes deflect harmlessly off of the wearer. Higher levels increase the chances of deflection, and also the chance that the attack will be deflected back at the attacker.\
 \
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
+\'a0\
+\pard\pardeftab720\ql\qnatural
 
 \b \cf0 Monster Compendium
 \b0 \
-\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
+\'a0\
+\pard\pardeftab720\ql\qnatural
 
 \i \cf0 Creatures:
 \i0 \
-\
+\'a0\
 Rat: A small, unremarkable creature easily dispatched by even the freshest of adventurers.\
-\
+\'a0\
 Kobold: A lizardlike humanoid of the upper dungeon.\
-\
+\'a0\
 Jackal: A small canine that can move twice as quickly as most creatures.\
-\
+\'a0\
 Eel: These fearsome aquatic creatures live in the subterranean lakes of the dungeons and powerfully attack enemies that venture into the water.\
-\
+\'a0\
 Monkey: An infuriating trickster, monkeys will attempt to steal your items and flee. Notably, a monkey will never steal an item that you have equipped, and it will never steal a cursed item.\
-\
+\'a0\
 Goblin: This filthy humanoid patrols the early levels of the dungeon and will attack with a makeshift blade.\
 \
+Goblin Conjurer: This goblin, bent with age and covered in glowing sigils, can summon spectral blades to attack its enemies.\
+\
+Pink Jelly: This pulsating blob of pinkish goo will split in two when struck.\
+\
+Bloat: A bladder of deadly gas buoys the bloat through the air, its thin veinous membrane ready to rupture at the slightest stress.\
+\'a0\
 Toad: An enormous, warty creature, the toad will throw its substantial weight around to attack. It is covered by a hallucinogenic mucus that will cloud your senses if the toad makes contact.\
-\
+\'a0\
 Vampire bat: Often appearing in packs, the vampire bat flies quickly and attacks powerfully; many adventurers have fallen to its erratic but persistent harassment.\
-\
+\'a0\
 Acid mound: A composite of tiny acidic creatures moving and attacking as a single mind, the powerful acid of the acid mound will weaken your armor if it hits you and will weaken your weapon if you hit it. The only defense is a scroll of protection to acid-proof your equipment. Unprepared adventurers are advised to remove their armor and weapon before engaging.\
-\
+\'a0\
 Centipede: This small creature is imbued with a deadly poison that can sap your strength. Once sapped, your strength can be restored only by drinking a Potion of Restore Strength. Centipedes should generally be dispatched from a distance or by an ally when possible.\
-\
+\'a0\
 Ogre: A lumbering creature that carries an enormous club, the ogre can inflict and sustain massive damage, but attacks half as quickly as most monsters.\
-\
+\'a0\
 Bog monster: This horrifying creature dwells beneath the surface of the various mud-filled bogs of the Dungeon. When its prey ventures into the mud, the bog monster will ensnare the unsuspecting victim with its tentacles and slowly squeeze it to death.\
-\
-Spider: The spider will shoot sticky webs at its enemies. Most creatures that come in contact with the webs will be entangled and unable to flee. Every attack against an entangled creature will hit, which makes spiders a terrifying foe of adventurers who rely on highly enchanted armor. A clever adventurer will lure her enemies into the spider's leftover webs.\
-\
-Will-o-the-wisp: This mysterious orb of blueish flame flutters over the dungeon, scorching its enemies and setting flammable things alight.\
-\
+\'a0\
+Spider: The spider will shoot sticky webs at its enemies. Once they are entangled, it will close the distance only long enough to deliver its venomous bite, and then retreat until the poison has run its course. Most creatures that come in contact with the webs will be entangled and unable to flee. Every attack against an entangled creature will hit, which makes spiders a terrifying foe of adventurers who rely on highly enchanted armor. A clever adventurer will lure her enemies into the spider's leftover webs.\
+\'a0\
+Will-o-the-wisp: This mysterious orb of blueish flame flutters through the dungeon, scorching its enemies and setting flammable things alight.\
+\'a0\
 Zombie: An undead corpse, the zombie releases a cloud of putrefying, flammable stench. Any who inhale the stench will become nauseous for several turns and will frequently fail in attempts to move or engage in melee attacks and instead spend the turn vomiting.\
-\
-Troll: An enormous, disfigured creature covered in phlegm and warts, the troll regenerates very quickly and attacks with astonishing strength. Many adventures have ended at the hands of a troll.\
-\
+\'a0\
+Troll: An enormous, disfigured creature covered in phlegm and warts, the troll regenerates very quickly and attacks with astonishing strength. Many adventures have ended in its misshapen hands.\
+\'a0\
 Ogre Shaman: An ogre with substantial magical abilities, the ogre shaman can summon ogres and haste them, or shoot arcs of electricity at his enemies.\
-\
+\'a0\
 Naga: The serpentine naga live beneath the subterranean waters and emerge to attack unsuspecting adventurers.\
-\
+\'a0\
 Salamander: A serpent wreathed in flames and carrying a burning lash, Salamanders dwell in lakes of fire and emerge when they see an enemy pass by. Their perpetually burning forms set fire to all flammable terrain they cross and they leave behind a trail of embers wherever they go.\
 \
+Wraith: This dessicated form moves with blinding speed and will retreat when injured to fight another day. On later levels, it can be found in packs.\
+\'a0\
 Dar Blademaster: An elf of the deep, the Dar Blademaster can teleport toward its enemy to engage in deadly swordplay.\
-\
+\'a0\
 Dar Priestess: Dar Priestesses often accompany Dar Blademasters and have a panoply of magic at their disposal; they will haste and heal their allies while throwing arcs of electricity at their enemies.\
-\
-Dar Battlemage: These fierce elven spellcasters of the underground, the Dar Battlemage can slow and cast bolts of fire at its enemies.\
-\
+\'a0\
+Dar Battlemage: These fierce elven spellcasters of the deepest quarters can slow and cast bolts of fire and discord at its enemies.\
+\'a0\
 Centaur: Half man and half horse, the Centaur attacks its enemies from a distance with a crossbow.\
-\
+\'a0\
 Kraken: This enormous, pale squid of the depths will engage in fierce combat with any foolish enough to set foot into its lake.\
-\
+\'a0\
 Lich: The desiccated form of long-dead sorcerers animated by their rage and lust for power, liches will hurl deadly bolts of flame and summon furies and phantoms to assist them.\
-\
-Pixie: This peculiar airborne nymph can cause all manner of trouble with a variety of spells. What it lacks in physical endurance, it makes up for in magical power.\
-\
-Phantom: Phantoms are invisible. Their forms will be revealed in dense gas, and otherwise noticeable only by the droplets of glowing ectoplasm they occasionally excrete or by their fierce attacks that come seemingly out of nowhere.\
-\
+\'a0\
+Pixie: This peculiar airborne nymph can cause all manner of trouble with a variety of spells. What it lacks in physical endurance, it makes up for with its wealth of mischievous magical abilities.\
+\'a0\
+Phantom: Phantoms are invisible. Their forms will be revealed in dense gas, and are otherwise noticeable only by the droplets of glowing ectoplasm they occasionally excrete or by their fierce attacks that come seemingly out of nowhere.\
+\'a0\
 Imp: This trickster demon moves with astonishing speed and will attempt to steal an item from its enemies and then teleport away.\
-\
+\'a0\
 Fury: A flying creature of inchoate rage made flesh, the fury moves and attacks swiftly.\
-\
+\'a0\
 Revenant: This horrible specter from another dimension is completely immune to physical weaponry.\
-\
+\'a0\
 Tentacle Horror: This seething, towering nightmare slinks through the bowels of the world. Its incredible strength and regeneration make it one of the most fearsome creatures of the dungeon; most adventurers would be wise to flee at the first sight of one of these horrifying monstrosities.\
-\
-Golem: A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but its stone form can sustain an incredible amount of damage before being reduced to rubble.\
-\
-Dragon: An ancient and immortal serpent of untold strength, the dragon's teeth, claws and white-hot fire breath can spell the end of even the most prepared adventurer in moments.\
-\
+\'a0\
+Golem: A statue animated by a tireless and ancient magic, the golem does not regenerate and attacks with only moderate strength, but its stone form can sustain an incredible amount of damage before being reduced to rubble. Its mysterious material can also deflect many projectiles.\
+\'a0\
+Dragon: An ancient and legendary serpent of lightning-quick speed and untold strength, the dragon's teeth, claws and white-hot fire breath can spell the end of even the most prepared adventurer in moments. Few have laid eyes on a dragon, and fewer still have survived the experience.\
+\'a0\
 
-\i Inanimate objects:\
-\
-\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\ql\qnatural\pardirnatural
-
-\i0 \cf0 Goblin Totem: This inanimate construct is usually accompanied by a group of goblins. It will shoot sparks of electricity at enemies and will cast haste spells on nearby goblins when they prepare to attack.\
-\
+\i Inanimate objects:
+\i0 \
+\'a0\
+Goblin Totem: This inanimate construct is usually accompanied by a group of goblins. It will shoot sparks of electricity at enemies and will cast haste spells on nearby goblins when they prepare to attack.\
+\'a0\
 Arrow Turret: A mechanical contraption embedded in the wall, the arrow turret will shoot arrows at you and your allies.\
-\
+\'a0\
 Ogre Totem: This construct is usually accompanied by a horde of ogres. It will cast healing spells on the ogres if their life drops and will cast slowing spells on any enemies it can see.\
-\
-Spark Turret: This contraption will shoot damaging and unavoidable arcs of electricity at nearby opponents.\
-\
+\'a0\
+Spark Turret: This glowing contraption will shoot damaging and unavoidable arcs of electricity at nearby opponents.\
+\'a0\
 Acid Turret: This contraption will squirt acid at nearby enemies, which will undermine the integrity of your armor if it makes contact.\
+\'a0\
+Dart Turret: This spring-loaded contraption fires darts that are imbued with a strength-sapping poison.\
 \
-Dart Turret: This spring-loaded contraption fires darts that are imbued with a strength-sapping poison.}
+\
+\pard\pardeftab720\ql\qnatural
+
+\b \cf0 New features since v1.2:
+\b0 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\ql\qnatural
+\ls1\ilvl0\cf0 {\listtext	\'95	}Three lines of message text are now visible instead of one.\
+{\listtext	\'95	}Monsters can now be examined to reveal their statistics and special properties.\
+{\listtext	\'95	}Strength is no longer gained upon level-up; instead, potions of gain strength are metered like food and scrolls of enchantment.\
+{\listtext	\'95	}Armor and weapon strength requirements have been lowered, but exceeding them will diminish movement and attack speeds respectively.\
+{\listtext	\'95	}Certain terrain (lava, water, etc.) will animate in between player turns.\
+{\listtext	\'95	}Terrain can now have random but persistent coloration.\
+{\listtext	\'95	}Four new monsters.\
+{\listtext	\'95	}Eels and krakens will now attack land monsters in deep water.\
+{\listtext	\'95	}Fiery monsters will now avoid flammable terrain except when moving erratically or hunting the player.\
+{\listtext	\'95	}Fleeing monsters will now occasionally jump into chasms or venture into water when chased.\
+{\listtext	\'95	}Monsters will now take a full turn to awaken instead of attacking immediately.\
+{\listtext	\'95	}New terrain features include bridges over chasms, glowing fungal forests and patches of relative darkness.\
+{\listtext	\'95	}Individual items (in addition to item flavors) can now be inscribed with the 'call' command.\
+{\listtext	\'95	}Thrown items will now trigger traps.\
+{\listtext	\'95	}Detect magic will now flag non-magical items as such.\
+{\listtext	\'95	}Staves of lightning have been buffed, and armor of reprisal has been nerfed.\
+{\listtext	\'95	}The player can now pick up items while levitating.\
+{\listtext	\'95	}Lava will now destroy all items except the Amulet of Yendor.\
+{\listtext	\'95	}Monsters under the effects of a staff of entrancement will now move in the opposite direction as the player and can be compelled to step into lava and chasms.\
+{\listtext	\'95	}Crystals created by staves of obstruction temporary lakes created by water traps will now decay from the outside in rather than uniformly.\
+{\listtext	\'95	}Staff and wand bolts now light up terrain as they fly past.\
+{\listtext	\'95	}Tile colors are dynamically adjusted to assure that monsters will not be difficult to see against a background of similar color or in high or low light conditions.\
+{\listtext	\'95	}Memory color has been tweaked to make it more visually distinctive.\
+}

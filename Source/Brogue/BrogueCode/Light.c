@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/21/09.
- *  Copyright 2009. All rights reserved.
+ *  Copyright 2010. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -53,15 +53,14 @@ void logLights() {
 
 void paintLight(lightSource *theLight) {
 	short i, j, k, x, y;
-	short colorComponents[4], randComponent, lightMultiplier, thisComponent;
+	short colorComponents[3], randComponent, lightMultiplier, thisComponent;
 	short radius, fadeToPercent;
 	char grid[DCOLS][DROWS];
 	
-	randComponent = theLight->lightColor->rand;
+	randComponent = rand_range(0, theLight->lightColor->rand);
 	colorComponents[0] = randComponent + theLight->lightColor->red + rand_range(0, theLight->lightColor->redRand);
 	colorComponents[1] = randComponent + theLight->lightColor->green + rand_range(0, theLight->lightColor->greenRand);
 	colorComponents[2] = randComponent + theLight->lightColor->blue + rand_range(0, theLight->lightColor->blueRand);
-	colorComponents[3] = theLight->maxIntensity;
 	
 	if (theLight->followsCreature != NULL) {
 		x = theLight->followsCreature->xLoc;
@@ -92,7 +91,7 @@ void paintLight(lightSource *theLight) {
 				for (k=0; k<3; k++) {
 					if (tmap[i][j].light[k] < theLight->maxIntensity) {
 						thisComponent = colorComponents[k] * lightMultiplier / 100;
-						tmap[i][j].light[k] += min(thisComponent, (colorComponents[3] - tmap[i][j].light[k]));
+						tmap[i][j].light[k] += min(thisComponent, (theLight->maxIntensity - tmap[i][j].light[k]));
 					}
 				}
 				pmap[i][j].flags &= ~IS_IN_SHADOW;
@@ -128,8 +127,7 @@ void updateLighting() {
 		}
 	}
 	
-	// go through all glowing tiles and have them each cast a light of type glowLight
-	// with the tile's foreground color at 10% strength.
+	// go through all glowing tiles
 	for (i = 0; i < DCOLS; i++) {
 		for (j = 0; j < DROWS; j++) {
 			if (cellHasTerrainFlag(i, j, GLOWS)) {

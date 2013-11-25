@@ -3,7 +3,7 @@
 //  Brogue
 //
 //  Created by Brian and Kevin Walker.
-//  Copyright 2009. All rights reserved.
+//  Copyright 2010. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
@@ -26,8 +26,8 @@
 #define	VERT_PX		18
 #define	HORIZ_PX	11
 
-#define kROWS		30
-#define kCOLS		100 // was 80
+#define kROWS		(29+3)
+#define kCOLS		100
 
 #define FONT_SIZE	14
 
@@ -47,9 +47,6 @@
   withLetterColor:(NSColor *)letterColor
 	  atLocationX:(short)x
 		locationY:(short)y;
-
-- (void)updateCellAtX:(short)x
-				  atY:(short)y;
 
 - (void)drawTheString:(NSString *)theString centeredIn:(NSRect)rect withAttributes:(NSMutableDictionary *)theAttributes;
 

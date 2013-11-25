@@ -3,7 +3,7 @@
 //  Brogue
 //
 //  Created by Brian and Kevin Walker on 11/28/08.
-//  Copyright 2009. All rights reserved.
+//  Copyright 2010. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
@@ -28,7 +28,7 @@
 NSSize characterSize;
 
 short vPixels = 18;
-short hPixels = 9; // was 11
+short hPixels = 9;
 
 short theFontSize = 13;
 
@@ -55,6 +55,8 @@ short theFontSize = 13;
 		}
 	}
 	
+	characterSizeDictionary = [[NSMutableDictionary dictionaryWithCapacity:100] retain];
+	
 	characterSize = [@"a" sizeWithAttributes:attributes[0][0]]; // no need to do this every time we draw a character
 	
 	//NSLog(@"in initWithFrame, rect is (%f, %f)", rect.origin.x, rect.origin.y	);
@@ -73,30 +75,58 @@ short theFontSize = 13;
 	  atLocationX:(short)x
 		locationY:(short)y
 {
+	NSRect updateRect;
+	NSSize stringSize;
+		
 	[letterArray[x][y] release];
 	[bgColorArray[x][y] release];
 	letterArray[x][y] = [c retain];
 	bgColorArray[x][y] = [bgColor retain];
 	[attributes[x][y] setObject:letterColor forKey:NSForegroundColorAttributeName];
+	
 	//[self setNeedsDisplayInRect:rectArray[x][y]];
-}
-
-- (void)updateCellAtX:(short)x
-				  atY:(short)y
-{
-	[self setNeedsDisplayInRect:rectArray[x][y]];
+	
+	stringSize = [[characterSizeDictionary objectForKey:c] sizeValue];
+	stringSize.width += 1;
+	
+	if (stringSize.width >= rectArray[x][y].size.width) { // custom update rectangle
+		updateRect.origin.y = rectArray[x][y].origin.y;
+		updateRect.size.height = rectArray[x][y].size.height;
+		updateRect.origin.x = rectArray[x][y].origin.x + (rectArray[x][y].size.width - stringSize.width - 10)/2;
+		updateRect.size.width = stringSize.width + 10;
+		[self setNeedsDisplayInRect:updateRect];
+	} else { // fits within the cell rectangle; no need for a custom update rectangle
+		[self setNeedsDisplayInRect:rectArray[x][y]];
+		//[self setNeedsDisplay:TRUE];
+	}
 }
 
 - (void)drawRect:(NSRect)rect
 {
-	int i, j;
+	int i, j, startX, startY, endX, endY;
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	for ( j = 0; j < kROWS; j++ ) {
-		for ( i = 0; i < kCOLS; i++ ) {
+	
+	startX = (int) rect.origin.x / hPixels;
+	startY = kROWS - (int) ((rect.origin.y + rect.size.height + vPixels - 1 ) / vPixels);
+	endX = (rect.origin.x + rect.size.width + hPixels - 1) / hPixels;
+	endY = kROWS - (int) (rect.origin.y / vPixels);
+	if (startX < 0) {
+		startX = 0;
+	}
+	if (endX >= kCOLS) {
+		endX = kCOLS;
+	}
+	if (startY < 0) {
+		startY = 0;
+	}
+	if (endY >= kROWS) {
+		endY = kROWS;
+	}
+	for ( j = startY; j < endY; j++ ) {
+		for ( i = startX; i < endX; i++ ) {
 			[bgColorArray[i][j] set];
 			[NSBezierPath fillRect:rectArray[i][j]];
 			//NSLog(@"bgColorArray[%i][%i] is %@; letter is %@, letter color is %@", i, j, bgColorArray[i][j], letterArray[i][j], [attributes[i][j] objectForKey:NSForegroundColorAttributeName]);
-			// very expensive; don't know how to optimize:
 			[self drawTheString:letterArray[i][j] centeredIn:rectArray[i][j] withAttributes:attributes[i][j]];
 		}
 	}
@@ -107,14 +137,28 @@ short theFontSize = 13;
 {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 	NSPoint stringOrigin;
-//	NSSize stringSize;
-//	stringSize = [theString sizeWithAttributes:theAttributes];	// quite expensive
-//	NSLog(@"\nStringSize has width %f and height %f", stringSize.width, stringSize.height);
-//	stringOrigin.x = rect.origin.x + (rect.size.width - stringSize.width)/2;
-//	stringOrigin.y = rect.origin.y + (rect.size.height - stringSize.height)/2;
-	stringOrigin.x = rect.origin.x + (rect.size.width - characterSize.width)/2;
-	stringOrigin.y = rect.origin.y + (rect.size.height - characterSize.height)/2;
+	NSSize stringSize;
+	
+	//	NSLog(@"theString is '%@'", theString);
+	
+	if ( theString == nil ) {
+		return;
+	}
+	
+	if ( [characterSizeDictionary objectForKey:theString] == nil ) {
+		stringSize = [theString sizeWithAttributes:theAttributes];	// quite expensive
+		//	NSLog(@"stringSize for '%@' has width %f and height %f", theString, stringSize.width, stringSize.height);
+		[characterSizeDictionary setObject:[NSValue valueWithSize:stringSize] forKey:theString];
+		
+	} else {
+		stringSize = [[characterSizeDictionary objectForKey:theString] sizeValue];
+	}
+
+	stringOrigin.x = rect.origin.x + (rect.size.width - stringSize.width)/2;
+	stringOrigin.y = rect.origin.y + (rect.size.height - stringSize.height)/2;
+
 	[theString drawAtPoint:stringOrigin withAttributes:theAttributes];
+	
 	[pool drain];
 }
 
@@ -151,6 +195,9 @@ short theFontSize = 13;
 		}
 	}
 	characterSize = [@"a" sizeWithAttributes:attributes[0][0]];
+	
+	[characterSizeDictionary removeAllObjects];
+	
 	[pool drain];
 }
 

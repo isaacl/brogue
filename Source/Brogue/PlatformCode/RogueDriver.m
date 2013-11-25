@@ -1,9 +1,9 @@
 //
-//  RogueMain.m
+//  RogueDriver.m
 //  Brogue
 //
-//  Created by Brian Walker on 12/26/08.
-//  Copyright 2009. All rights reserved.
+//  Created by Brian and Kevin Walker on 12/26/08.
+//  Copyright 2010. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
@@ -23,7 +23,11 @@
 
 #import "RogueDriver.h"
 
+#define BROGUE_VERSION	2
+
 static Viewport *theMainDisplay;
+NSDate *pauseStartDate;
+short mouseX, mouseY;
 
 @implementation RogueDriver
 
@@ -31,10 +35,26 @@ static Viewport *theMainDisplay;
 {
 	extern Viewport *theMainDisplay;
 	NSSize theSize;
+	//NSRect theRect;
+	short versionNumber;
+	
+	versionNumber = [[NSUserDefaults standardUserDefaults] integerForKey:@"Brogue version"];
+	if (versionNumber == nil || versionNumber < BROGUE_VERSION) {
+		
+		[[NSUserDefaults standardUserDefaults] removeObjectForKey:@"NSWindow Frame Brogue main window"];
+		
+		if (versionNumber != nil) {
+			[[NSUserDefaults standardUserDefaults] removeObjectForKey:@"Brogue version"];
+		}
+		[[NSUserDefaults standardUserDefaults] setInteger:BROGUE_VERSION forKey:@"Brogue version"];
+		[[NSUserDefaults standardUserDefaults] synchronize];
+	}
+		
 	
 	theMainDisplay = theDisplay;
 	[theWindow setFrameAutosaveName:@"Brogue main window"];
 	[theWindow useOptimizedDrawing:YES];
+	[theWindow setAcceptsMouseMovedEvents:YES];
 	
 	theSize.height = kROWS;
 	theSize.width = kCOLS;
@@ -43,6 +63,14 @@ static Viewport *theMainDisplay;
 	theSize.height = 7 * VERT_PX * kROWS / FONT_SIZE;
 	theSize.width = 7 * HORIZ_PX * kCOLS / FONT_SIZE;
 	[theWindow setContentMinSize:theSize];
+	
+	mouseX = mouseY = 0;
+	
+	/*theRect = [theWindow contentRectForFrameRect:[theWindow frame]];
+	
+	if (theRect) {
+		[theMainDisplay setHorizPixels:(theWidth / kCOLS) vertPixels:(theHeight / kROWS) fontSize:max(theSize - 2, 9)];
+	}*/
 }
 
 - (IBAction)playBrogue:(id)sender
@@ -69,6 +97,7 @@ static Viewport *theMainDisplay;
 	NSSize testSizeBox;
 	NSMutableDictionary *theAttributes = [[NSMutableDictionary alloc] init];
 	short theWidth, theHeight, theSize;
+	
 	theRect = [theWindow contentRectForFrameRect:[theWindow frame]];
 	theWidth = theRect.size.width;
 	theHeight = theRect.size.height;
@@ -129,50 +158,61 @@ void plotChar(uchar inputChar,
 	[pool drain];
 }
 
-// Like updateDisplay() but redraws only a single cell.
-void updateCoordinate(short x, short y) {
-	[theMainDisplay updateCellAtX:x atY:y];
+void pausingTimerStartsNow() {
+	if (pauseStartDate) {
+		[pauseStartDate release];
+	}
+	pauseStartDate = [NSDate date];
+	[pauseStartDate retain];
 }
 
-void updateDisplay() {
-	[theMainDisplay setNeedsDisplay: YES];
-}
-
-// Good in theory, imprecise in execution. Game is too slow by itself to yield very fine control.
-// Each redraw takes 100+ milliseconds, so there's not much difference between
-// adding an extra 5 versus 50.
 // Returns true if the player interrupted the wait with a keystroke; otherwise false.
 boolean pauseForMilliseconds(short milliseconds) {
 	NSEvent *theEvent;
 	NSDate *theDate;
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	theDate = [NSDate dateWithTimeIntervalSinceNow: (double) milliseconds / 1000];
 	
-	//do {
-	theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:theDate
-									 inMode:NSDefaultRunLoopMode dequeue:YES];
-	if ([theEvent type] == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)) {
-		return true;
-	} else if (theEvent != nil) {
-		[NSApp sendEvent:theEvent];
+	if (pauseStartDate) {
+		theDate = [pauseStartDate addTimeInterval: ((double) milliseconds / 1000)];
+		[pauseStartDate release];
+		pauseStartDate = NULL;
+	} else {
+		theDate = [NSDate dateWithTimeIntervalSinceNow: (double) milliseconds / 1000];
 	}
-	//} while (theEvent != nil);
+	
+	do {
+		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:theDate
+										 inMode:NSDefaultRunLoopMode dequeue:YES];
+		if ([theEvent type] == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)
+			|| [theEvent type] == NSLeftMouseUp || [theEvent type] == NSLeftMouseDown) {
+			[NSApp postEvent:theEvent atStart:TRUE]; // put the event back on the queue
+			return true;
+		} else if (theEvent != nil) {
+			[NSApp sendEvent:theEvent];
+		}
+	} while (theEvent != nil);
+	
 	[pool drain];
 	return false;
 }
 
-void nextKeyOrMouseEvent(rogueEvent *returnEvent) {
+void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 	NSEvent *theEvent;
 	NSEventType theEventType;
 	NSPoint event_location;
 	NSPoint local_point;
+	short x, y;
 	
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 	
-	updateDisplay();
-	
 	for(;;) {
-		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate distantFuture]
+		if (colorsDance) {
+			shuffleTerrainColors(3, true);
+			commitDraws();
+		}
+		
+		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask
+									  untilDate:[NSDate dateWithTimeIntervalSinceNow: (double) 50 / 1000]
 										 inMode:NSDefaultRunLoopMode dequeue:YES];
 		theEventType = [theEvent type];
 		if (theEventType == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)) {
@@ -180,21 +220,45 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent) {
 			returnEvent->param1 = [[theEvent charactersIgnoringModifiers] characterAtIndex:0];
 			returnEvent->param2 = 0;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
+			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
 			break;
-		} else if (/*theEventType == NSLeftMouseDown ||*/ theEventType == NSLeftMouseUp) {
-			returnEvent->eventType = MOUSE_UP; //(theEventType == NSLeftMouseDown ? MOUSE_DOWN : MOUSE_UP);
+		} else if (theEventType == NSLeftMouseDown || theEventType == NSLeftMouseUp || theEventType == NSMouseMoved) {
+			[NSApp sendEvent:theEvent];
+			switch (theEventType) {
+				case NSLeftMouseDown:
+					returnEvent->eventType = MOUSE_DOWN;
+					break;
+				case NSLeftMouseUp:
+					returnEvent->eventType = MOUSE_UP;
+					break;
+				case NSMouseMoved:
+					returnEvent->eventType = MOUSE_ENTERED_CELL;
+					break;
+				default:
+					break;
+			}
 			event_location = [theEvent locationInWindow];
 			local_point = [theMainDisplay convertPoint:event_location fromView:nil];
-			returnEvent->param1 = local_point.x / [theMainDisplay horizPixels];
-			returnEvent->param2 = ROWS - local_point.y / [theMainDisplay vertPixels];
+			x = local_point.x / [theMainDisplay horizPixels];
+			y = ROWS - local_point.y / [theMainDisplay vertPixels];
+			returnEvent->param1 = x;
+			returnEvent->param2 = y;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
-			[NSApp sendEvent:theEvent];
-			break;
+			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
+			if (x >= 0	&& x < COLS
+				&& y >= 0	&& y < ROWS
+				&& (theEventType != NSMouseMoved || x != mouseX || y != mouseY)) {
+				mouseX = x;
+				mouseY = y;
+				break;
+			}
 		}
-		[NSApp sendEvent:theEvent]; // pass along the non-keyboard event so, e.g., the menus work
+		if (theEvent != nil) {
+			[NSApp sendEvent:theEvent]; // pass along the non-keyboard event so, e.g., the menus work
+		}
 	}
-	// printf("\nRogueEvent: eventType: %i, param1: %i, param2: %i, controlKey: %s", returnEvent->eventType, returnEvent->param1,
-	//			 returnEvent->param2, returnEvent->controlKey ? "true" : "false");
+	// printf("\nRogueEvent: eventType: %i, param1: %i, param2: %i, controlKey: %s, shiftKey: %s", returnEvent->eventType, returnEvent->param1,
+	//			 returnEvent->param2, returnEvent->controlKey ? "true" : "false", returnEvent->shiftKey ? "true" : "false");
 	
 	[pool drain];
 }
@@ -223,7 +287,7 @@ void initHighScores() {
 	}
 	
 	theCount = [[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores scores"] count];
-
+	
 	if (theCount < 25) { // backwards compatibility
 		scoresArray = [NSMutableArray arrayWithCapacity:25];
 		textArray = [NSMutableArray arrayWithCapacity:25];
@@ -341,4 +405,21 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	[[NSUserDefaults standardUserDefaults] synchronize];
 	
 	return true;
+}
+
+// Get a random int between lowerBound and upperBound, inclusive, with uniform probability distribution
+int rand_range(int lowerBound, int upperBound) {
+	if (upperBound <= lowerBound) {
+		return lowerBound;
+	}
+	return ((random() % (upperBound - lowerBound + 1)) + lowerBound);
+}
+
+// seeds with the time if called with a parameter of 0; returns the seed regardless
+long seedRandomGenerator(long seed) {
+	if (seed == 0) {
+		seed = time(NULL);
+	}
+	srandom(seed);
+	return seed;
 }
