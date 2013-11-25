@@ -164,7 +164,7 @@ static int curses_init( ) {
 
 static int term_start() {
 	char *term = getenv("TERM");
-	is_xterm = (strncmp(term, "xterm", 5) == 0) || (strncmp(term, "gnome", 5) == 0);
+	is_xterm = (strncmp(term, "xterm", 5) == 0) || (strncmp(term, "gnome", 5) == 0) || (strncmp(term, "st", 2) == 0);
 
 	term_title_push();
 	term_show_scrollbar(0);
@@ -511,6 +511,19 @@ static void buffer_plot(int ch, int x, int y, fcolor *fg, fcolor *bg) {
 
 	coerce_colorcube(fg, &cube_fg);
 	coerce_colorcube(bg, &cube_bg);
+	if (cube_fg.idx == cube_bg.idx) {
+		// verify that the colors are really the same; otherwise, we'd better force the output apart
+		int naive_distance =
+			(fg->r - bg->r) * (fg->r - bg->r)
+			+ (fg->g - bg->g) * (fg->g - bg->g)
+			+ (fg->b - bg->b) * (fg->b - bg->b);
+		if (naive_distance > 3) {
+			// very arbitrary cutoff, and an arbitrary fix, very lazy
+			if (cube_bg.r > 0) {cube_bg.r -= 1; cube_bg.idx -= 1; } 
+			if (cube_bg.g > 0) {cube_bg.g -= 1; cube_bg.idx -= 6; } 
+			if (cube_bg.b > 0) {cube_bg.b -= 1; cube_bg.idx -= 36; } 
+		}
+	}
 
 	int cell = x + y * minsize.width;
 	cell_buffer[cell].ch = ch;
@@ -534,6 +547,7 @@ static void buffer_render_256() {
 		// idx = cell_buffer[roll].shuffle;
 		
 		// cell_buffer[roll].shuffle = cell_buffer[i].shuffle;
+
 		idx = i;
 
 		int pair = coerce_prs(&cell_buffer[idx].fore, &cell_buffer[idx].back);

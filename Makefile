@@ -1,7 +1,7 @@
 
 LIBTCODDIR=src/libtcod-1.5.1
 CFLAGS=-Isrc/brogue -Isrc/platform -Wall -Wno-parentheses ${DEFINES}
-RELEASENAME=brogue-1.7
+RELEASENAME=brogue-1.7.1
 
 %.o : %.c
 	gcc $(CFLAGS) -g -o $@ -c $< 
@@ -20,6 +20,7 @@ BROGUEFILES=src/brogue/Architect.o \
 	src/brogue/RogueMain.o \
 	src/brogue/Random.o \
 	src/brogue/MainMenu.o \
+	src/brogue/Grid.o \
 	src/platform/main.o \
 	src/platform/platformdependent.o \
 	src/platform/curses-platform.o \
@@ -31,7 +32,7 @@ TCOD_DEP = ${LIBTCODDIR}
 TCOD_LIB = -L. -L${LIBTCODDIR} -ltcod
 
 CURSES_DEF = -DBROGUE_CURSES
-CURSES_LIB = -lncurses -lm
+CURSES_LIB = -lncurses
 
 all : both
 
