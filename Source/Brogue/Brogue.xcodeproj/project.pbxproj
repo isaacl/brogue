@@ -24,6 +24,7 @@
 		58831148109E46C800FF029E /* Brogue Icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58831147109E46C800FF029E /* Brogue Icon.icns */; };
 		58A17EDB1235ACA100647687 /* Recordings.c in Sources */ = {isa = PBXBuildFile; fileRef = 58A17EDA1235ACA100647687 /* Recordings.c */; };
 		58EE4FF7120E01FB0020458E /* Random.c in Sources */ = {isa = PBXBuildFile; fileRef = 58EE4FF6120E01FB0020458E /* Random.c */; };
+		694753061672E75D003BE7CB /* Grid.c in Sources */ = {isa = PBXBuildFile; fileRef = 694753051672E75D003BE7CB /* Grid.c */; };
 		696F73E814C27D9F00CF8C90 /* MainMenu.c in Sources */ = {isa = PBXBuildFile; fileRef = 696F73E714C27D9F00CF8C90 /* MainMenu.c */; };
 		69A642211476EC76006246FB /* Buttons.c in Sources */ = {isa = PBXBuildFile; fileRef = 69A642201476EC76006246FB /* Buttons.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
@@ -58,6 +59,7 @@
 		58A17EDA1235ACA100647687 /* Recordings.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Recordings.c; path = BrogueCode/Recordings.c; sourceTree = "<group>"; };
 		58CA453411A8C4F9006D03FC /* PlatformDefines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PlatformDefines.h; path = PlatformCode/PlatformDefines.h; sourceTree = "<group>"; };
 		58EE4FF6120E01FB0020458E /* Random.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Random.c; path = BrogueCode/Random.c; sourceTree = "<group>"; };
+		694753051672E75D003BE7CB /* Grid.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Grid.c; path = BrogueCode/Grid.c; sourceTree = "<group>"; };
 		696F73E714C27D9F00CF8C90 /* MainMenu.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = MainMenu.c; path = BrogueCode/MainMenu.c; sourceTree = "<group>"; };
 		69A642201476EC76006246FB /* Buttons.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Buttons.c; path = BrogueCode/Buttons.c; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -146,6 +148,7 @@
 				5852BB46118650A10064384E /* Light.c */,
 				5852BB47118650A10064384E /* Monsters.c */,
 				5852BB48118650A10064384E /* Movement.c */,
+				694753051672E75D003BE7CB /* Grid.c */,
 			);
 			name = "Brogue Code";
 			sourceTree = "<group>";
@@ -253,6 +256,7 @@
 				58A17EDB1235ACA100647687 /* Recordings.c in Sources */,
 				69A642211476EC76006246FB /* Buttons.c in Sources */,
 				696F73E814C27D9F00CF8C90 /* MainMenu.c in Sources */,
+				694753061672E75D003BE7CB /* Grid.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

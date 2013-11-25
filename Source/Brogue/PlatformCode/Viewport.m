@@ -7,18 +7,18 @@
 //
 //  This file is part of Brogue.
 //
-//  Brogue is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as
+//  published by the Free Software Foundation, either version 3 of the
+//  License, or (at your option) any later version.
 //
-//  Brogue is distributed in the hope that it will be useful,
+//  This program is distributed in the hope that it will be useful,
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
+//  GNU Affero General Public License for more details.
 //
-//  You should have received a copy of the GNU General Public License
-//  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
 #import "Viewport.h"
@@ -96,7 +96,8 @@ NSString *basicFontName = FONT_NAME;
 
 	for (j = 0; j < kROWS; j++) {
 		for (i = 0; i < kCOLS; i++) {
-			letterArray[i][j] = @" ";
+			//letterArray[i][j] = @" ";
+            [letterArray[i][j] setString:@" "];
 			[letterArray[i][j] retain];
 			bgColorArray[i][j] = [[NSColor whiteColor] retain];
 
@@ -132,7 +133,7 @@ NSString *basicFontName = FONT_NAME;
 	NSRect updateRect;
 	NSSize stringSize;
 
-	[letterArray[x][y] release];
+    [letterArray[x][y] release];
 	[bgColorArray[x][y] release];
 	letterArray[x][y] = [c retain];
 	bgColorArray[x][y] = [bgColor retain];
@@ -157,34 +158,34 @@ NSString *basicFontName = FONT_NAME;
 - (void)drawRect:(NSRect)rect
 {
 	int i, j, startX, startY, endX, endY;
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     
     startX = (int) (kCOLS * rect.origin.x / hWindow);
     startY = kROWS - (int) (kCOLS * (rect.origin.y + rect.size.height + vPixels - 1 ) / vWindow);
-	endX = (int) (kCOLS * (rect.origin.x + rect.size.width + hPixels - 1) / hWindow);
-	endY = kROWS - (int) (kROWS * rect.origin.y / vWindow);
+    endX = (int) (kCOLS * (rect.origin.x + rect.size.width + hPixels - 1) / hWindow);
+    endY = kROWS - (int) (kROWS * rect.origin.y / vWindow);
     
-	if (startX < 0) {
-		startX = 0;
-	}
-	if (endX > kCOLS) {
-		endX = kCOLS;
-	}
-	if (startY < 0) {
-		startY = 0;
-	}
-	if (endY > kROWS) {
-		endY = kROWS;
-	}
-	for ( j = startY; j < endY; j++ ) {
-		for ( i = startX; i < endX; i++ ) {
-			[bgColorArray[i][j] set];
-			[NSBezierPath fillRect:rectArray[i][j]];
-			//NSLog(@"bgColorArray[%i][%i] is %@; letter is %@, letter color is %@", i, j, bgColorArray[i][j], letterArray[i][j], [attributes[i][j] objectForKey:NSForegroundColorAttributeName]);
-			[self drawTheString:letterArray[i][j] centeredIn:rectArray[i][j] withAttributes:attributes[i][j]];
-		}
-	}
-	[pool drain];
+    if (startX < 0) {
+        startX = 0;
+    }
+    if (endX > kCOLS) {
+        endX = kCOLS;
+    }
+    if (startY < 0) {
+        startY = 0;
+    }
+    if (endY > kROWS) {
+        endY = kROWS;
+    }
+    for ( j = startY; j < endY; j++ ) {
+        for ( i = startX; i < endX; i++ ) {
+            [bgColorArray[i][j] set];
+            [NSBezierPath fillRect:rectArray[i][j]];
+            //NSLog(@"bgColorArray[%i][%i] is %@; letter is %@, letter color is %@", i, j, bgColorArray[i][j], letterArray[i][j], [attributes[i][j] objectForKey:NSForegroundColorAttributeName]);
+            [self drawTheString:letterArray[i][j] centeredIn:rectArray[i][j] withAttributes:attributes[i][j]];
+        }
+    }
+    [pool drain];
 }
 
 - (void)drawTheString:(NSString *)theString centeredIn:(NSRect)rect withAttributes:(NSMutableDictionary *)theAttributes
@@ -197,7 +198,7 @@ NSString *basicFontName = FONT_NAME;
 		return;
 	}
 
-	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	//NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 	NSPoint stringOrigin;
 	NSSize stringSize;
 
@@ -215,7 +216,7 @@ NSString *basicFontName = FONT_NAME;
 
 	[theString drawAtPoint:stringOrigin withAttributes:theAttributes];
 
-	[pool drain];
+	//[pool drain];
 }
 
 - (short)horizPixels {
@@ -247,27 +248,27 @@ NSString *basicFontName = FONT_NAME;
               fontSize:(short)size
 {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-	int i, j;
-	hPixels = hPx / kCOLS;
-	vPixels = vPx / kROWS;
+    int i, j;
+    hPixels = hPx / kCOLS;
+    vPixels = vPx / kROWS;
     hWindow = hPx;
     vWindow = vPx;
-	theFontSize = size;
-	[theSlowFont release]; theSlowFont = nil;
-	[theFastFont release]; theFastFont = nil;
+    theFontSize = size;
+    [theSlowFont release]; theSlowFont = nil;
+    [theFastFont release]; theFastFont = nil;
     
-	for (j = 0; j < kROWS; j++) {
-		for (i = 0; i < kCOLS; i++) {
-			[attributes[i][j] setObject:[self fontForString:letterArray[i][j]] forKey:NSFontAttributeName];
-			rectArray[i][j] = NSMakeRect((int) (hPx * i / kCOLS),
+    for (j = 0; j < kROWS; j++) {
+        for (i = 0; i < kCOLS; i++) {
+            [attributes[i][j] setObject:[self fontForString:letterArray[i][j]] forKey:NSFontAttributeName];
+            rectArray[i][j] = NSMakeRect((int) (hPx * i / kCOLS),
                                          (int) (vPx - (vPx * (j+1) / kROWS)),
                                          ((int) (hPx * (i+1) / kCOLS)) - ((int) (hPx * (i) / kCOLS)),//hPixels + 1,
                                          ((int) (vPx * (j+1) / kROWS)) - ((int) (vPx * (j) / kROWS)));//vPixels + 1);
-		}
-	}
-	characterSize = [@"a" sizeWithAttributes:attributes[0][0]];
+        }
+    }
+    characterSize = [@"a" sizeWithAttributes:attributes[0][0]];
     
-	[characterSizeDictionary removeAllObjects];
+    [characterSizeDictionary removeAllObjects];
     
 	[pool drain];
 }
