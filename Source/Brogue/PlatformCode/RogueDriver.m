@@ -26,7 +26,8 @@
 #include "CoreFoundation/CoreFoundation.h"
 #import "RogueDriver.h"
 
-#define BROGUE_VERSION	4
+#define BROGUE_VERSION	4	// A special version number that's incremented only when
+							// something about the OS X high scores file structure changes.
 
 static Viewport *theMainDisplay;
 NSDate *pauseStartDate;
@@ -294,6 +295,14 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean col
 	[pool drain];
 }
 
+boolean controlKeyIsDown() {
+	return (([[NSApp currentEvent] modifierFlags] & NSControlKeyMask) ? true : false);
+}
+
+boolean shiftKeyIsDown() {
+	return (([[NSApp currentEvent] modifierFlags] & NSShiftKeyMask) ? true : false);
+}
+
 void initHighScores() {
 	NSMutableArray *scoresArray, *textArray, *datesArray;
 	short j, theCount;
@@ -438,26 +447,16 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	return true;
 }
 
-void initializeLaunchArguments(enum NGCommands *command, char *path) {
+void initializeLaunchArguments(enum NGCommands *command, char *path, unsigned long *seed) {
 	*command = NG_NOTHING;
 	path[0] = '\0';
+	*seed = 0;
+	
+//	*command = NG_NEW_GAME_WITH_SEED;
+//	*seed = 30;
 }
 
-void initializeBrogueSaveLocation() {
-//	char path[PATH_MAX];
-//	CFBundleRef mainBundle = CFBundleGetMainBundle();
-//    CFURLRef bundleURL = CFBundleCopyBundleURL(mainBundle);
-//	CFURLRef saveURL = CFURLCreateCopyDeletingLastPathComponent(NULL, bundleURL);
-//	
-//    if (!CFURLGetFileSystemRepresentation(saveURL, TRUE, (UInt8 *)path, PATH_MAX)) {
-//        // error!
-//    }
-//	
-//    CFRelease(saveURL);
-//    CFRelease(bundleURL);
-//	
-//    chdir(path);
-	
+void initializeBrogueSaveLocation() {	
     NSFileManager *manager = [NSFileManager defaultManager];
     
     // Look up the full path to the user's Application Support folder (usually ~/Library/Application Support/).
@@ -470,7 +469,7 @@ void initializeBrogueSaveLocation() {
     // Create our folder the first time it is needed.
     if (![manager fileExistsAtPath: supportPath])
     {
-        [[NSFileManager defaultManager] createDirectoryAtPath: supportPath attributes: nil];
+        [manager createDirectoryAtPath: supportPath attributes: nil];
     }
     
     // Set the working directory to this path, so that savegames and recordings will be stored here.

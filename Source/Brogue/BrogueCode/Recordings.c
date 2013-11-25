@@ -54,6 +54,9 @@ void numberToString(unsigned long number, short numberOfBytes, unsigned char *re
 	}
 	if (n > 0) {
 		printf("\nError: the number %li does not fit in %i bytes.", number, numberOfBytes);
+#ifdef BROGUE_ASSERTS
+		assert(false);
+#endif
 	}
 }
 
@@ -148,11 +151,13 @@ void writeHeaderInfo(char *path) {
 	short i;
 	FILE *recordFile;
 	
+	// Zero out the entire header to start.
 	for (i=0; i<RECORDING_HEADER_LENGTH; i++) {
 		c[i] = 0;
 	}
 	
-	for (i = 0; BROGUE_VERSION_STRING[i] != 0; i++) {
+	// Note the version string to gracefully deny compatibility when necessary.
+	for (i = 0; BROGUE_VERSION_STRING[i] != '\0'; i++) {
 		c[i] = BROGUE_VERSION_STRING[i];
 	}
 	i = 16;
@@ -281,7 +286,7 @@ void playbackPanic() {
 		rogue.playbackPaused = true;
 		rogue.playbackOOS = true;
 		displayLevel();
-		refreshSideBar(NULL, false);
+		refreshSideBar(-1, -1, false);
 		
 		confirmMessages();
 		message("Playback is out of sync. The file is corrupted.", false);
@@ -403,7 +408,7 @@ void displayAnnotation() {
 		&& rogue.turnNumber == rogue.nextAnnotationTurn) {
 		
 		if (!rogue.playbackFastForward) {
-			refreshSideBar(NULL, false);
+			refreshSideBar(-1, -1, false);
 			
 			printTextBox(rogue.nextAnnotation, player.xLoc, 0, 0, &black, &white, rbuf, NULL, 0);
 			
@@ -605,7 +610,7 @@ void advanceToLocation(short keystroke) {
 		buf[1] = '\0';
 		
 		rogue.playbackMode = false;
-		enteredText = getInputTextString(entryText, "Go to turn number: ", log10(ULONG_MAX) - 1, buf, "", TEXT_INPUT_NUMBERS);
+		enteredText = getInputTextString(entryText, "Go to turn number: ", log10(ULONG_MAX) - 1, buf, "", TEXT_INPUT_NUMBERS, false);
 		confirmMessages();
 		rogue.playbackMode = true;
 		
@@ -623,7 +628,7 @@ void advanceToLocation(short keystroke) {
 					freeEverything();
 					randomNumbersGenerated = 0;
 					rogue.playbackMode = true;
-					initializeRogue();
+					initializeRogue(0); // Seed argument is ignored because we're in playback.
 					startLevel(rogue.depthLevel, 1);
 					blackOutScreen();
 				}
@@ -658,7 +663,7 @@ void advanceToLocation(short keystroke) {
 				rogue.playbackFastForward = false;
 				confirmMessages();
 				updateMessageDisplay();
-				refreshSideBar(NULL, false);
+				refreshSideBar(-1, -1, false);
 				displayLevel();
 			}
 			rogue.playbackPaused = true;
@@ -670,12 +675,12 @@ void pausePlayback() {
 	if (!rogue.playbackPaused) {
 		rogue.playbackPaused = true;
 		messageWithColor("recording paused. Press space to play.", &teal, false);
-		refreshSideBar(NULL, false);
+		refreshSideBar(-1, -1, false);
 		mainInputLoop();
 		
 		messageWithColor("recording unpaused.", &teal, false);
 		rogue.playbackPaused = false;
-		refreshSideBar(NULL, false);
+		refreshSideBar(-1, -1, false);
 		rogue.playbackDelayThisTurn = DEFAULT_PLAYBACK_DELAY;
 	}
 }
@@ -723,7 +728,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 			case TAB_KEY:
 				rogue.playbackOmniscience = !rogue.playbackOmniscience;
 				displayLevel();
-				refreshSideBar(NULL, false);
+				refreshSideBar(-1, -1, false);
 				if (rogue.playbackOmniscience) {
 					messageWithColor("Omniscience enabled.", &teal, false);
 				} else {
@@ -747,7 +752,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 							executeEvent(&theEvent);
 						}
 						rogue.playbackFastForward = false;
-						refreshSideBar(NULL, false);
+						refreshSideBar(-1, -1, false);
 						displayLevel();
 					} else {
 						flashTemporaryAlert(" No further depth changes ", 500);
@@ -790,7 +795,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 						rogue.playbackFastForward = false;
 						displayLevel();
 						updateMessageDisplay();
-						refreshSideBar(NULL, false);
+						refreshSideBar(-1, -1, false);
 					}
 				}
 				break;
@@ -904,7 +909,7 @@ void saveGame() {
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save game as (<esc> to cancel): ",
-							   BROGUE_FILENAME_MAX - strlen(GAME_SUFFIX), defaultPath, GAME_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   BROGUE_FILENAME_MAX - strlen(GAME_SUFFIX), defaultPath, GAME_SUFFIX, TEXT_INPUT_NORMAL, false)) {
 			
 			strcat(filePath, GAME_SUFFIX);
 			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite?", true)) {
@@ -936,7 +941,7 @@ void saveRecording() {
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save recording as (<esc> to cancel): ",
-							   BROGUE_FILENAME_MAX - strlen(RECORDING_SUFFIX), defaultPath, RECORDING_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   BROGUE_FILENAME_MAX - strlen(RECORDING_SUFFIX), defaultPath, RECORDING_SUFFIX, TEXT_INPUT_NORMAL, false)) {
 			
 			strcat(filePath, RECORDING_SUFFIX);
 			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite?", true)) {
@@ -987,7 +992,7 @@ void switchToPlaying() {
 	strcpy(currentFilePath, LAST_GAME_PATH);
 	
 	blackOutScreen();
-	refreshSideBar(NULL, false);
+	refreshSideBar(-1, -1, false);
 	updateMessageDisplay();
 	displayLevel();
 }
@@ -1003,7 +1008,7 @@ void loadSavedGame() {
 	randomNumbersGenerated = 0;
 	rogue.playbackMode = true;
 	rogue.playbackFastForward = true;
-	initializeRogue(); // Calls initRecording().
+	initializeRogue(0); // Calls initRecording(). Seed argument is ignored because we're initially in playback mode.
 	if (!rogue.gameHasEnded) {
 		blackOutScreen();
 		startLevel(rogue.depthLevel, 1);

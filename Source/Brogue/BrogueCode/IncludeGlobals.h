@@ -74,6 +74,7 @@ extern unsigned long lengthOfPlaybackFile;
 extern unsigned long recordingLocation;
 extern unsigned long maxLevelChanges;
 extern char annotationPathname[BROGUE_FILENAME_MAX];	// pathname of annotation file
+extern unsigned long previousGameSeed;
 
 // basic colors
 extern color white;
@@ -141,6 +142,7 @@ extern color omniscienceColor;
 extern color basicLightColor;
 
 extern color colorDim25;
+extern color colorMultiplier100;
 
 extern color magicMapFlashColor;
 

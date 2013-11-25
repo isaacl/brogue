@@ -73,6 +73,7 @@ unsigned long lengthOfPlaybackFile;
 unsigned long recordingLocation;
 unsigned long maxLevelChanges;
 char annotationPathname[BROGUE_FILENAME_MAX];	// pathname of annotation file
+unsigned long previousGameSeed;
 
 const long levelPoints[MAX_EXP_LEVEL] = {
 	10L,		// level 2
@@ -164,20 +165,32 @@ const color carpetForeColor =		{23,	30,		38,		0,		0,			0,			0,		false};
 const color carpetBackColor =		{15,	8,		5,		0,		0,			0,			0,		false};
 const color doorForeColor =			{70,	35,		15,		0,		0,			0,			0,		false};
 const color doorBackColor =			{30,	10,		5,		0,		0,			0,			0,		false};
-const color ironDoorForeColor =		{40,	40,		40,		0,		0,			0,			0,		false};
-const color ironDoorBackColor =		{15,	15,		15,		0,		0,			0,			0,		false};
+//const color ironDoorForeColor =		{40,	40,		40,		0,		0,			0,			0,		false};
+const color ironDoorForeColor =		{500,	500,	500,	0,		0,			0,			0,		false};
+const color ironDoorBackColor =		{15,	15,		30,		0,		0,			0,			0,		false};
 const color bridgeFrontColor =		{33,	12,		12,		12,		7,			2,			0,		false};
 const color bridgeBackColor =		{12,	3,		2,		3,		2,			1,			0,		false};
 const color statueBackColor =		{20,	20,		20,		0,		0,			0,			0,		false};
 
-const color deepWaterForeColor =	{5,		5,		40,		0,		0,			10,			10,		true};
+//const color deepWaterForeColor =	{5,		5,		40,		0,		0,			10,			10,		true};
+//color deepWaterBackColor;
+//const color deepWaterBackColorStart = {5,	5,		55,		5,		5,			10,			10,		true};
+//const color deepWaterBackColorEnd =	{5,		5,		45,		2,		2,			5,			5,		true};
+//const color shallowWaterForeColor =	{40,	40,		90,		0,		0,			10,			10,		true};
+//color shallowWaterBackColor;
+//const color shallowWaterBackColorStart ={30,30,		80,		0,		0,			10,			10,		true};
+//const color shallowWaterBackColorEnd ={20,	20,		60,		0,		0,			5,			5,		true};
+
+const color deepWaterForeColor =	{5,		8,		20,		0,		4,			15,			10,		true};
 color deepWaterBackColor;
-const color deepWaterBackColorStart = {5,	5,		55,		5,		5,			10,			10,		true};
-const color deepWaterBackColorEnd =	{5,		5,		45,		2,		2,			5,			5,		true};
-const color shallowWaterForeColor =	{40,	40,		90,		0,		0,			10,			10,		true};
+const color deepWaterBackColorStart = {5,	10,		31,		5,		5,			5,			6,		true};
+const color deepWaterBackColorEnd =	{5,		8,		20,		2,		3,			5,			5,		true};
+const color shallowWaterForeColor =	{28,	28,		60,		0,		0,			10,			10,		true};
 color shallowWaterBackColor;
-const color shallowWaterBackColorStart ={30,30,		80,		0,		0,			10,			10,		true};
-const color shallowWaterBackColorEnd ={20,	20,		60,		0,		0,			5,			5,		true};
+const color shallowWaterBackColorStart ={20,20,		60,		0,		0,			10,			10,		true};
+const color shallowWaterBackColorEnd ={12,	15,		40,		0,		0,			5,			5,		true};
+
+
 const color mudForeColor =			{18,	14,		5,		5,		5,			0,			0,		false};
 const color mudBackColor =			{23,	17,		7,		5,		5,			0,			0,		false};
 const color chasmForeColor =		{7,		7,		15,		4,		4,			8,			0,		false};
@@ -236,6 +249,8 @@ const color pinkJellyColor =		{100,	40,		40,		5,		5,			5,			20,		true};
 const color wormColor =				{80,	60,		40,		0,		0,			0,			0,		false};
 const color sentinelColor =			{3,		3,		30,		0,		0,			10,			0,		true};
 const color goblinMysticColor =		{10,	67,		100,	0,		0,			0,			0,		false};
+const color ifritColor =			{50,	10,		100,	75,		0,			20,			0,		true};
+const color phoenixColor =			{100,	0,		0,		0,		100,		0,			0,		true};
 
 // light colors
 color minersLightColor;
@@ -243,7 +258,9 @@ const color minersLightStartColor =	{180,	180,	180,	0,		0,			0,			0,		false};
 const color minersLightEndColor =	{90,	90,		120,	0,		0,			0,			0,		false};
 const color torchColor =			{150,	75,		30,		0,		30,			20,			0,		true};
 const color torchLightColor =		{75,	38,		15,		0,		15,			7,			0,		true};
-const color burningLightColor =		{200,	10,		10,		0,		20,			5,			0,		true};
+const color ifritLightColor =		{0,		10,		150,	100,	0,			100,		0,		true};
+//const color unicornLightColor =		{-50,	-50,	-50,	200,	200,		200,		0,		true};
+const color unicornLightColor =		{-50,	-50,	-50,	250,	250,		250,		0,		true};
 const color wispLightColor =		{75,	100,	250,	33,		10,			0,			0,		true};
 const color summonedImageLightColor ={200,	0,		75,		0,		0,			0,			0,		true};
 const color spectralBladeLightColor ={40,	0,		230,	0,		0,			0,			0,		true};
@@ -263,9 +280,11 @@ const color magicMapFlashColor =	{60,	20,		60,		0,		0,			0,			0,		false};
 const color sentinelLightColor =	{20,	20,		120,	10,		10,			60,			0,		true};
 const color telepathyColor =		{30,	30,		130,	0,		0,			0,			0,		false};
 const color confusionLightColor =	{10,	10,		10,		10,		10,			10,			0,		true};
+const color portalActivateLightColor ={300,	400,	500,	0,		0,			0,			0,		true};
 
 // color multipliers
 const color colorDim25 =			{25,	25,		25,		25,		25,			25,			25,		false};
+const color colorMultiplier100 =	{100,	100,	100,	100,	100,		100,		100,	false};
 const color memoryColor =			{25,	25,		50,		20,		20,			20,			0,		false};
 const color memoryOverlay =			{25,	25,		50,		0,		0,			0,			0,		false};
 const color magicMapColor =			{60,	20,		60,		60,		20,			60,			0,		false};
@@ -311,13 +330,13 @@ const color backgroundMessageColor ={60,	20,		70,		0,		0,			0,			0,		false};
 //const color flameSourceColor = {0, 0, 0, 80, 50, 100, 0, true}; // 2
 //const color flameSourceColor = {25, 13, 25, 50, 25, 50, 0, true}; // 3
 //const color flameSourceColor = {20, 20, 20, 60, 20, 40, 0, true}; // 4
-const color flameSourceColor = {20, 0, -20, 60, 60, 120, 0, true}; // 5
+//const color flameSourceColor = {20, 0, -20, 60, 60, 120, 0, true}; // 5**
 //const color flameSourceColor = {10, 0, -10, 40, 30, 60, 50, true}; // 6
-//const color flameSourceColor = {30, 18, 18, 70, 36, 36, 0, true}; // 7
+const color flameSourceColor = {30, 18, 18, 70, 36, 36, 0, true}; // 7
 
 //const color flameTitleColor = {0, 0, 0, 17, 10, 6, 0, true}; // pale orange
 //const color flameTitleColor = {0, 0, 0, 7, 7, 10, 0, true}; // *pale blue*
-const color flameTitleColor = {0, 0, 0, 9, 9, 15, 0, true}; // *pale blue*
+const color flameTitleColor = {0, 0, 0, 9, 9, 15, 0, true}; // *pale blue**
 //const color flameTitleColor = {0, 0, 0, 11, 11, 18, 0, true}; // *pale blue*
 //const color flameTitleColor = {0, 0, 0, 15, 15, 9, 0, true}; // pale yellow
 //const color flameTitleColor = {0, 0, 0, 15, 9, 15, 0, true}; // pale purple
@@ -407,9 +426,10 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{WALL_CHAR,		&doorForeColor,			&floorBackColor,		10,	100,DF_WOODEN_BARRICADE_BURN,0,	0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_STAND_IN_TILE | T_IS_FLAMMABLE | T_VANISHES_UPON_PROMOTION),"a dry wooden barricade","The wooden barricade is firmly set but has dried over the years. Might it burn?"},
 	{WALL_CHAR,		&torchLightColor,		&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_PILOT_LIGHT,	0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),				"a wall-mounted torch",	"The torch is anchored firmly to the wall, and sputters quietly in the gloom."},
 	{FIRE_CHAR,		&fireForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				TORCH_LIGHT,	(T_OBSTRUCTS_EVERYTHING | T_STAND_IN_TILE | T_IS_FIRE),												"a fallen torch",		"The torch lies at the foot of the wall, spouting gouts of flame haphazardly."},
-	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_STAND_IN_TILE),					"a marble statue",		"The cold marble statue has weathered the years with grace."},
+	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_STAND_IN_TILE),			"a marble statue",		"The cold marble statue has weathered the years with grace."},
 	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_CRACKING_STATUE,0,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),"a marble statue",	"The cold marble statue has weathered the years with grace."},
 	{STATUE_CHAR,	&wallBackColor,			&statueBackColor,		0,	0,	DF_PLAIN_FIRE,	0,			DF_STATUE_SHATTER,3500,			NO_LIGHT,		(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_OBSTRUCTS_GAS | T_OBSTRUCTS_SURFACE_EFFECTS | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),"a cracking statue",	"Deep cracks ramble down the side of the statue even as you watch."},
+	{OMEGA_CHAR,	&wallBackColor,			&floorBackColor,		17,	0,	DF_PLAIN_FIRE,	0,			DF_PORTAL_ACTIVATE,0,			NO_LIGHT,		(T_OBSTRUCTS_ITEMS | T_IS_WIRED | T_STAND_IN_TILE),													"a stone archway",		"This ancient moss-covered stone archway radiates a strange, alien energy."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_TURRET_EMERGE,0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),				"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{WALL_CHAR,		&wallForeColor,			&wallBackColor,			0,	0,	DF_PLAIN_FIRE,	0,			DF_WALL_SHATTER,0,				NO_LIGHT,		(T_OBSTRUCTS_EVERYTHING | T_VANISHES_UPON_PROMOTION | T_IS_WIRED | T_STAND_IN_TILE),				"a stone wall",			"The rough stone wall is firm and unyielding."},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			DF_DARKENING_FLOOR,	0,			NO_LIGHT,		(T_IS_WIRED | T_VANISHES_UPON_PROMOTION),															"the ground",			""},
@@ -417,6 +437,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			0,				0,				DARKNESS_CLOUD_LIGHT,0,																								"the ground",			""},
 	{FLOOR_CHAR,	&floorForeColor,		&floorBackColor,		95,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_PROMOTES_ON_PLAYER_ENTRY | T_IS_WIRED | T_VANISHES_UPON_PROMOTION),								"the ground",			""},
 	{ALTAR_CHAR,	&altarForeColor,		&altarBackColor,		17, 0,	0,				0,			0,				0,				CANDLE_LIGHT,	(T_OBSTRUCTS_SURFACE_EFFECTS),																		"a candle-lit altar",	"a gilded altar is adorned with candles that flicker in the breeze."},
+	{GEM_CHAR,		&altarForeColor,		&altarBackColor,		17, 0,	0,				0,			0,				0,				CANDLE_LIGHT,	(T_OBSTRUCTS_SURFACE_EFFECTS | T_IS_WIRED | T_PROMOTES_WITH_KEY),									"a candle-lit altar",	"ornate gilding spirals around a spherical depression in the top of the altar."},
 	{ALTAR_CHAR,	&altarForeColor,		&altarBackColor,		17, 0,	0,				0,			DF_ITEM_CAGE_CLOSE,	0,			CANDLE_LIGHT,	(T_OBSTRUCTS_SURFACE_EFFECTS | T_IS_WIRED | T_VANISHES_UPON_PROMOTION | T_PROMOTES_WITHOUT_KEY),	"a candle-lit altar",	"a cage, open on the bottom, hangs over this altar on a retractable chain."},
 	{WALL_CHAR,		&altarBackColor,		&veryDarkGray,			17, 0,	0,				0,			DF_ITEM_CAGE_OPEN,	0,			CANDLE_LIGHT,	(T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_SURFACE_EFFECTS | T_IS_WIRED | T_VANISHES_UPON_PROMOTION | T_PROMOTES_WITH_KEY | T_STAND_IN_TILE),"an iron cage","the missing item must be replaced before you can access the remaining items."},
 	{ALTAR_CHAR,	&altarForeColor,		&altarBackColor,		17, 0,	0,				0,			DF_ALTAR_INERT,	0,				CANDLE_LIGHT,	(T_OBSTRUCTS_SURFACE_EFFECTS | T_VANISHES_UPON_PROMOTION | T_PROMOTES_ON_ITEM_PICKUP | T_IS_WIRED),	"a candle-lit altar",	"a weathered stone altar is adorned with candles that flicker in the breeze."},
@@ -491,6 +512,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{FLOOR_CHAR,	&acidBackColor,			0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		0,																									"the acid-flecked ground", "the floor is splattered with acid."},
 	{FLOOR_CHAR,	&vomitColor,			0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE),																					"a puddle of vomit",	"the floor is caked with vomit."},
 	{FLOOR_CHAR,	&urineColor,			0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				100,			NO_LIGHT,		(T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),														"a puddle of urine",	"a puddle of urine covers the ground."},
+	{FLOOR_CHAR,	&white,					0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				UNICORN_POOP_LIGHT,(T_STAND_IN_TILE),																				"unicorn poop",			"a pile of unicorn poop sparkles with rainbow light."},
 	{FLOOR_CHAR,	&wormColor,				0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE),																					"a pool of worm entrails", "worm viscera cover the ground."},
 	{ASH_CHAR,		&ashForeColor,			0,						80,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE),																					"a pile of ashes",		"charcoal and ash crunch underfoot."},
 	{ASH_CHAR,		&ashForeColor,			0,						87,	0,	DF_PLAIN_FIRE,	0,			0,				0,				NO_LIGHT,		(T_STAND_IN_TILE),																					"burned carpet",		"the carpet has been scorched by an ancient fire."},
@@ -515,6 +537,7 @@ const floorTileType tileCatalog[NUMBER_TILETYPES] = {
 	{CHAIN_BOTTOM,	&gray,					0,						20,	0,	0,				0,			0,				0,				NO_LIGHT,		0,																									"an iron manacle",		"a thick iron manacle is anchored to the wall."},
 	{CHAIN_LEFT,	&gray,					0,						20,	0,	0,				0,			0,				0,				NO_LIGHT,		0,																									"an iron manacle",		"a thick iron manacle is anchored to the wall."},
 	{CHAIN_RIGHT,	&gray,					0,						20,	0,	0,				0,			0,				0,				NO_LIGHT,		0,																									"an iron manacle",		"a thick iron manacle is anchored to the wall."},
+	{0,				0,						0,						1,	0,	0,				0,			0,				1000,			PORTAL_ACTIVATE_LIGHT,(T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),												"blinding light",		"blinding light streams out of the archway."},
 	
 	// fire tiles
 	{FIRE_CHAR,		&fireForeColor,			0,						10,	0,	0,				0,			DF_EMBERS,		500,			FIRE_LIGHT,		(T_IS_FIRE | T_VANISHES_UPON_PROMOTION | T_STAND_IN_TILE),											"billowing flames",		"flames billow upward."},
@@ -599,6 +622,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{METHANE_GAS,				GAS,		2,		0,		0},
 	{EMBERS,					SURFACE,	0,		0,		0},
 	{URINE,						SURFACE,	65,		25,		0},
+	{UNICORN_POOP,				SURFACE,	65,		40,		0},
 	{PUDDLE,					SURFACE,	13,		25,		0},
 	{ASH,						SURFACE,	0,		0,		0},
 	{ECTOPLASM,					SURFACE,	0,		0,		0},
@@ -625,6 +649,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 	{ALTAR_CAGE_CLOSED,			DUNGEON,	0,		0,		(DFF_EVACUATE_CREATURES_FIRST), "the cages lower to cover the altars."},
 	{ALTAR_INERT,				DUNGEON,	0,		0,		0},
 	{FLOOR_FLOODABLE,			DUNGEON,	0,		0,		0,	"the altar retracts into the ground with a grinding sound."},
+	{PORTAL_LIGHT,				SURFACE,	0,		0,		(DFF_EVACUATE_CREATURES_FIRST | DFF_ACTIVATE_DORMANT_MONSTER), "the archway flashes, and you catch a glimpse of another world!"},
 	
 	// fire
 	{PLAIN_FIRE,				SURFACE,	0,		0,		0},
@@ -765,7 +790,7 @@ dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES] = {
 // radius is in units of 0.01
 const lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
 	//color					radius range			fade%	passThroughCreatures
-	{0},															// NO_LIGHT
+	{0},																// NO_LIGHT
 	{&minersLightColor,		{0, 0, 1},				35,		true},		// miners light
 	{&fireBoltColor,		{300, 400, 1},			0,		false},		// burning creature light
 	{&wispLightColor,		{400, 800, 1},			0,		false},		// will-o'-the-wisp light
@@ -775,6 +800,10 @@ const lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
 	{&lichLightColor,		{1500, 1500, 1},		0,		false},		// lich light
 	{&flamedancerCoronaColor,{1000, 2000, 1},		0,		false},		// flamedancer light
 	{&sentinelLightColor,	{300, 500, 1},			0,		false},		// sentinel light
+	{&unicornLightColor,	{300, 400, 1},			0,		false},		// unicorn light
+	{&ifritLightColor,		{300, 600, 1},			0,		false},		// ifrit light
+	{&fireBoltColor,		{400, 600, 1},			0,		false},		// phoenix light
+	{&fireBoltColor,		{150, 300, 1},			0,		false},		// phoenix egg light
 	{&spectralBladeLightColor,{350, 350, 1},		0,		false},		// spectral blades
 	{&summonedImageLightColor,{350, 350, 1},		0,		false},		// weapon images
 	{&lightningColor,		{250, 250, 1},			35,		false},		// lightning turret light
@@ -789,11 +818,13 @@ const lightSource lightCatalog[NUMBER_LIGHT_KINDS] = {
 	{&fungusLightColor,		{300, 300, 1},			50,		false},		// luminescent fungus
 	{&fungusForestLightColor,{500, 500, 1},			0,		false},		// luminescent forest
 	{&ectoplasmColor,		{200, 200, 1},			50,		false},		// ectoplasm
+	{&unicornLightColor,	{200, 200, 1},			0,		false},		// unicorn poop light
 	{&lavaLightColor,		{200, 200, 1},			50,		false},		// embers
 	{&lavaLightColor,		{500, 1000, 1},			0,		false},		// fire
 	{&lavaLightColor,		{200, 300, 1},			0,		false},		// brimstone fire
 	{&explosionColor,		{DCOLS*100,DCOLS*100,1},100,	false},		// explosions
 	{&dartFlashColor,		{15*100,15*100,1},		0,		false},		// incendiary darts
+	{&portalActivateLightColor,	{10,15,1},			0,		false},		// portal activation
 	{&confusionLightColor,	{300, 300, 1},			100,	false},		// confusion gas
 	{&darknessCloudColor,	{500, 500, 1},			0,		true},		// darkness cloud
 	{&forceFieldLightColor,	{200, 200, 1},			50,		false},		// forcefield
@@ -858,6 +889,10 @@ const blueprint blueprintCatalog[NUMBER_BLUEPRINTS] = {
 		{DF_AMBIENT_BLOOD,MONSTER_CAGE_CLOSED,DUNGEON,{2,4},2,			0,			-1,			0,				0,				2,				(HORDE_VAMPIRE_FODDER | HORDE_LEADER_CAPTIVE), 0, (MF_GENERATE_HORDE | MF_TREAT_AS_BLOCKING | MF_IMPREGNABLE | MF_NOT_IN_HALLWAY)},
 		{DF_TRIGGER_AREA,COFFIN_CLOSED,0,		{1,1},		1,			KEY,		KEY_CAGE,	0,				MK_VAMPIRE,		1,				0,			(ITEM_IS_KEY),(MF_GENERATE_MONSTER | MF_GENERATE_ITEM | MF_SKELETON_KEY | MF_MONSTER_TAKE_ITEM | MF_MONSTERS_DORMANT | MF_FAR_FROM_ORIGIN | MF_KEY_DISPOSABLE)},
 		{DF_AMBIENT_BLOOD,SECRET_DOOR,DUNGEON,	{1,1},		1,			0,			0,			0,				0,				1,				0,			0,			(MF_PERMIT_BLOCKING | MF_BUILD_AT_ORIGIN)}}},
+	// Legendary ally -- approach the altar with the crystal key to activate a portal and summon a legendary ally.
+	{{8, AMULET_LEVEL},{30, 50},	15,		2,			(BP_ROOM | BP_REWARD),	{
+		{DF_LUMINESCENT_FUNGUS,	ALTAR_KEYHOLE, DUNGEON,	{1,1}, 1,		KEY,		KEY_PORTAL,	0,				0,				2,				0,			ITEM_IS_KEY,(MF_GENERATE_ITEM | MF_NOT_IN_HALLWAY | MF_NEAR_ORIGIN | MF_OUTSOURCE_ITEM_TO_MACHINE | MF_KEY_DISPOSABLE)},
+		{DF_LUMINESCENT_FUNGUS,	PORTAL,	DUNGEON,{1,1},		1,			0,			-1,			0,				0,				2,				HORDE_MACHINE_LEGENDARY_ALLY,0,	(MF_GENERATE_HORDE | MF_MONSTERS_DORMANT | MF_FAR_FROM_ORIGIN)}}},
 	
 	// -- KEY HOLDERS --
 	
@@ -1061,7 +1096,7 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25), (MA_CAST_PROTECTION)},
 	{0, "goblin totem",	TOTEM_CHAR,	&orange,	15,		30,		0,		0,		{0, 0, 0},		0,	DCOLS,	200,	100,	300,	DF_RUBBLE_BLOOD,IMP_LIGHT,0,	0,
 		(MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_INTRINSIC_LIGHT | MONST_IMMOBILE | MONST_INANIMATE | MONST_ALWAYS_HUNTING | MONST_WILL_NOT_USE_STAIRS), (MA_CAST_HASTE | MA_CAST_SPARK)},
-	{0, "pink jelly",	'J',	&pinkJellyColor,10,		52,		0,		100,	{1, 3, 1},		0,	20,		20,		100,	100,	DF_PURPLE_BLOOD,0,		0,		0,
+	{0, "pink jelly",	'J',	&pinkJellyColor,10,		50,		0,		100,	{1, 3, 1},		0,	20,		20,		100,	100,	DF_PURPLE_BLOOD,0,		0,		0,
 		(MONST_NEVER_SLEEPS), (MA_CLONE_SELF_ON_DEFEND)},
 	{0, "toad",			't',	&toadColor,		5,		18,		0,		90,		{1, 4, 1},		10,	15,		15,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
 		(0), (MA_HIT_HALLUCINATE)},
@@ -1072,7 +1107,7 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 	{0, "acid mound",	'a',	&acidBackColor,	12,		15,		10,		70,		{1, 3, 1},		5,	15,		15,		100,	100,	DF_ACID_BLOOD,	0,		0,		0,
 		(MONST_DEFEND_DEGRADE_WEAPON), (MA_HIT_DEGRADE_ARMOR)},
 	{0, "centipede",	'c',	&centipedeColor,10,		20,		20,		80,		{1, 15, 1},		20,	20,		50,		100,	100,	DF_GREEN_BLOOD,	0,		0,		0,
-		(0), (MA_POISONS)},
+		(0), (MA_CAUSES_WEAKNESS)},
 	{0,	"ogre",			'O',	&ogreColor,		50,		55,		80,		125,	{8, 14, 2},		20,	30,		30,		100,	200,	DF_RED_BLOOD,	0,		0,		0,
 		(MONST_MALE | MONST_FEMALE)},
 	{0,	"bog monster",	'B',	&krakenColor,	50,		55,		80,		5000,	{3, 4, 1},		3,	30,		30,		200,	100,	NOTHING,		0,		0,		0,
@@ -1138,7 +1173,7 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 		(MONST_IMMUNE_TO_FIRE | MONST_CARRY_ITEM_100), (MA_BREATHES_FIRE)},
 	
 	// bosses
-	{0, "goblin chieftan",'g',	&blue,			40,		30,		17,		100,	{3, 6, 1},		20,	30,		20,		100,	100,	DF_RED_BLOOD,	0,		0,		0,
+	{0, "goblin warlord",'g',	&blue,			40,		30,		17,		100,	{3, 6, 1},		20,	30,		20,		100,	100,	DF_RED_BLOOD,	0,		0,		0,
 		(MONST_MAINTAINS_DISTANCE | MONST_CARRY_ITEM_25 | MONST_WILL_NOT_USE_STAIRS), (MA_CAST_SUMMON)},
 	{0,	"black jelly",	'J',	&black,			150,	120,	0,		130,	{3, 8, 1},		0,	20,		20,		100,	100,	DF_PURPLE_BLOOD,0,		0,		0,
 		(0), (MA_CLONE_SELF_ON_DEFEND)},
@@ -1152,6 +1187,16 @@ creatureType monsterCatalog[NUMBER_MONSTER_KINDS] = {
 		(MONST_INANIMATE | MONST_NEVER_SLEEPS | MONST_FLIES | MONST_WILL_NOT_USE_STAIRS | MONST_INTRINSIC_LIGHT | MONST_DOES_NOT_TRACK_LEADER | MONST_DIES_IF_NEGATED)},
 	{0, "spectral sword",WEAPON_CHAR, &spectralImageColor, 0, 1,0,		150,	{1, 1, 1},		0,	50,		50,		50,		100,	NOTHING,	SPECTRAL_IMAGE_LIGHT,0,0,
 		(MONST_INANIMATE | MONST_NEVER_SLEEPS | MONST_FLIES | MONST_WILL_NOT_USE_STAIRS | MONST_INTRINSIC_LIGHT | MONST_DOES_NOT_TRACK_LEADER | MONST_DIES_IF_NEGATED)},
+	
+	// legendary allies
+	{0,	"unicorn",		'U',	&white,			0,		40,		95,		175,	{2, 10, 2},		20,	DCOLS,	30,		50,		100,	DF_RED_BLOOD,	UNICORN_LIGHT,1,DF_UNICORN_POOP,
+		(MONST_MAINTAINS_DISTANCE | MONST_INTRINSIC_LIGHT | MONST_MALE | MONST_FEMALE), (MA_CAST_HEAL | MA_CAST_PROTECTION)},
+	{0,	"ifrit",		'I',	&ifritColor,	0,		40,		110,	175,	{5, 12, 2},		1,	DCOLS,	30,		50,		100,	DF_ASH_BLOOD,	IFRIT_LIGHT,0,	0,
+		(MONST_IMMUNE_TO_FIRE | MONST_INTRINSIC_LIGHT | MONST_FLIES | MONST_MALE), (MA_CAST_DISCORD)},
+	{0,	"phoenix",		'P',	&phoenixColor,	0,		30,		100,	175,	{2, 10, 2},		0,	DCOLS,	30,		50,		100,	DF_ASH_BLOOD,	PHOENIX_LIGHT,0,0,
+		(MONST_IMMUNE_TO_FIRE| MONST_FLIES | MONST_INTRINSIC_LIGHT)},
+	{0, "phoenix egg",	GEM_CHAR,&phoenixColor,	0,		50,		0,		0,		{0, 0, 0},		0,	DCOLS,	50,		100,	150,	DF_ASH_BLOOD,	PHOENIX_EGG_LIGHT,	0,	0,
+		(MONST_IMMUNE_TO_FIRE| MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_IMMOBILE | MONST_INANIMATE | MONST_WILL_NOT_USE_STAIRS | MONST_INTRINSIC_LIGHT), (MA_CAST_SUMMON | MA_ENTER_SUMMONS)},
 };
 
 #pragma mark Monster words
@@ -1322,7 +1367,7 @@ const monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
 		"consuming", "Consuming",
 		{"claws", "bites", {0}}},
 	
-	{"Taller, stronger and smarter than other goblins, the chieftan commands the loyalty of $HISHER kind and can summon them into battle.",
+	{"Taller, stronger and smarter than other goblins, the warlord commands the loyalty of $HISHER kind and can summon them into battle.",
 		"chanting over", "Chanting",
 		{"slashes", "cuts", "stabs", {0}},
 		{0},
@@ -1345,6 +1390,21 @@ const monsterWords monsterText[NUMBER_MONSTER_KINDS] = {
 	{"Mysterious energies bound up in your equipment have leapt forth to project this spectral image.",
 		"gazing at", "Gazing",
 		{"hits",  {0}}},
+	
+	{"The unicorn's flowing white mane and tail shine with rainbow light, $HISHER horn glows with healing and protective magic, and $HISHER eyes implore you to always chase your dreams. Unicorns are rumored to be attracted to virgins -- is there a hint of accusation in $HISHER gaze?",
+		"consecrating", "Consecrating",
+		{"pokes", "stabs", "gores", {0}}},
+	{"A whirling desert storm given human shape, the ifrit's twin scimitars flicker and shine in the darkness and $HISHER eyes burn with otherworldly flame.",
+		"absorbing", "Absorbing",
+		{"cuts", "slashes", "lacerates", {0}}},
+	{"This legendary bird shines with a brilliant light, and $HISHER wings crackle and pop like embers as they beat the air. When $HESHE dies, legend has it that an egg will form and a newborn phoenix will rise from its ashes.",
+		"cremating", "Cremating",
+		{"pecks", "scratches", "claws", {0}}},
+	{"Cradled in a nest of cooling ashes, the translucent membrane of the phoenix egg reveals a yolk that glows ever brighter by the second.",
+		"cremating", "Cremating",
+		{"touches", {0}},
+		{0},
+		"bursts as a newborn phoenix rises from the ashes!"},
 };
 
 #pragma mark Horde definitions
@@ -1353,7 +1413,8 @@ const hordeType hordeCatalog[NUMBER_HORDES] = {
 	// leader		#members	member list								member numbers					minL	maxL	freq	spawnsIn		machine			flags
 	{MK_RAT,			0,		{0},									{{0}},							1,		5,		10},
 	{MK_KOBOLD,			0,		{0},									{{0}},							1,		6,		10},
-	{MK_JACKAL,			0,		{0},									{{0}},							1,		7,		10},
+	{MK_JACKAL,			0,		{0},									{{0}},							1,		3,		10},
+	{MK_JACKAL,			1,		{MK_JACKAL},							{{1, 4, 1}},					3,		7,		5},
 	{MK_EEL,			0,		{0},									{{0}},							2,		17,		10,		DEEP_WATER},
 	{MK_MONKEY,			0,		{0},									{{0}},							2,		9,		10},
 	{MK_BLOAT,			0,		{0},									{{0}},							2,		13,		3},
@@ -1422,6 +1483,7 @@ const hordeType hordeCatalog[NUMBER_HORDES] = {
 	{MK_LICH,			1,		{MK_FURY},								{{2, 3, 1}},					0,		0,		10,		0,			0,					HORDE_IS_SUMMONED},
 	{MK_PHYLACTERY,		1,		{MK_LICH},								{{1,1,1}},						0,		0,		10,		0,			0,					HORDE_IS_SUMMONED},
 	{MK_GOBLIN_CHIEFTAN,2,		{MK_GOBLIN_CONJURER, MK_GOBLIN},		{{1,1,1}, {2,3,1}},				0,		0,		10,		0,			0,					HORDE_IS_SUMMONED},
+	{MK_PHOENIX_EGG,	1,		{MK_PHOENIX},							{{1,1,1}},						0,		0,		10,		0,			0,					HORDE_IS_SUMMONED},
 	
 	// captives
 	{MK_MONKEY,			1,		{MK_KOBOLD},							{{1, 2, 1}},					1,		5,		1,		0,			0,					HORDE_LEADER_CAPTIVE},
@@ -1515,6 +1577,11 @@ const hordeType hordeCatalog[NUMBER_HORDES] = {
 	{MK_DAR_BLADEMASTER,0,		{0},									{{0}},							9,		26,		10,		MONSTER_CAGE_CLOSED, 0,			HORDE_VAMPIRE_FODDER | HORDE_LEADER_CAPTIVE},
 	{MK_DAR_PRIESTESS,	0,		{0},									{{0}},							12,		26,		10,		MONSTER_CAGE_CLOSED, 0,			HORDE_VAMPIRE_FODDER | HORDE_LEADER_CAPTIVE},
 	{MK_DAR_BATTLEMAGE,	0,		{0},									{{0}},							13,		26,		10,		MONSTER_CAGE_CLOSED, 0,			HORDE_VAMPIRE_FODDER | HORDE_LEADER_CAPTIVE},
+	
+	// legendary allies
+	{MK_UNICORN,		0,		{0},									{{0}},							1,		100,	10,		0,			0,					HORDE_MACHINE_LEGENDARY_ALLY | HORDE_ALLIED_WITH_PLAYER},
+	{MK_IFRIT,			0,		{0},									{{0}},							1,		100,	10,		0,			0,					HORDE_MACHINE_LEGENDARY_ALLY | HORDE_ALLIED_WITH_PLAYER},
+	{MK_PHOENIX_EGG,	0,		{0},									{{0}},							1,		100,	10,		0,			0,					HORDE_MACHINE_LEGENDARY_ALLY | HORDE_ALLIED_WITH_PLAYER},
 };
 
 // LEVELS
@@ -1649,8 +1716,9 @@ const char itemGemsRef[NUMBER_ITEM_GEMS][30] = {
 //} itemTable;
 
 const itemTable keyTable[NUMBER_KEY_TYPES] = {
-	{"door key",			"", "", 1, 0,	0, {0,0,0}, true, false, "The notches on this ancient iron key are well worn; its leather lanyard battered with age. What door might it open?"},
+	{"door key",			"", "", 1, 0,	0, {0,0,0}, true, false, "The notches on this ancient iron key are well worn; its leather lanyard is battered by age. What door might it open?"},
 	{"cage key",			"", "", 1, 0,	0, {0,0,0}, true, false, "The rust accreted on this iron key has been stained with flecks of blood; it must have been used recently. What cage might it open?"},
+	{"crystal orb",			"", "", 1, 0,	0, {0,0,0}, true, false, "A faceted orb, seemingly cut from a single crystal, sparkling and perpetually warm to the touch. What manner of device might such an object activate?"},
 };
 
 const itemTable foodTable[NUMBER_FOOD_KINDS] = {
@@ -1740,8 +1808,8 @@ itemTable potionTable[NUMBER_POTION_KINDS] = {
 	{"confusion",			itemColors[12], "",	15,	450,	0,{0,0,0}, false, false, "This unstable chemical will quickly vaporize into a glittering cloud upon contact with open air, causing any creature that inhales it to lose control of the direction of its movements until the effect wears off (although its ability to aim projectile attacks will not be affected). Its vertiginous intoxication can cause creatures and adventurers to careen into one another or into chasms or lava pits, so extreme care should be taken when under its effect. Its contents can be weaponized by throwing the flask at distant enemies."},
 	{"incineration",		itemColors[13], "",	15,	500,	0,{0,0,0}, false, false, "This flask contains an unstable compound which will burst violently into flame upon exposure to open air. You might throw the flask at distant enemies -- or into a deep lake, to fill the cavern with scalding steam."},
 	{"darkness",			itemColors[14], "",	7,	150,	0,{0,0,0}, false, false, "Drinking this potion will plunge you into darkness. At first, you will be completely blind to anything not illuminated by an independent light source, but over time your vision will regain its former strength. Throwing the potion will create a cloud of supernatural darkness, and enemies will have difficulty seeing or following you if you take refuge under its cover."},
-	{"descent",				itemColors[15], "",	15,	500,	0,{0,0,0}, false, false, "When this flask is uncorked or shattered, the fog that seeps out will temporarily cause the ground in the vicinity to vanish."},
-	{"creeping death",		itemColors[16], "",	7,	450,	0,{0,0,0}, false, false, "When the cork is popped or the flask is broken, tiny spores will spill across the ground and begin to grow a deadly lichen. Anything that touches the lichen will be poisoned by its clinging tendrils, and the lichen will slowly grow to fill the area. Fire will purge the infestation."},
+	{"descent",				itemColors[15], "",	15,	500,	0,{0,0,0}, false, false, "When this flask is uncorked by hand or shattered by being thrown, the fog that seeps out will temporarily cause the ground in the vicinity to vanish."},
+	{"creeping death",		itemColors[16], "",	7,	450,	0,{0,0,0}, false, false, "When the cork is popped or the flask is thrown, tiny spores will spill across the ground and begin to grow a deadly lichen. Anything that touches the lichen will be poisoned by its clinging tendrils, and the lichen will slowly grow to fill the area. Fire will purge the infestation."},
 };
 
 itemTable wandTable[NUMBER_WAND_KINDS] = {
@@ -1761,7 +1829,7 @@ itemTable staffTable[NUMBER_STAFF_KINDS] = {
 	{"poison",			itemWoods[2], "",	10,	1200,	0,{2,4,1}, false, false, "The vile blast of this twisted bit of wood will imbue its target with a deadly venom. A creature that is poisoned will suffer one point of damage per turn and will not regenerate lost health until the effect ends. The duration of the effect increases exponentially with the level of the staff, and a level 10 staff can fell even a deadly dragon with a single use -- eventually."},
 	{"tunneling",		itemWoods[3], "",	10,	1000,	0,{2,4,1}, false, false, "Bursts of magic from this staff will pass harmlessly through creatures but will reduce walls and other inanimate obstructions to rubble."},
 	{"blinking",		itemWoods[4], "",	11,	1200,	0,{2,4,1}, false, false, "This staff will allow you to teleport in the chosen direction. Creatures and inanimate obstructions will block the teleportation. Be careful around dangerous terrain, as nothing will prevent you from teleporting to a fiery death in a lake of lava."},
-	{"entrancement",	itemWoods[5], "",	5,	1000,	0,{2,4,1}, false, false, "This curious staff will send creatures into a deep but temporary trance, in which they will mindlessly mimic your movements. You can use the effect to cause one creature to attack another or to step into lava or other hazardous terrain, but the spell will be broken if you attack the creature under the effect."},
+	{"entrancement",	itemWoods[5], "",	5,	1000,	0,{2,4,1}, false, false, "This curious staff will send creatures into a deep but temporary trance, in which they will mindlessly mirror your movements. You can use the effect to cause one creature to attack another or to step into lava or other hazardous terrain, but the spell will be broken if you attack the creature under the effect."},
 	{"obstruction",		itemWoods[6], "",	10,	1000,	0,{2,4,1}, false, false, "A mass of impenetrable green crystal will spring forth from the point at which this staff is aimed, obstructing any who wish to move through the affected area and temporarily entombing any who are already there. The crystal will dissolve into the air as time passes. Higher level staffs will create larger obstructions."},
 	{"discord",			itemWoods[7], "",	10,	1000,	0,{2,4,1}, false, false, "The purple light from this staff will alter the perceptions of all creatures to think the target is their enemy. Strangers and allies alike will turn on an affected creature."},
 	{"conjuration",		itemWoods[8], "",	8,	1000,	0,{2,4,1}, false, false, "A flick of this staff summons a number of phantom blades to fight on your behalf."},
@@ -1861,7 +1929,7 @@ const char monsterAbilityFlagDescriptions[33][COLS] = {
 
 const char monsterBookkeepingFlagDescriptions[32][COLS] = {
 	"",											// MONST_WAS_VISIBLE
-	"",											// MONST_ADDED_TO_STATS_BAR
+	"",											// unused
 	"",											// MONST_PREPLACED
 	"",											// MONST_APPROACHING_UPSTAIRS
 	"",											// MONST_APPROACHING_DOWNSTAIRS
