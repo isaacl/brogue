@@ -2407,7 +2407,7 @@ void rechargeStaffs() {
 	short rechargeIncrement;
 	
 	if (rogue.armor && rogue.armor->enchant2 == A_WISDOM && rogue.armor->flags & ITEM_RUNIC) {
-		rechargeIncrement = (int) 10 * pow(1.3, min(27, rogue.armor->enchant1)); // at level 27, you recharge anything to full in one turn
+		rechargeIncrement = (int) (10 * pow(1.3, min(27, rogue.armor->enchant1))); // at level 27, you recharge anything to full in one turn
 	} else {
 		rechargeIncrement = 10;
 	}
