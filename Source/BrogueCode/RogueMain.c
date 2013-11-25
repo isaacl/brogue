@@ -49,6 +49,7 @@ void rogueMain() {
 		
 		executeEvent(&theEvent);
 	}
+	
 	freeEverything();
 }
 
