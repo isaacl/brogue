@@ -61,7 +61,9 @@ void plotChar(uchar inputChar,
 	back.g = (uint8) backGreen * 255 / 100;
 	back.b = (uint8) backBlue * 255 / 100;
 	
-	if (inputChar > 255) {
+	if (inputChar == STATUE_CHAR) {
+		inputChar = 223;
+	} else if (inputChar > 255) {
 		switch (inputChar) {
 #ifdef USE_UNICODE
 			case FLOOR_CHAR:
@@ -498,9 +500,8 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	return true;
 }
 
+// not needed in libtcod
 void initializeBrogueSaveLocation() {
-    // char path[PATH_MAX];
-    // chdir(path);
-	return;
+    
 }
 

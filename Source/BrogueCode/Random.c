@@ -73,50 +73,6 @@ void shuffleList(short *list, short listLength) {
 	}
 }
 
-///*
-// Simple combo, period > 2^60.5
-// x(n)=x(n-1)*x(n-2) mod 2^32 added to
-// period of x(n)=x(n-1)*x(n-2) is 3*2^29 if both seeds are
-// odd, and one is +or-3 mod 8.
-// easy to ensure: replace seed x with 8*seed+3, and y with 2*seed+1
-// */
-//
-//static unsigned long combo_x[NUMBER_OF_RNGS] = {3, 3};
-//static unsigned long combo_y[NUMBER_OF_RNGS] = {1, 1};
-//static unsigned long combo_z[NUMBER_OF_RNGS] = {1, 1};
-//static unsigned long combo_v[NUMBER_OF_RNGS] = {0, 0};
-//
-//void reportRNGState() {
-//	printf("\n\nRNG state:\n\t%lu\n\t%lu\n\t%lu\n\t%lu\n\t%lu numbers generated since seeding",
-//		   combo_x[0], combo_y[0], combo_z[0], combo_v[0], randomNumbersGenerated);
-//}
-//
-//void seed_rand_combo(unsigned long seed) {
-//	short i;
-//	if ((seed - 3) / 8 >= ULONG_MAX) {
-//		seed /= 10;
-//	}
-//	for (i=0; i<NUMBER_OF_RNGS; i++) {
-//		combo_x[i] = seed * 8 + 3;
-//		combo_y[i] = seed * 2 + 1;
-//		combo_z[i] = seed | 1;
-//		combo_v[i] = 0;
-//	}
-//#ifdef AUDIT_RNG
-//	printf("\n\nSeeding from value %ul:", seed);
-//	reportRNGState();
-//#endif
-//}
-//
-//unsigned long rand_combo(short RNG) {
-//    combo_v[RNG] = combo_x[RNG] * combo_y[RNG];
-//    combo_x[RNG] = combo_y[RNG];
-//    combo_y[RNG] = combo_v[RNG];
-//    combo_z[RNG] = (combo_z[RNG] & 65535U) * 30903U + (combo_z[RNG] >> 16U);
-//    return combo_y[RNG] + combo_z[RNG];
-//}
-//
-
 //typedef unsigned long int  u4;
 typedef uint32_t u4;
 typedef struct ranctx { u4 a; u4 b; u4 c; u4 d; } ranctx;
@@ -171,13 +127,17 @@ int rand_range(int lowerBound, int upperBound) {
 	int retval;
 	char RNGMessage[100];
 	
+#ifdef BROGUE_ASSERTS
+	assert(lowerBound <= INT_MAX && upperBound <= INT_MAX);
+#endif
+	
 	if (upperBound <= lowerBound) {
 		return lowerBound;
 	}
 	retval = lowerBound + range(upperBound-lowerBound+1, rogue.RNG);
 	if (rogue.RNG == RNG_SUBSTANTIVE) {
 		randomNumbersGenerated++;
-		if (randomNumbersGenerated == 3585716 || randomNumbersGenerated == 3588158 || randomNumbersGenerated == 3588163) {
+		if (1) { //randomNumbersGenerated >= 1128397) {
 			sprintf(RNGMessage, "\n#%lu, %i to %i: %i", randomNumbersGenerated, lowerBound, upperBound, retval);
 			RNGLog(RNGMessage);
 		}
@@ -186,6 +146,9 @@ int rand_range(int lowerBound, int upperBound) {
 }
 #else // normal version
 int rand_range(int lowerBound, int upperBound) {
+#ifdef BROGUE_ASSERTS
+	assert(lowerBound <= INT_MAX && upperBound <= INT_MAX);
+#endif
 	if (upperBound <= lowerBound) {
 		return lowerBound;
 	}
