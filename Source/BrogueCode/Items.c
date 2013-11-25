@@ -422,6 +422,7 @@ boolean getItemSpawnLoc(unsigned short heatMap[DCOLS][DROWS], short *x, short *y
 #ifdef BROGUE_ASSERTS
 	assert(0); // should never get here!
 #endif
+	return false;
 }
 
 // Generates and places items for the level. Must pass the location of the up-stairway on the level.
@@ -1828,6 +1829,7 @@ char displayInventory(unsigned short categoryMask,
 	
 	assureCosmeticRNG;
 	
+	clearCursorPath();
 	clearDisplayBuffer(dbuf);
 	
 	whiteColorEscapeSequence[0] = '\0';
@@ -1887,7 +1889,8 @@ char displayInventory(unsigned short categoryMask,
 		itemName(theItem, buf, true, true, &gray);
 		upperCase(buf);
 		
-		if (theItem->flags & ITEM_MAGIC_DETECTED) { // Won't include food, keys, lumenstones or amulet.
+		if ((theItem->flags & ITEM_MAGIC_DETECTED)
+			&& !(theItem->category & AMULET)) { // Won't include food, keys, lumenstones or amulet.
 			buttons[itemNumber].symbol[0] = (itemMagicChar(theItem) ? itemMagicChar(theItem) : '-');
 			if (buttons[itemNumber].symbol[0] == '-') {
 				magicEscapePtr = yellowColorEscapeSequence;
@@ -2632,7 +2635,7 @@ boolean polymorph(creature *monst) {
 	
 	do {
 		monst->info = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)]; // abra kadabra
-	} while (monst->info.flags & MONST_INANIMATE);
+	} while (monst->info.flags & MONST_INANIMATE); // Can't turn something into an inanimate object.
 	
 	monst->currentHP = max(1, max(healthFraction * monst->info.maxHP, monst->info.maxHP - previousDamageTaken));
 	monst->info.expForKilling = healthFraction * monst->info.expForKilling + (1 - healthFraction) * previousExperience;
@@ -3121,7 +3124,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			// Make sure we don't get the shooting monster by accident.
 			shootingMonst->xLoc = shootingMonst->yLoc = -1; // Will be set back to the destination in a moment.
 			monst = monsterAtLoc(x, y);
-			findAlternativeHomeFor(monst, &x2, &y2);
+			findAlternativeHomeFor(monst, &x2, &y2, true);
 			if (x2 >= 0) {
 				// Found an alternative location.
 				monst->xLoc = x2;
@@ -3279,7 +3282,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			if (monst) {
 				autoID = true;
 				
-				if (monst->info.flags & MONST_IMMUNE_TO_FIRE) {
+				if (monst->status[STATUS_IMMUNE_TO_FIRE] > 0) {
 					if (canSeeMonster(monst)) {
 						sprintf(buf, "%s ignore%s %s firebolt",
 								monstName,
@@ -4183,9 +4186,9 @@ void throwItem(item *theItem, creature *thrower, short targetLoc[2], short maxDi
 
 void throwCommand(item *theItem) {
 	item *thrownItem;
-	char buf[COLS], buf2[COLS];
+	char buf[COLS], theName[COLS];
 	unsigned char command[10];
-	short maxDistance, zapTarget[2], originLoc[2];
+	short maxDistance, zapTarget[2], originLoc[2], quantity;
 	
 	command[0] = THROW_KEY;
 	if (theItem == NULL) {
@@ -4195,26 +4198,32 @@ void throwCommand(item *theItem) {
 		return;
 	}
 	
+	quantity = theItem->quantity;
+	theItem->quantity = 1;
+	itemName(theItem, theName, false, false, NULL);
+	theItem->quantity = quantity;
+	
 	command[1] = theItem->inventoryLetter;
 	confirmMessages();
 	
 	if ((theItem->flags & ITEM_EQUIPPED) && theItem->quantity <= 1) {
-		itemName(theItem, buf2, false, false, NULL);
-		sprintf(buf, "Are you sure you want to throw your %s?", buf2);
+		sprintf(buf, "Are you sure you want to throw your %s?", theName);
 		if (!confirm(buf, false)) {
 			return;
 		}
 		if (theItem->flags & ITEM_CURSED) {
-			sprintf(buf, "You cannot unequip your %s; it appears to be cursed.", buf2);
+			sprintf(buf, "You cannot unequip your %s; it appears to be cursed.", theName);
 			messageWithColor(buf, &itemMessageColor, false);
 			return;
 		} else {
 			unequipItem(theItem, false);
 		}
-
 	}
 	
-	temporaryMessage("Direction? (<hjklyubn>, mouse, or <tab>; <return> to confirm)", false);
+	sprintf(buf, "Throw %s %s where? (<hjklyubn>, mouse, or <tab>)",
+			(theItem->quantity > 1 ? "a" : "your"),
+			theName);
+	temporaryMessage(buf, false);
 	maxDistance = (12 + 2 * max(rogue.strength - 12, 0));
 	if (chooseTarget(zapTarget, maxDistance, true, true, false, false)) {
 		command[2] = '\0';
@@ -4228,7 +4237,7 @@ void throwCommand(item *theItem) {
 		thrownItem->flags &= ~ITEM_EQUIPPED;
 		thrownItem->quantity = 1;
 		
-		itemName(thrownItem, buf2, false, false, NULL);
+		itemName(thrownItem, theName, false, false, NULL);
 		originLoc[0] = player.xLoc;
 		originLoc[1] = player.yLoc;
 		
@@ -4332,7 +4341,7 @@ void apply(item *theItem, boolean recordCommands) {
 				}
 			targetAllies = false;
 			if (((theItem->category & STAFF) && staffTable[theItem->kind].identified &&
-				 (theItem->kind == STAFF_HEALING || theItem->kind == STAFF_HASTE))
+				 (theItem->kind == STAFF_HEALING || theItem->kind == STAFF_HASTE || theItem->kind == STAFF_PROTECTION))
 				|| ((theItem->category & WAND) && wandTable[theItem->kind].identified &&
 					(theItem->kind == WAND_INVISIBILITY || theItem->kind == WAND_PLENTY))) {
 					targetAllies = true;
@@ -5032,7 +5041,7 @@ void drinkPotion(item *theItem) {
 			break;
 		case POTION_FIRE_IMMUNITY:
 			player.status[STATUS_IMMUNE_TO_FIRE] = player.maxStatus[STATUS_IMMUNE_TO_FIRE] = 150;
-			player.info.flags |= MONST_IMMUNE_TO_FIRE;
+			//player.info.flags |= MONST_IMMUNE_TO_FIRE;
 			if (player.status[STATUS_BURNING]) {
 				extinguishFireOnCreature(&player);
 			}
@@ -5537,9 +5546,12 @@ void updateRingBonuses() {
 
 void updatePlayerRegenerationDelay() {
 	short maxHP;
-	long turnsForFull;
+	long turnsForFull; // In thousandths of a turn.
 	maxHP = player.info.maxHP;
 	turnsForFull = (long) (1000 * TURNS_FOR_FULL_REGEN * pow(0.75, rogue.regenerationBonus));
+	if (turnsForFull < 2000) {
+		turnsForFull = 2000; // Credit for this nerf goes to syd, who broke the game over his knee with a +18 ring of regeneration.
+	}
 	
 	player.regenPerTurn = 0;
 	while (maxHP > turnsForFull / 1000) {

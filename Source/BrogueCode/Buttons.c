@@ -124,22 +124,6 @@ void initializeButton(brogueButton *button) {
 	button->opacity = 100;
 }
 
-/*
- // Indices of the buttons that are doing stuff:
- short buttonFocused;
- short buttonDepressed;
- 
- // The buttons themselves:
- short buttonCount;
- brogueButton buttons[50];
- 
- // The window location, to determine whether a click is a cancelation:
- short winX;
- short winY;
- short winWidth;
- short winHeight;
- */
-
 void drawButtonsInState(buttonState *state) {
 	short i;
 	
@@ -178,7 +162,7 @@ void initializeButtonState(buttonState *state,
 	// Clear the rbuf so that it resets only those parts of the screen in which buttons are drawn in the first place:
 	for (i=0; i<COLS; i++) {
 		for (j=0; j<ROWS; j++) {
-			state->rbuf[i][j].opacity = state->dbuf[i][j].opacity ? 100 : 0;
+			state->rbuf[i][j].opacity = (state->dbuf[i][j].opacity ? 100 : 0);
 		}
 	}
 }

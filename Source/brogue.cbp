@@ -54,6 +54,9 @@
 		<Unit filename="BrogueCode\Light.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="BrogueCode\MainMenu.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="BrogueCode\Monsters.c">
 			<Option compilerVar="CC" />
 		</Unit>

@@ -24,14 +24,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
 #include "platform.h"
 
 extern playerCharacter rogue;
 extern short brogueFontSize;
 extern short mouseX, mouseY;
-
-int isFullScreen = false;
-int hasMouseMoved = false;
 
 typedef struct brogueScoreEntry {
 	long int score;
@@ -205,7 +206,9 @@ void dumpScores() {
 	getHighScoresList(list);
 	
 	for (i = 0; i < HIGH_SCORES_COUNT; i++) {
-		printf("%d\t%s\t%s\n", (int) list[i].score, list[i].date, list[i].description);
+		if (list[i].score > 0) {
+			printf("%d\t%s\t%s\n", (int) list[i].score, list[i].date, list[i].description);
+		}
 	}
 }
 
@@ -252,5 +255,144 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 // not needed in libtcod
 void initializeBrogueSaveLocation() {
     
+}
+
+// start of file listing
+
+struct filelist {
+	fileEntry *files;
+	char *names;
+
+	int nfiles, maxfiles;
+	int nextname, maxname;
+};
+
+struct filelist *newFilelist() {
+	struct filelist *list = malloc(sizeof(*list));
+
+	list->nfiles = 0;
+	list->nextname = 0;
+	list->maxfiles = 64;
+	list->maxname = list->maxfiles * 64;
+
+	list->files = malloc(sizeof(fileEntry) * list->maxfiles);
+	list->names = malloc(list->maxname);
+
+	return list;
+}
+
+fileEntry *addfile(struct filelist *list, const char *name) {
+	int len = strlen(name);
+	if (len + list->nextname >= list->maxname) {
+		int newmax = (list->maxname + len) * 2;
+		char *newnames = realloc(list->names, newmax);
+		if (newnames != NULL) {
+			list->names = newnames;
+			list->maxname = newmax;
+		} else {
+			// fail silently
+			return NULL;
+		}
+	}
+	
+	if (list->nfiles >= list->maxfiles) {
+		int newmax = list->maxfiles * 2;
+		fileEntry *newfiles = realloc(list->files, sizeof(fileEntry) * newmax);
+		if (newfiles != NULL) {
+			list->files = newfiles;
+			list->maxfiles = newmax;
+		} else {
+			// fail silently
+			return NULL;
+		}
+	}
+	
+	// add the new file and copy the name into the buffer
+	list->files[list->nfiles].path = ((char *) NULL) + list->nextname; // don't look at them until they are transferred out
+	list->files[list->nfiles].date[0] = '\0'; // for now
+	strncpy(list->names + list->nextname, name, len + 1);
+
+	list->nextname += len + 1;
+	list->nfiles += 1;
+	
+	return list->files + (list->nfiles - 1);
+}
+
+void freeFilelist(struct filelist *list) {
+	//if (list->names != NULL) free(list->names);
+	//if (list->files != NULL) free(list->files);
+	free(list);
+}
+
+fileEntry *commitFilelist(struct filelist *list, char **namebuffer) {
+	int i;
+	/*fileEntry *files = malloc(list->nfiles * sizeof(fileEntry) + list->nextname); // enough space for all the names and all the files
+
+	if (files != NULL) {
+		char *names = (char *) (files + list->nfiles);
+
+		for (i=0; i < list->nfiles; i++) {
+			files[i] = list->files[i];
+			files[i].path = names + (files[i].path - (char *) NULL);
+		}
+		
+		memcpy(names, list->names, list->nextname);
+	}
+	*/
+	for (i=0; i < list->nfiles; i++) {
+		list->files[i].path = list->names + (list->files[i].path - (char *) NULL);
+	}
+	*namebuffer = list->names;
+
+	return list->files;
+}
+
+fileEntry *listFiles(short *fileCount, char **namebuffer) {
+	struct filelist *list = newFilelist();
+
+	// windows: FindFirstFile/FindNextFile 
+	DIR *dp= opendir ("./");
+
+	if (dp != NULL) {
+		struct dirent *ep;
+		struct stat statbuf;
+		struct tm *timeinfo;
+
+		while ((ep = readdir(dp))) {
+			// get statistics about the file (0 on success)
+			if (!stat(ep->d_name, &statbuf)) {
+				fileEntry *file = addfile(list, ep->d_name);
+				if (file != NULL) {
+					// add the modification date to the file entry, the same way we do it for scores
+					timeinfo = localtime(&statbuf.st_mtime);
+					strftime(file->date, sizeof(file->date), "%m/%d/%y", timeinfo);
+				}
+			}
+		}
+
+		closedir (dp);
+	}
+	else {
+		*fileCount = 0;
+		return NULL;
+	}
+	
+	fileEntry *files = commitFilelist(list, namebuffer);
+	
+	if (files != NULL) {
+		*fileCount = (short) list->nfiles;
+	} else {
+		*fileCount = 0;
+	}
+
+	freeFilelist(list);
+
+	return files;
+}
+
+// end of file listing
+
+void initializeLaunchArguments(enum NGCommands *command, char *path) {
+	// we've actually already done this
 }
 

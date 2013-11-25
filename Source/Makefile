@@ -11,6 +11,7 @@ OBJS=BrogueCode/Architect.o \
 	BrogueCode/Globals.o \
 	BrogueCode/IO.o \
 	BrogueCode/Buttons.o \
+	BrogueCode/MainMenu.o \
 	BrogueCode/Items.o \
 	BrogueCode/Light.o \
 	BrogueCode/Monsters.o \
@@ -20,6 +21,7 @@ OBJS=BrogueCode/Architect.o \
 	BrogueCode/Recordings.o \
 	PlatformCode/main.o \
 	PlatformCode/platformdependent.o 
+	PlatformCode/tcod-platform.o 
 
 all : brogue
 

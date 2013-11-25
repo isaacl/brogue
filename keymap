@@ -1,5 +1,9 @@
 # The following keys are valid, although modifier keys (like SHIFT) are
-# not supported.  Key remapping is not supported in curses mode.
+# not supported.  Keys that produce characters but are not listed below
+# are mapped by the character they produce.
+#
+# Key remapping is not supported in curses mode.
+
 
 # NONE
 # ESCAPE BACKSPACE TAB ENTER
@@ -21,4 +25,11 @@
 #KPSUB d
 #KPDEC s
 #KP0 ESCAPE
+
+#F5 S
+#F7 O
+#F2 A
+#A NONE
+#O NONE
+#S NONE
 
