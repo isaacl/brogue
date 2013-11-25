@@ -234,7 +234,6 @@ void initializeRogue(unsigned long seed) {
 	levels[0].upStairsLoc[1] = DROWS - 2;
 	
 	// reset enchant and gain strength frequencies
-    rogue.lifePotionFrequency = 0;
 	rogue.strengthPotionFrequency = 40;
 	rogue.enchantScrollFrequency = 60;
 	
@@ -294,34 +293,18 @@ void initializeRogue(unsigned long seed) {
 	floorItems = (item *) malloc(sizeof(item));
 	memset(floorItems, '\0', sizeof(item));
 	floorItems->nextItem = NULL;
-	
-    packItems = (item *) malloc(sizeof(item));
+	packItems = (item *) malloc(sizeof(item));
 	memset(packItems, '\0', sizeof(item));
 	packItems->nextItem = NULL;
-    
-    monsterItemsHopper = (item *) malloc(sizeof(item));
-    memset(monsterItemsHopper, '\0', sizeof(item));
-    monsterItemsHopper->nextItem = NULL;
-    
-    for (i = 0; i < MAX_ITEMS_IN_MONSTER_ITEMS_HOPPER; i++) {
-        theItem = generateItem(ALL_ITEMS & ~FOOD, -1); // Monsters can't carry food: the food clock cannot be cheated!
-        theItem->nextItem = monsterItemsHopper->nextItem;
-        monsterItemsHopper->nextItem = theItem;
-    }
-    
 	monsters = (creature *) malloc(sizeof(creature));
 	memset(monsters, '\0', sizeof(creature));
-    monsters->nextCreature = NULL;
-	
 	dormantMonsters = (creature *) malloc(sizeof(creature));
 	memset(dormantMonsters, '\0', sizeof(creature));
-	dormantMonsters->nextCreature = NULL;
-    
-    graveyard = (creature *) malloc(sizeof(creature));
+	monsters->nextCreature = NULL;
+	graveyard = (creature *) malloc(sizeof(creature));
 	memset(graveyard, '\0', sizeof(creature));
 	graveyard->nextCreature = NULL;
-	
-    rooms = (room *) malloc(sizeof(room));
+	rooms = (room *) malloc(sizeof(room));
 	memset(rooms, '\0', sizeof(room));
 	rooms->nextRoom = NULL;
 	
@@ -494,19 +477,13 @@ void initializeRogue(unsigned long seed) {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(WAND, WAND_POLYMORPH);
-		theItem->charges = 300;
-		theItem->flags &= ~ITEM_CURSED;
-		identify(theItem);
-		theItem = addItemToPack(theItem);
-		
 		theItem = generateItem(WEAPON, DAGGER);
-		theItem->enchant1 = 50;
+		theItem->enchant1 = 100;
 		theItem->enchant2 = W_SLAYING;
 		theItem->vorpalEnemy = MK_REVENANT;
 		theItem->flags &= ~(ITEM_CURSED);
 		theItem->flags |= (ITEM_PROTECTED | ITEM_RUNIC | ITEM_RUNIC_HINTED);
-		theItem->damage.lowerBound = theItem->damage.upperBound = 25;
+		theItem->damage.lowerBound = theItem->damage.upperBound = 3;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
@@ -523,16 +500,29 @@ void initializeRogue(unsigned long seed) {
 		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
-        
-		theItem = generateItem(POTION, POTION_DESCENT);
+		
+		theItem = generateItem(WEAPON, BROADSWORD);
+		theItem->enchant1 = 8;
+        theItem->strengthRequired -= 8;
+		theItem->enchant2 = 0;
+		theItem->flags &= ~(ITEM_CURSED | ITEM_RUNIC | ITEM_RUNIC_HINTED);
+		theItem->flags |= (ITEM_PROTECTED);
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-//		short i;
-//		for (i=0; i < NUMBER_CHARM_KINDS && i < 4; i++) {
-//			theItem = generateItem(CHARM, i);
-//			theItem = addItemToPack(theItem);
-//		}
+		theItem = generateItem(ARMOR, PLATE_MAIL);
+		theItem->enchant1 = 8;
+		theItem->enchant2 = 0;
+		theItem->flags &= ~(ITEM_CURSED | ITEM_RUNIC_HINTED | ITEM_RUNIC);
+		theItem->flags |= (ITEM_PROTECTED);
+		identify(theItem);
+		theItem = addItemToPack(theItem);
+		
+		short i;
+		for (i=0; i < NUMBER_CHARM_KINDS && i < 4; i++) {
+			theItem = generateItem(CHARM, i);
+			theItem = addItemToPack(theItem);
+		}
 	}
 	blackOutScreen();
 	welcome();
@@ -559,10 +549,6 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	short **mapToStairs;
 	short **mapToPit;
 	boolean connectingStairsDiscovered;
-    
-    if (oldLevelNumber == 100 && stairDirection != -1) {
-        return;
-    }
 	
 	rogue.cursorLoc[0] = -1;
 	rogue.cursorLoc[1] = -1;
@@ -794,8 +780,6 @@ void startLevel(short oldLevelNumber, short stairDirection) {
         levels[rogue.depthLevel-1].visited = true;
         if (rogue.depthLevel == 26) {
             messageWithColor("An alien energy permeates the area. The Amulet of Yendor must be nearby!", &itemMessageColor, false);
-        } else if (rogue.depthLevel == 100) {
-            messageWithColor("An overwhelming sense of peace and tranquility settles upon you.", &lightBlue, false);
         }
     }
 	
@@ -965,11 +949,6 @@ void freeEverything() {
         deleteItem(theItem);
     }
     packItems = NULL;
-    for (theItem = monsterItemsHopper; theItem != NULL; theItem = theItem2) {
-        theItem2 = theItem->nextItem;
-        deleteItem(theItem);
-    }
-    monsterItemsHopper = NULL;
     for (room = rooms; room != NULL; room = room2) {
         room2 = room->nextRoom;
         free(room);
@@ -1112,8 +1091,6 @@ void victory() {
 		strcpy(theEntry.description, "Escaped the Dungeons of Doom!");
 	} else if (gemCount == 1) {
 		strcpy(theEntry.description, "Escaped the Dungeons of Doom with a lumenstone!");
-	} else if (gemCount == 25) {
-		sprintf(theEntry.description, "Mastered the Dungeons of Doom with %i lumenstones!", gemCount);
 	} else {
 		sprintf(theEntry.description, "Escaped the Dungeons of Doom with %i lumenstones!", gemCount);
 	}

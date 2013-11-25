@@ -575,7 +575,7 @@ boolean dialogChooseFile(char *path, const char *suffix, const char *prompt) {
 // we'll do it. The path (rogue.nextGamePath) is essentially a parameter for this command, and
 // tells NG_VIEW_RECORDING and NG_OPEN_GAME which file to open. If there is a command but no
 // accompanying path, and it's a command that should take a path, then pop up a dialog to have
-// the player specify a path. If there is no command (i.e. if rogue.nextGame contains NG_NOTHING),
+// the player specify a path. If there is no command (i.e. if rogue.nextGame contains NG_NEW_GAME),
 // then we'll display the title screen so the player can choose.
 void mainBrogueJunction() {
 	rogueEvent theEvent;

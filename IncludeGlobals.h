@@ -45,7 +45,6 @@ extern creature *dormantMonsters;
 extern creature *graveyard;
 extern item *floorItems;
 extern item *packItems;
-extern item *monsterItemsHopper;
 extern room *rooms;
 extern waypoint waypoints[MAX_WAYPOINTS];
 extern short numberOfWaypoints;

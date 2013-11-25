@@ -68,13 +68,13 @@ item *generateItem(unsigned short theCategory, short theKind) {
 
 unsigned long pickItemCategory(unsigned long theCategory) {
 	short i, sum, randIndex;
-	short probabilities[13] =						{50,	42,		52,		3,		3,		10,		8,		5,		3,      3,        0,		0,		0};
+	short probabilities[13] =						{50,	42,		50,		3,		3,		10,		8,		5,		3,      3,        0,		0,		0};
 	unsigned short correspondingCategories[13] =	{GOLD,	SCROLL,	POTION,	STAFF,	WAND,	WEAPON,	ARMOR,	FOOD,	RING,   CHARM,    AMULET,	GEM,	KEY};
 	
 	sum = 0;
 	
 	for (i=0; i<13; i++) {
-		if (theCategory <= 0 || theCategory & correspondingCategories[i]) {
+		if (theCategory & correspondingCategories[i] || theCategory <= 0) {
 			sum += probabilities[i];
 		}
 	}
@@ -86,7 +86,7 @@ unsigned long pickItemCategory(unsigned long theCategory) {
 	randIndex = rand_range(1, sum);
 	
 	for (i=0; ; i++) {
-		if (theCategory <= 0 || theCategory & correspondingCategories[i]) {
+		if (theCategory & correspondingCategories[i] || theCategory <= 0) {
 			if (randIndex <= probabilities[i]) {
 				return correspondingCategories[i];
 			}
@@ -132,9 +132,6 @@ item *makeItemInto(item *theItem, unsigned long itemCategory, short itemKind) {
 				case HAMMER:
 					theItem->flags |= ITEM_ATTACKS_SLOWLY;
 					break;
-				case RAPIER:
-					theItem->flags |= ITEM_ATTACKS_QUICKLY;
-					break;
 				case SPEAR:
 				case PIKE:
 					theItem->flags |= ITEM_ATTACKS_PENETRATE;
@@ -157,10 +154,7 @@ item *makeItemInto(item *theItem, unsigned long itemCategory, short itemKind) {
 						theItem->enchant2 = rand_range(NUMBER_GOOD_WEAPON_ENCHANT_KINDS, NUMBER_WEAPON_RUNIC_KINDS - 1);
 						theItem->flags |= ITEM_RUNIC;
 					}
-				} else if (rand_range(3, 10)
-                           * ((theItem->flags & ITEM_ATTACKS_SLOWLY) ? 2 : 1)
-                           / ((theItem->flags & ITEM_ATTACKS_QUICKLY) ? 2 : 1)
-                           > theItem->damage.lowerBound) {
+				} else if (rand_range(3, 10) * ((theItem->flags & ITEM_ATTACKS_SLOWLY) ? 2 : 1) > theItem->damage.lowerBound) {
 					// give it a good runic; lower damage items are more likely to be runic
 					theItem->enchant2 = rand_range(0, NUMBER_GOOD_WEAPON_ENCHANT_KINDS - 1);
 					theItem->flags |= ITEM_RUNIC;
@@ -459,15 +453,9 @@ void populateItems(short upstairsX, short upstairsY) {
 #endif
 	
 	if (rogue.depthLevel > AMULET_LEVEL) {
-        if (rogue.depthLevel - AMULET_LEVEL - 1 > 5) {
-            numberOfItems = 1;
-        } else {
-            const short lumenstoneDistribution[6] = {3, 3, 3, 2, 2, 2};
-            numberOfItems = lumenstoneDistribution[rogue.depthLevel - AMULET_LEVEL - 1];
-        }
+		numberOfItems = 3;
 		numberOfGoldPiles = 0;
 	} else {
-        rogue.lifePotionFrequency += 34;
 		rogue.strengthPotionFrequency += 17;
 		rogue.enchantScrollFrequency += 30;
 		numberOfItems = 3;
@@ -552,9 +540,8 @@ void populateItems(short upstairsX, short upstairsY) {
 		theCategory = ALL_ITEMS & ~GOLD; // gold is placed separately, below, so it's not a punishment
 		theKind = -1;
 		
-		scrollTable[SCROLL_ENCHANTING].frequency = rogue.enchantScrollFrequency;
-		potionTable[POTION_STRENGTH].frequency = rogue.strengthPotionFrequency;
-        potionTable[POTION_LIFE].frequency = rogue.lifePotionFrequency;
+		scrollTable[SCROLL_ENCHANT_ITEM].frequency = rogue.enchantScrollFrequency;
+		potionTable[POTION_GAIN_STRENGTH].frequency = rogue.strengthPotionFrequency;
 		
 		// Adjust the desired item category if necessary.
 		if ((rogue.foodSpawned + foodTable[RATION].strengthRequired / 2) * 3
@@ -563,14 +550,11 @@ void populateItems(short upstairsX, short upstairsY) {
 			// with more food on deeper levels since they generally take more turns to complete
 			theCategory = FOOD;
 			if (rogue.depthLevel > AMULET_LEVEL) {
-				numberOfItems++; // Food isn't at the expense of gems.
+				numberOfItems++;
 			}
 		} else if (rogue.depthLevel > AMULET_LEVEL) {
 			theCategory = GEM;
-		} else if (rogue.lifePotionsSpawned * 4 + 3 < rogue.depthLevel) {
-            theCategory = POTION;
-            theKind = POTION_LIFE;
-        }
+		}
 		
 		// Generate the item.
 		theItem = generateItem(theCategory, theKind);
@@ -581,7 +565,7 @@ void populateItems(short upstairsX, short upstairsY) {
 		
 		// Choose a placement location not in a hallway.
 		do {
-			if ((theItem->category & FOOD) || ((theItem->category & POTION) && theItem->kind == POTION_STRENGTH)) {
+			if ((theItem->category & FOOD) || ((theItem->category & POTION) && theItem->kind == POTION_GAIN_STRENGTH)) {
 				randomMatchingLocation(&x, &y, FLOOR, NOTHING, -1); // food and gain strength don't follow the heat map
 			} else {
 				getItemSpawnLoc(itemSpawnHeatMap, &x, &y, &totalHeat);
@@ -593,16 +577,12 @@ void populateItems(short upstairsX, short upstairsY) {
 		// Cool off the item spawning heat map at the chosen location:
 		coolHeatMapAt(itemSpawnHeatMap, x, y, &totalHeat);
 		
-		// Regulate the frequency of enchantment scrolls and strength/life potions.
-		if (theItem->category & SCROLL && theItem->kind == SCROLL_ENCHANTING) {
+		// Regulate the frequency of enchantment scrolls and gain strength potions.
+		if (theItem->category & SCROLL && theItem->kind == SCROLL_ENCHANT_ITEM) {
 			rogue.enchantScrollFrequency -= 50;
 			//DEBUG printf("\ndepth %i: %i enchant scrolls generated so far", rogue.depthLevel, ++enchantScrolls);
-		} else if (theItem->category & POTION && theItem->kind == POTION_LIFE) {
-			//DEBUG printf("\n*** Depth %i: generated a life potion at %i frequency!", rogue.depthLevel, rogue.lifePotionFrequency);
-			rogue.lifePotionFrequency -= 150;
-            rogue.lifePotionsSpawned++;
-		} else if (theItem->category & POTION && theItem->kind == POTION_STRENGTH) {
-			//DEBUG printf("\n*** Depth %i: generated a strength potion at %i frequency!", rogue.depthLevel, rogue.strengthPotionFrequency);
+		} else if (theItem->category & POTION && theItem->kind == POTION_GAIN_STRENGTH) {
+			//DEBUG printf("\n*** Depth %i: generated a strength potions at %i frequency!", rogue.depthLevel, rogue.strengthPotionFrequency);
 			rogue.strengthPotionFrequency -= 50;
 		}
 		
@@ -639,9 +619,8 @@ void populateItems(short upstairsX, short upstairsY) {
 		message("Added gold.", true);
 	}
 	
-	scrollTable[SCROLL_ENCHANTING].frequency	= 0;	// No enchant scrolls or strength/life potions can spawn except via initial
-	potionTable[POTION_STRENGTH].frequency      = 0;	// item population or blueprints that create them specifically.
-    potionTable[POTION_LIFE].frequency          = 0;
+	scrollTable[SCROLL_ENCHANT_ITEM].frequency	= 0;	// No enchant scrolls or strength potions can spawn except via initial
+	potionTable[POTION_GAIN_STRENGTH].frequency	= 0;	// item population or blueprints that create them specifically.
 	
 	//DEBUG printf("\nD:%i: %lu gold generated so far.", rogue.depthLevel, rogue.goldGenerated);
 }
@@ -746,36 +725,6 @@ void pickUpItemAt(short x, short y) {
 	}
 }
 
-void conflateItemCharacteristics(item *newItem, item *oldItem) {
-    
-    // let magic detection and other flags propagate to the new stack...
-    newItem->flags |= (oldItem->flags & (ITEM_MAGIC_DETECTED | ITEM_IDENTIFIED | ITEM_PROTECTED | ITEM_NAMED | ITEM_RUNIC
-                                          | ITEM_RUNIC_HINTED | ITEM_CAN_BE_IDENTIFIED | ITEM_MAX_CHARGES_KNOWN));
-    
-    // keep the higher enchantment and lower strength requirement...
-    if (oldItem->enchant1 > newItem->enchant1) {
-        newItem->enchant1 = oldItem->enchant1;
-    }
-    if (oldItem->strengthRequired < newItem->strengthRequired) {
-        newItem->strengthRequired = oldItem->strengthRequired;
-    }
-    // Copy the inscription.
-    if (oldItem->inscription && !newItem->inscription) {
-        strcpy(newItem->inscription, oldItem->inscription);
-    }
-}
-
-void stackItems(item *newItem, item *oldItem) {
-    //Increment the quantity of the old item...
-    newItem->quantity++;
-    
-    // ...conflate attributes...
-    conflateItemCharacteristics(newItem, oldItem);
-    
-    // ...and delete the new item.
-    deleteItem(oldItem);
-}
-
 item *addItemToPack(item *theItem) {
 	item *previousItem, *tempItem;
 	char itemLetter;
@@ -786,8 +735,26 @@ item *addItemToPack(item *theItem) {
 	if (theItem->category & (FOOD|POTION|SCROLL|GEM)) {
 		for (tempItem = packItems->nextItem; tempItem != NULL; tempItem = tempItem->nextItem) {
 			if (theItem->category == tempItem->category && theItem->kind == tempItem->kind) {
-				// We found a match!
-                stackItems(tempItem, theItem);
+				// We found a match! Increment the quantity of the old item...
+				tempItem->quantity++;
+				
+				// let magic detection and other flags propagate to the stack...
+				tempItem->flags |= (theItem->flags & (ITEM_MAGIC_DETECTED | ITEM_IDENTIFIED | ITEM_PROTECTED | ITEM_NAMED | ITEM_RUNIC
+													  | ITEM_RUNIC_HINTED | ITEM_CAN_BE_IDENTIFIED | ITEM_MAX_CHARGES_KNOWN));
+				
+				// keep the higher enchantment and lower strength requirement...
+				if (theItem->enchant1 > tempItem->enchant1) {
+					tempItem->enchant1 = theItem->enchant1;
+				}
+				if (theItem->strengthRequired < tempItem->strengthRequired) {
+					tempItem->strengthRequired = theItem->strengthRequired;
+				}
+				if (theItem->inscription && !tempItem->inscription) {
+					strcpy(tempItem->inscription, theItem->inscription);
+				}
+				
+				// and delete the new item.
+				deleteItem(theItem);
 				
 				// Pass back the incremented (old) item. No need to add it to the pack since it's already there.
 				return tempItem;
@@ -797,8 +764,27 @@ item *addItemToPack(item *theItem) {
 		for (tempItem = packItems->nextItem; tempItem != NULL; tempItem = tempItem->nextItem) {
 			if (theItem->category == tempItem->category && theItem->kind == tempItem->kind
 				&& theItem->quiverNumber == tempItem->quiverNumber) {
-				// We found a match!
-                stackItems(tempItem, theItem);
+				
+				// We found a match! Increase the quantity of the old item...
+				tempItem->quantity += theItem->quantity;
+				
+				// let magic detection and other flags propagate to the stack...
+				tempItem->flags |= (theItem->flags & (ITEM_MAGIC_DETECTED | ITEM_IDENTIFIED | ITEM_PROTECTED | ITEM_NAMED | ITEM_RUNIC
+													  | ITEM_RUNIC_HINTED | ITEM_CAN_BE_IDENTIFIED | ITEM_MAX_CHARGES_KNOWN));
+				
+				// keep the higher enchantment and lower strength requirement...
+				if (theItem->enchant1 > tempItem->enchant1) {
+					tempItem->enchant1 = theItem->enchant1;
+				}
+				if (theItem->strengthRequired < tempItem->strengthRequired) {
+					tempItem->strengthRequired = theItem->strengthRequired;
+				}
+				if (theItem->inscription && !tempItem->inscription) {
+					strcpy(tempItem->inscription, theItem->inscription);
+				}
+				
+				// and delete the new item.
+				deleteItem(theItem);
 				
 				// Pass back the incremented (old) item. No need to add it to the pack since it's already there.
 				return tempItem;
@@ -1357,30 +1343,18 @@ short charmRechargeDelay(short charmKind, short enchant) {
         2500,   // Negation
     };
     const short increment[NUMBER_CHARM_KINDS] = {
-//        35, // Health
-//        30, // Protection
-//        25, // Haste
-//        25, // Fire immunity
-//        20, // Invisibility
-//        30, // Telepathy
-//        25, // Levitation
-//        40, // Shattering
-//        20, // Cause fear
-//        20, // Teleportation
-//        30, // Recharging
-//        25, // Negation
-        45, // Health
-        40, // Protection
-        35, // Haste
-        40, // Fire immunity
-        35, // Invisibility
-        35, // Telepathy
-        35, // Levitation
+        35, // Health
+        30, // Protection
+        25, // Haste
+        25, // Fire immunity
+        20, // Invisibility
+        30, // Telepathy
+        25, // Levitation
         40, // Shattering
-        35, // Cause fear
-        45, // Teleportation
-        40, // Recharging
-        40, // Negation
+        20, // Cause fear
+        20, // Teleportation
+        30, // Recharging
+        25, // Negation
     };
     
     return charmEffectDuration(charmKind, enchant) + duration[charmKind] * pow((double) (100 - (increment[charmKind])) / 100, enchant);
@@ -1457,14 +1431,6 @@ void itemDetails(char *buf, item *theItem) {
 		&& (tableForItemCategory(theItem->category)[theItem->kind].identified || rogue.playbackOmniscience)) {
 		
 		strcat(buf, tableForItemCategory(theItem->category)[theItem->kind].description);
-        
-        if (theItem->category == POTION && theItem->kind == POTION_LIFE) {
-            sprintf(buf2, "\n\nIt will increase your maximum health by %s%i%%%s.",
-                    goodColorEscape,
-                    (player.info.maxHP + 10) * 100 / player.info.maxHP - 100,
-                    whiteColorEscape);
-            strcat(buf, buf2);
-        }
 	} else {
 		switch (theItem->category) {
 			case POTION:
@@ -1861,9 +1827,6 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
 											reflectChance2 * reflectChance2 / 100);
 								}
 								break;
-                            case A_DAMPENING:
-                                strcpy(buf2, "When worn, it will harmlessly absorb the concussive impact of any explosions (though you may still be burned).");
-                                break;
 							case A_BURDEN:
 								strcpy(buf2, "10% of the time it absorbs a blow, it will permanently become heavier. ");
 								break;
@@ -1998,16 +1961,12 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
 			strcat(buf, "\n\n");
 			if ((theItem->flags & (ITEM_IDENTIFIED | ITEM_MAX_CHARGES_KNOWN)) || rogue.playbackOmniscience) {
 				if (theItem->charges) {
-					sprintf(buf2, "%i charge%s remain%s. A scroll of recharging will add 1 charge, and enchanting this wand will add %i charge%s.",
+					sprintf(buf2, "%i charge%s remain%s. A charge can be added to the wand with a scroll of recharging or a scroll of enchantment.",
 							theItem->charges,
 							(theItem->charges == 1 ? "" : "s"),
-							(theItem->charges == 1 ? "s" : ""),
-                            wandTable[theItem->kind].range.lowerBound,
-                            (wandTable[theItem->kind].range.lowerBound == 1 ? "" : "s"));
+							(theItem->charges == 1 ? "s" : ""));
 				} else {
-					sprintf(buf2, "No charges remain.  A scroll of recharging will add 1 charge, and enchanting this wand will add %i charge%s.",
-                            wandTable[theItem->kind].range.lowerBound,
-                            (wandTable[theItem->kind].range.lowerBound == 1 ? "" : "s"));
+					strcpy(buf2, "No charges remain. A charge can be added to the wand with a scroll of recharging or a scroll of enchantment.");
 				}
 			} else {
 				if (theItem->enchant2) {
@@ -2020,11 +1979,9 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
 				
 				if (wandTable[theItem->kind].identified) {
 					strcat(buf, buf2);
-					sprintf(buf2, " Wands of this type can be found with %i to %i charges. Enchanting this wand will add %i charge%s.",
+					sprintf(buf2, " Wands of this type can be found with %i to %i charges.",
 							wandTable[theItem->kind].range.lowerBound,
-							wandTable[theItem->kind].range.upperBound,
-                            wandTable[theItem->kind].range.lowerBound,
-                            (wandTable[theItem->kind].range.lowerBound == 1 ? "" : "s"));
+							wandTable[theItem->kind].range.upperBound);
 				}
 			}
 			strcat(buf, buf2);
@@ -2126,7 +2083,7 @@ Lumenstones are said to contain mysterious properties of untold power, but for y
                             charmRechargeDelay(theItem->kind, enchant + 1));
                     break;
                 case CHARM_INVISIBILITY:
-                    sprintf(buf2, "\n\nWhen used, the charm will turn you invisible for %i turns and recharge in %i turns. While invisible, monsters more than two meters away cannot track you. (If the charm is enchanted, the invisibility will last %i turns and it will recharge in %i turns.)",
+                    sprintf(buf2, "\n\nWhen used, the charm will turn you invisible for %i turns and recharge in %i turns. (If the charm is enchanted, the invisibility will last %i turns and it will recharge in %i turns.)",
                             charmEffectDuration(theItem->kind, enchant),
                             charmRechargeDelay(theItem->kind, enchant),
                             charmEffectDuration(theItem->kind, enchant + 1),
@@ -2848,8 +2805,7 @@ void aggravateMonsters() {
 	freeDynamicGrid(grid);
 }
 
-// returns the number of entries in the list;
-// also includes (-1, -1) as an additional terminus indicator after the end of the list
+// returns the number of items on the list; includes (-1, -1) as an additional terminus indicator after the end of the list
 short getLineCoordinates(short listOfCoordinates[][2], short originLoc[2], short targetLoc[2]) {
 	float targetVector[2], error[2];
 	short largerTargetComponent, currentVector[2], previousVector[2], quadrantTransform[2], i;
@@ -2911,7 +2867,6 @@ short getLineCoordinates(short listOfCoordinates[][2], short originLoc[2], short
 	return cellNumber;
 }
 
-// Should really use getLineCoordinates instead of calculating from scratch.
 void getImpactLoc(short returnLoc[2], short originLoc[2], short targetLoc[2],
 				  short maxDistance, boolean returnLastEmptySpace) {
 	float targetVector[2], error[2];
@@ -3026,7 +2981,6 @@ void negate(creature *monst) {
 		monst->status[STATUS_IMMUNE_TO_FIRE] = 0;
 		monst->status[STATUS_SLOWED] = 0;
 		monst->status[STATUS_HASTED] = 0;
-		monst->status[STATUS_CONFUSED] = 0;
 		monst->status[STATUS_ENTRANCED] = 0;
 		monst->status[STATUS_DISCORDANT] = 0;
 		monst->status[STATUS_SHIELDED] = 0;
@@ -3060,22 +3014,19 @@ void negate(creature *monst) {
 	}
 }
 
-short monsterAccuracyAdjusted(creature *monst) {
-    short retval = monst->info.accuracy * pow(WEAPON_ENCHANT_ACCURACY_FACTOR, 2.5 * (float) monst->weaknessAmount);
-    return max(retval, 0);
-}
-
-float monsterDamageAdjustmentAmount(creature *monst) {
-    if (monst == &player) {
-        return 1.0; // Handled through player strength routines elsewhere.
-    } else {
-        return pow(WEAPON_ENCHANT_DAMAGE_FACTOR, -2.5 * (float) monst->weaknessAmount);
-    }
-}
-
-short monsterDefenseAdjusted(creature *monst) {
-    short retval = monst->info.defense - 25 * monst->weaknessAmount;
-    return max(retval, 0);
+void refreshMonsterWeaknessPenalties(creature *monst) {
+	// Assume that the monster can ordinarily barely carry its weapon and armor.
+	monst->info.accuracy = monsterCatalog[monst->info.monsterID].accuracy * pow(WEAPON_ENCHANT_ACCURACY_FACTOR, 2.5 * (float) monst->weaknessAmount);
+    monst->info.accuracy = max(0, monst->info.accuracy);
+    
+	monst->info.damage.lowerBound = monsterCatalog[monst->info.monsterID].damage.lowerBound * pow(WEAPON_ENCHANT_DAMAGE_FACTOR, -2.5 * (float) monst->weaknessAmount);
+	monst->info.damage.lowerBound = max(0, monst->info.damage.lowerBound);
+    
+    monst->info.damage.upperBound = monsterCatalog[monst->info.monsterID].damage.upperBound * pow(WEAPON_ENCHANT_DAMAGE_FACTOR, -2.5 * (float) monst->weaknessAmount);
+	monst->info.damage.upperBound = max(0, monst->info.damage.upperBound);
+    
+    monst->info.defense = monsterCatalog[monst->info.monsterID].defense - 25 * monst->weaknessAmount;
+    monst->info.defense = max(0, monst->info.defense);
 }
 
 // Adds one to the creature's weakness, sets the weakness status duration to maxDuration.
@@ -3089,6 +3040,8 @@ void weaken(creature *monst, short maxDuration) {
         messageWithColor("your muscles weaken as an enervating toxin fills your veins.", &badMessageColor, false);
 		strengthCheck(rogue.weapon);
 		strengthCheck(rogue.armor);
+	} else {
+		refreshMonsterWeaknessPenalties(monst);
 	}
 }
 
@@ -3106,10 +3059,9 @@ boolean polymorph(creature *monst) {
 	previousDamageTaken = monst->info.maxHP - monst->currentHP;
 	
 	do {
-		monst->info = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)]; // Presto change-o!
+		monst->info = monsterCatalog[rand_range(1, NUMBER_MONSTER_KINDS - 1)]; // abra kadabra
 	} while (monst->info.flags & MONST_INANIMATE); // Can't turn something into an inanimate object.
 	
-    monst->info.turnsBetweenRegen *= 1000;
 	monst->currentHP = max(1, max(healthFraction * monst->info.maxHP, monst->info.maxHP - previousDamageTaken));
 	
 	monst->movementSpeed = monst->info.movementSpeed;
@@ -3144,7 +3096,6 @@ boolean polymorph(creature *monst) {
 		monst->creatureState = MONSTER_TRACKING_SCENT;
 		monst->bookkeepingFlags &= ~MONST_CAPTIVE;
 	}
-    monst->bookkeepingFlags &= ~(MONST_SEIZING | MONST_SEIZED);
 	
 	monst->ticksUntilTurn = max(monst->ticksUntilTurn, 101);
 	
@@ -3280,7 +3231,7 @@ void causeFear(const char *emitterName) {
         }
     }
     if (numberOfMonsters > 1) {
-        sprintf(buf, "%s emits a brilliant flash of red light, and the monsters flee!", emitterName);
+        sprintf(buf, "%s emits a brilliant flash of red light, and the monsters flees!", emitterName);
     } else if (numberOfMonsters == 1) {
         sprintf(buf, "%s emits a brilliant flash of red light, and %s flees!", emitterName, mName);
     } else {
@@ -3910,7 +3861,8 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 			break;
 		case BOLT_DOMINATION:
 			if (monst && monst != &player && !(monst->info.flags & MONST_INANIMATE)) {
-				if (rand_percent(wandDominate(monst))) {
+				if (monst->currentHP * 5 < monst->info.maxHP
+					|| rand_range(0, monst->info.maxHP) > monst->currentHP) {
 					// domination succeeded
 					monst->status[STATUS_DISCORDANT] = 0;
 					becomeAllyWith(monst);
@@ -3952,7 +3904,7 @@ boolean zap(short originLoc[2], short targetLoc[2], enum boltType bolt, short bo
 						sprintf(buf, "%s %s %s sick",
 								monstName,
 								(monst == &player ? "feel" : "looks"),
-								(monst->status[STATUS_POISONED] > monst->currentHP && !player.status[STATUS_HALLUCINATING] ? "fatally" : "very"));
+								(monst->status[STATUS_POISONED] > monst->currentHP ? "fatally" : "very"));
 						combatMessage(buf, messageColorFromVictim(monst));
 					}
 				}
@@ -5010,11 +4962,13 @@ void throwCommand(item *theItem) {
 		if (!confirm(buf, false)) {
 			return;
 		}
-        if (theItem->flags & ITEM_CURSED) {
-            sprintf(buf, "You cannot unequip your %s; it appears to be cursed.", theName);
-            messageWithColor(buf, &itemMessageColor, false);
-            return;
-        }
+		if (theItem->flags & ITEM_CURSED) {
+			sprintf(buf, "You cannot unequip your %s; it appears to be cursed.", theName);
+			messageWithColor(buf, &itemMessageColor, false);
+			return;
+		} else {
+			unequipItem(theItem, false);
+		}
 	}
 	
 	sprintf(buf, "Throw %s %s where? (<hjklyubn>, mouse, or <tab>)",
@@ -5024,9 +4978,6 @@ void throwCommand(item *theItem) {
 	maxDistance = (12 + 2 * max(rogue.strength - player.weaknessAmount - 12, 2));
 	autoTarget = (theItem->category & (WEAPON | POTION)) ? true : false;
 	if (chooseTarget(zapTarget, maxDistance, true, autoTarget, false, false)) {
-        if ((theItem->flags & ITEM_EQUIPPED) && theItem->quantity <= 1) {
-            unequipItem(theItem, false);
-        }
 		command[2] = '\0';
 		recordKeystrokeSequence(command);
 		recordMouseClick(mapToWindowX(zapTarget[0]), mapToWindowY(zapTarget[1]), true, false);
@@ -5109,7 +5060,7 @@ void apply(item *theItem, boolean recordCommands) {
 			recordKeystrokeSequence(command);
 			commandsRecorded = true; // have to record in case further keystrokes are necessary (e.g. enchant scroll)
 			if (!scrollTable[theItem->kind].identified
-				&& theItem->kind != SCROLL_ENCHANTING
+				&& theItem->kind != SCROLL_ENCHANT_ITEM
 				&& theItem->kind != SCROLL_IDENTIFY) {
 				
 				revealItemType = true;
@@ -5232,7 +5183,7 @@ void apply(item *theItem, boolean recordCommands) {
                     break;
                 case CHARM_INVISIBILITY:
                     imbueInvisibility(&player, charmEffectDuration(theItem->kind, theItem->enchant1), false);
-                    message("You shiver as a chill runs up your spine.", false);
+                    message("A chill runs up your spine as you become invisible.", false);
                     break;
                 case CHARM_TELEPATHY:
                     makePlayerTelepathic(charmEffectDuration(theItem->kind, theItem->enchant1));
@@ -5478,7 +5429,7 @@ void readScroll(item *theItem) {
 				message("your pack glows with a cleansing light, but nothing happens.", false);
 			}
 			break;
-		case SCROLL_ENCHANTING:
+		case SCROLL_ENCHANT_ITEM:
 			identify(theItem);
 			messageWithColor("this is a scroll of enchantment.", &itemMessageColor, true);
 			if (!numberOfMatchingPackItems((WEAPON | ARMOR | RING | STAFF | WAND | CHARM), 0, 0, false)) {
@@ -5503,9 +5454,6 @@ void readScroll(item *theItem) {
 				case WEAPON:
 					theItem->strengthRequired = max(0, theItem->strengthRequired - 1);
 					theItem->enchant1++;
-                    if (theItem->quiverNumber) {
-                        theItem->quiverNumber = rand_range(1, 60000);
-                    }
 					break;
 				case ARMOR:
 					theItem->strengthRequired = max(0, theItem->strengthRequired - 1);
@@ -5525,17 +5473,14 @@ void readScroll(item *theItem) {
 					theItem->enchant2 = 500 / theItem->enchant1;
 					break;
 				case WAND:
-					//theItem->charges++;
-                    theItem->charges += wandTable[theItem->kind].range.lowerBound;
+					theItem->charges++;
 					break;
 				case CHARM:
                     theItem->enchant1++;
 					
-                    theItem->charges = min(0, theItem->charges); // Enchanting instantly recharges charms.
-                    
-//                    theItem->charges = theItem->charges
-//                    * charmRechargeDelay(theItem->kind, theItem->enchant1)
-//                    / charmRechargeDelay(theItem->kind, theItem->enchant1 - 1);
+                    theItem->charges = theItem->charges
+                    * charmRechargeDelay(theItem->kind, theItem->enchant1)
+                    / charmRechargeDelay(theItem->kind, theItem->enchant1 - 1);
                     
 					break;
 				default:
@@ -5584,9 +5529,6 @@ void readScroll(item *theItem) {
 					messageWithColor(buf, &itemMessageColor, false);
 					tempItem->flags &= ~ITEM_CURSED;
 				}
-                if (rogue.weapon->quiverNumber) {
-                    rogue.weapon->quiverNumber = rand_range(1, 60000);
-                }
 			} else {
 				message("a protective golden light covers your empty hands, but it quickly disperses.", false);
 			}
@@ -5657,25 +5599,14 @@ void readScroll(item *theItem) {
 	}
 }
 
-void detectMagicOnItem(item *theItem) {
-    theItem->flags |= ITEM_MAGIC_DETECTED;
-    if ((theItem->category & (WEAPON | ARMOR))
-        && theItem->enchant1 == 0
-        && !(theItem->flags & ITEM_RUNIC)) {
-        
-        identify(theItem);
-    }
-}
-
 void drinkPotion(item *theItem) {
 	item *tempItem;
 	creature *monst;
 	boolean hadEffect = false;
 	boolean hadEffect2 = false;
-    char buf[1000];
 	
 	switch (theItem->kind) {
-		case POTION_LIFE:
+		case POTION_HEALING:
 			if (player.status[STATUS_HALLUCINATING] > 1) {
 				player.status[STATUS_HALLUCINATING] = 1;
 			}
@@ -5700,14 +5631,12 @@ void drinkPotion(item *theItem) {
 				updateMinersLightRadius();
 				updateVision(true);
 			}
-            sprintf(buf, "%syour maximum health increases by %i%%.",
-                    ((player.currentHP < player.info.maxHP) ? "you heal completely and " : ""),
-                    (player.info.maxHP + 10) * 100 / player.info.maxHP - 100);
-            
-            player.info.maxHP += 10;
-            player.currentHP = player.info.maxHP;
-            updatePlayerRegenerationDelay();
-            messageWithColor(buf, &advancementMessageColor, false);
+			if (player.currentHP < player.info.maxHP) {
+				player.currentHP = player.info.maxHP;
+				message("your wounds heal completely.", false);
+			} else {
+				message("you feel extremely healthy.", false);
+			}
 			break;
 		case POTION_HALLUCINATION:
 			player.status[STATUS_HALLUCINATING] = player.maxStatus[STATUS_HALLUCINATING] = 300;
@@ -5731,7 +5660,7 @@ void drinkPotion(item *theItem) {
 			message("vapor pours out of the flask and causes the floor to disappear!", false);
 			spawnDungeonFeature(player.xLoc, player.yLoc, &dungeonFeatureCatalog[DF_HOLE_POTION], true, false);
 			break;
-		case POTION_STRENGTH:
+		case POTION_GAIN_STRENGTH:
 			rogue.strength++;
 			if (player.status[STATUS_WEAKENED]) {
 				player.status[STATUS_WEAKENED] = 1;
@@ -5768,7 +5697,7 @@ void drinkPotion(item *theItem) {
 			hadEffect2 = false;
 			for (tempItem = floorItems->nextItem; tempItem != NULL; tempItem = tempItem->nextItem) {
 				if (tempItem->category & CAN_BE_DETECTED) {
-                    detectMagicOnItem(tempItem);
+					tempItem->flags |= ITEM_MAGIC_DETECTED;
 					if (itemMagicChar(tempItem)) {
 						pmap[tempItem->xLoc][tempItem->yLoc].flags |= ITEM_DETECTED;
 						hadEffect = true;
@@ -5778,7 +5707,7 @@ void drinkPotion(item *theItem) {
 			}
 			for (monst = monsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
 				if (monst->carriedItem && (monst->carriedItem->category & CAN_BE_DETECTED)) {
-                    detectMagicOnItem(monst->carriedItem);
+					monst->carriedItem->flags |= ITEM_MAGIC_DETECTED;
 					if (itemMagicChar(monst->carriedItem)) {
 						hadEffect = true;
 						refreshDungeonCell(monst->xLoc, monst->yLoc);
@@ -5787,7 +5716,7 @@ void drinkPotion(item *theItem) {
 			}
 			for (tempItem = packItems->nextItem; tempItem != NULL; tempItem = tempItem->nextItem) {
 				if (tempItem->category & CAN_BE_DETECTED) {
-                    detectMagicOnItem(tempItem);
+					tempItem->flags |= ITEM_MAGIC_DETECTED;
 					if (itemMagicChar(tempItem)) {
 						if (tempItem->flags & ITEM_MAGIC_DETECTED) {
 							hadEffect2 = true;
@@ -5815,11 +5744,7 @@ void drinkPotion(item *theItem) {
 			if (player.status[STATUS_BURNING]) {
 				extinguishFireOnCreature(&player);
 			}
-			message("a comforting breeze envelops you, and you no longer fear fire.", false);
-			break;
-		case POTION_INVISIBILITY:
-			player.status[STATUS_INVISIBLE] = player.maxStatus[STATUS_INVISIBLE] = 75;
-			message("you shiver as a chill runs up your spine.", false);
+			message("you no longer fear fire.", false);
 			break;
 		default:
 			message("you feel very strange, as though your body doesn't know how to react!", true);
@@ -6447,10 +6372,10 @@ void shuffleFlavors() {
 
 unsigned long itemValue(item *theItem) {
 	const short weaponRunicIntercepts[] = {
-		700,	//W_SPEED,
+		500,	//W_SPEED,
 		1000,	//W_QUIETUS,
 		900,	//W_PARALYSIS,
-		800,	//W_MULTIPLICITY,
+		1000,	//W_MULTIPLICITY,
 		700,	//W_SLOWING,
 		750,	//W_CONFUSION,
 		500,	//W_SLAYING,
@@ -6464,7 +6389,6 @@ unsigned long itemValue(item *theItem) {
 		900,	//A_REPRISAL,
 		500,	//A_IMMUNITY,
 		900,	//A_REFLECTION,
-        500,    //A_DAMPENING
 		-1000,	//A_BURDEN,
 		-1000,	//A_VULNERABILITY,
         -1000,  //A_IMMOLATION,
@@ -6506,18 +6430,18 @@ unsigned long itemValue(item *theItem) {
 			break;
 		case STAFF:
 			return staffTable[theItem->kind].marketValue * theItem->quantity
-			* (float) (1 + 0.15 * (theItem->enchant1 - 1));
+			* (unsigned long) (1 + 0.15 * (theItem->enchant1 - 1));
 			break;
 		case WAND:
 			return wandTable[theItem->kind].marketValue * theItem->quantity;
 			break;
 		case RING:
 			return ringTable[theItem->kind].marketValue * theItem->quantity
-			* (float) (1 + 0.15 * (theItem->enchant1 - 1));
+			* (unsigned long) (1 + 0.15 * (theItem->enchant1 - 1));
 			break;
 		case CHARM:
 			return charmTable[theItem->kind].marketValue * theItem->quantity
-			* (float) (1 + 0.15 * (theItem->enchant1 - 1));
+			* (unsigned long) (1 + 0.15 * (theItem->enchant1 - 1));
 			break;
 		case AMULET:
 			return 10000;

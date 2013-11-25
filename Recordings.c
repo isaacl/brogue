@@ -796,7 +796,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				}
                 
                 if (frameCount < 0) {
-                    if ((unsigned long) (frameCount * -1) > rogue.turnNumber) {
+                    if (frameCount * -1 > rogue.turnNumber) {
                         destinationFrame = 0;
                     } else {
                         destinationFrame = rogue.turnNumber + frameCount;

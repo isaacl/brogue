@@ -209,9 +209,6 @@ short actionMenu(short x, short y, boolean playingBack) {
 	sprintf(buttons[buttonCount].text, "  %sD: %sDiscovered items  ",	yellowColorEscape, whiteColorEscape);
 	buttons[buttonCount].hotkey[0] = DISCOVERIES_KEY;
 	buttonCount++;
-	sprintf(buttons[buttonCount].text, "  %s\\: %s%s color effects  ",	yellowColorEscape, whiteColorEscape, rogue.trueColorMode ? "Enable" : "Disable");
-	buttons[buttonCount].hotkey[0] = TRUE_COLORS_KEY;
-	buttonCount++;
 	sprintf(buttons[buttonCount].text, "  %s?: %sHelp  ",						yellowColorEscape, whiteColorEscape);
 	buttons[buttonCount].hotkey[0] = HELP_KEY;
 	buttonCount++;
@@ -495,7 +492,7 @@ void mainInputLoop() {
 			rogue.playbackMode = false;
 			
 			if (state.buttonChosen == 3) { // Actions menu button.
-				buttonInput = actionMenu(buttons[3].x - 4, buttons[3].y - (playingBack ? 14 : 13), playingBack); // Returns the corresponding keystroke.
+				buttonInput = actionMenu(buttons[3].x - 4, buttons[3].y - (playingBack ? 13 : 12), playingBack); // Returns the corresponding keystroke.
 				if (buttonInput == -1) { // Canceled.
 					doEvent = false;
 				} else {
@@ -505,11 +502,11 @@ void mainInputLoop() {
 					theEvent.shiftKey = theEvent.controlKey = false;
 					doEvent = true;
 				}
-			} else if (state.buttonChosen > -1) { // ^^
+			} else if (state.buttonChosen > -1) {
 				theEvent.eventType = KEYSTROKE;
 				theEvent.param1 = buttons[state.buttonChosen].hotkey[0];
 				theEvent.param2 = 0;
-				//theEvent.shiftKey = theEvent.controlKey = false;
+				theEvent.shiftKey = theEvent.controlKey = false;
 			}
 			state.buttonChosen = -1;
 			
@@ -590,8 +587,7 @@ void mainInputLoop() {
 				} else if (abs(player.xLoc - cursor[0]) + abs(player.yLoc - cursor[1]) == 1 // horizontal or vertical
 						   || (distanceBetween(player.xLoc, player.yLoc, cursor[0], cursor[1]) == 1 // includes diagonals
 							   && ((!cellHasTerrainFlag(player.xLoc, cursor[1], T_OBSTRUCTS_PASSABILITY) && !cellHasTerrainFlag(cursor[0], player.yLoc, T_OBSTRUCTS_PASSABILITY))
-                                   || ((pmap[cursor[0]][cursor[1]].flags & HAS_MONSTER) && (monsterAtLoc(cursor[0], cursor[1])->info.flags & MONST_ATTACKABLE_THRU_WALLS)) // there's a turret there
-                                   || !(~terrainFlags(cursor[0], cursor[1]) & (T_OBSTRUCTS_PASSABILITY | T_PROMOTES_ON_PLAYER_ENTRY))))) { // there's a lever there
+                                   || ((pmap[cursor[0]][cursor[1]].flags & HAS_MONSTER) && (monsterAtLoc(cursor[0], cursor[1])->info.flags & MONST_ATTACKABLE_THRU_WALLS))))) {
 							   // Clicking one space away will cause the player to try to move there directly irrespective of path.
 							   for (dir=0;
 									dir<8 && (player.xLoc + nbDirs[dir][0] != cursor[0] || player.yLoc + nbDirs[dir][1] != cursor[1]);
@@ -680,6 +676,7 @@ void refreshScreen() {
 
 // higher-level redraw
 void displayLevel() {
+	
 	short i, j;
 	
 	for( i=0; i<DCOLS; i++ ) {
@@ -698,16 +695,7 @@ void storeColorComponents(char components[3], const color *theColor) {
 }
 
 void bakeTerrainColors(color *foreColor, color *backColor, short x, short y) {
-    const short *vals;
-    if (rogue.trueColorMode) {
-        const short nf = 1000;
-        const short nb = 0;
-        const short neutralColors[8] = {nf, nf, nf, nf, nb, nb, nb, nb};
-        vals = neutralColors;
-    } else {
-        vals = &(terrainRandomValues[x][y][0]);
-    }
-    
+	const short *vals = &(terrainRandomValues[x][y][0]);
 	const short foreRand = foreColor->rand * vals[6] / 1000;
 	const short backRand = backColor->rand * vals[7] / 1000;
 	
@@ -730,6 +718,7 @@ void bakeTerrainColors(color *foreColor, color *backColor, short x, short y) {
 
 void bakeColor(color *theColor) {
 	short rand;
+	
 	rand = rand_range(0, theColor->rand);
 	theColor->red += rand_range(0, theColor->redRand) + rand;
 	theColor->green += rand_range(0, theColor->greenRand) + rand;
@@ -2803,7 +2792,7 @@ void confirmMessages() {
 }
 
 void stripShiftFromMovementKeystroke(signed long *keystroke) {
-	const unsigned short newKey = *keystroke - ('A' - 'a');
+	unsigned short newKey = *keystroke - ('A' - 'a');
 	if (newKey == LEFT_KEY
 		|| newKey == RIGHT_KEY
 		|| newKey == DOWN_KEY
@@ -3238,7 +3227,7 @@ void printHelpScreen() {
 
 void printDiscoveries(short category, short count, unsigned short itemCharacter, short x, short y, cellDisplayBuffer dbuf[COLS][ROWS]) {
 	color *theColor, goodColor, badColor;
-	char buf[COLS];
+	char buf[COLS], buf2[COLS];
 	short i, x2, magic;//, totalFrequency;
 	itemTable *theTable = tableForItemCategory(category);
 	
@@ -3287,20 +3276,18 @@ void printDiscoveriesScreen() {
 	
 	printString("-- SCROLLS --", mapToWindowX(3), y = mapToWindowY(1), &flavorTextColor, &black, dbuf);
 	printDiscoveries(SCROLL, NUMBER_SCROLL_KINDS, SCROLL_CHAR, mapToWindowX(3), ++y, dbuf);
-	
-	printString("-- RINGS --", mapToWindowX(3), y += NUMBER_SCROLL_KINDS + 1, &flavorTextColor, &black, dbuf);
-	printDiscoveries(RING, NUMBER_RING_KINDS, RING_CHAR, mapToWindowX(3), ++y, dbuf);
+
+	printString("-- WANDS --", mapToWindowX(3), y += NUMBER_SCROLL_KINDS + 1, &flavorTextColor, &black, dbuf);
+	printDiscoveries(WAND, NUMBER_WAND_KINDS, WAND_CHAR, mapToWindowX(3), ++y, dbuf);
 	
 	printString("-- POTIONS --", mapToWindowX(29), y = mapToWindowY(1), &flavorTextColor, &black, dbuf);
 	printDiscoveries(POTION, NUMBER_POTION_KINDS, POTION_CHAR, mapToWindowX(29), ++y, dbuf);
 	
 	printString("-- STAFFS --", mapToWindowX(54), y = mapToWindowY(1), &flavorTextColor, &black, dbuf);
 	printDiscoveries(STAFF, NUMBER_STAFF_KINDS, STAFF_CHAR, mapToWindowX(54), ++y, dbuf);
-    
-	printString("-- WANDS --", mapToWindowX(54), y += NUMBER_STAFF_KINDS + 1, &flavorTextColor, &black, dbuf);
-	printDiscoveries(WAND, NUMBER_WAND_KINDS, WAND_CHAR, mapToWindowX(54), ++y, dbuf);
-    
-    printString("-- press any key to continue --", mapToWindowX(20), mapToWindowY(DROWS-2), &itemMessageColor, &black, dbuf);
+	
+	printString("-- RINGS --", mapToWindowX(54), y += NUMBER_STAFF_KINDS + 1, &flavorTextColor, &black, dbuf);
+	printDiscoveries(RING, NUMBER_RING_KINDS, RING_CHAR, mapToWindowX(54), ++y, dbuf);
 	
 	for (i=0; i<COLS; i++) {
 		for (j=0; j<ROWS; j++) {
@@ -3308,8 +3295,8 @@ void printDiscoveriesScreen() {
 		}
 	}
 	overlayDisplayBuffer(dbuf, rbuf);
-    
-    waitForKeystrokeOrMouseClick();
+	
+	displayMoreSign();
 	
 	overlayDisplayBuffer(rbuf, NULL);
 }

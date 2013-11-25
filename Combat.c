@@ -75,10 +75,10 @@ float netEnchant(item *theItem) {
 }
 
 // does NOT account for auto-hit from sleeping or unaware defenders; does account for auto-hit from
-// stuck or captive defenders and from weapons of slaying.
+// stuck or captive defenders.
 short hitProbability(creature *attacker, creature *defender) {
-	short accuracy = monsterAccuracyAdjusted(attacker);
-	short defense = monsterDefenseAdjusted(defender);
+	short accuracy = attacker->info.accuracy;
+	short defense = defender->info.defense;
 	short hitProbability;
 	
 	if (defender->status[STATUS_STUCK] || (defender->bookkeepingFlags & MONST_CAPTIVE)) {
@@ -86,9 +86,6 @@ short hitProbability(creature *attacker, creature *defender) {
 	}
 	
 	if (attacker == &player && rogue.weapon) {
-        if ((rogue.weapon->flags & ITEM_RUNIC) && rogue.weapon->enchant2 == W_SLAYING && rogue.weapon->vorpalEnemy == defender->info.monsterID) {
-            return 100;
-        }
 		accuracy *= pow(WEAPON_ENCHANT_ACCURACY_FACTOR, netEnchant(rogue.weapon));
 	}
 	
@@ -311,39 +308,7 @@ void splitMonster(creature *monst, short x, short y) {
 	}
 }
 
-short alliedCloneCount(creature *monst) {
-    short count;
-    creature *temp;
-    
-    count = 0;
-    for (temp = monsters->nextCreature; temp != NULL; temp = temp->nextCreature) {
-        if (temp != monst
-            && temp->info.monsterID == monst->info.monsterID
-            && monstersAreTeammates(temp, monst)) {
-            
-            count++;
-        }
-    }
-    for (temp = levels[rogue.depthLevel - 2].monsters; temp != NULL; temp = temp->nextCreature) {
-        if (temp != monst
-            && temp->info.monsterID == monst->info.monsterID
-            && monstersAreTeammates(temp, monst)) {
-            
-            count++;
-        }
-    }
-    for (temp = levels[rogue.depthLevel].monsters; temp != NULL; temp = temp->nextCreature) {
-        if (temp != monst
-            && temp->info.monsterID == monst->info.monsterID
-            && monstersAreTeammates(temp, monst)) {
-            
-            count++;
-        }
-    }
-    return count;
-}
-
-// This function is called whenever one creature acts aggressively against another in a way that directly causes damage.
+// This function is called whenever one creature acts aggressively against another in a way that causes damage.
 // This can be things like melee attacks, fire/lightning attacks or throwing a weapon.
 void moralAttack(creature *attacker, creature *defender) {
 	
@@ -367,7 +332,7 @@ void moralAttack(creature *attacker, creature *defender) {
 		
 			unAlly(defender);
 		}
-		if ((defender->info.abilityFlags & MA_CLONE_SELF_ON_DEFEND) && alliedCloneCount(defender) < 100) {
+		if (defender->info.abilityFlags & MA_CLONE_SELF_ON_DEFEND) {
 			if (distanceBetween(defender->xLoc, defender->yLoc, attacker->xLoc, attacker->yLoc) <= 1) {
 				splitMonster(defender, attacker->xLoc, attacker->yLoc);
 			} else {
@@ -398,7 +363,7 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 		return;
 	}
 	
-	// Special hits that can affect only the player:
+	// special hits that can affect only the player:
 	if (defender == &player) {
 		
 		if (playerImmuneToMonster(attacker)) {
@@ -447,12 +412,12 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 					}
 				}
 				if (theItem) {
-					if (theItem->quantity > 1 && !(theItem->category & WEAPON)) { // Peel off the top item and drop it.
+					if (theItem->quantity > 1 && !(theItem->category & WEAPON)) { // peel off the top item and drop it
 						itemFromTopOfStack = generateItem(ALL_ITEMS, -1);
-						*itemFromTopOfStack = *theItem; // Clone the item.
+						*itemFromTopOfStack = *theItem; // clone the item
 						theItem->quantity--;
 						itemFromTopOfStack->quantity = 1;
-						theItem = itemFromTopOfStack; // Redirect pointer.
+						theItem = itemFromTopOfStack; // redirect pointer
 					} else {
 						removeItemFromChain(theItem, packItems);
 					}
@@ -490,9 +455,9 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 
 short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchantLevel) {
 	const float effectChances[NUMBER_WEAPON_RUNIC_KINDS] = {
-		0.16,	// W_SPEED
-		0.06,	// W_QUIETUS
-		0.07,	// W_PARALYSIS
+		0.2,	// W_SPEED
+		0.07,	// W_QUIETUS
+		0.09,	// W_PARALYSIS
 		0.11,	// W_MULTIPLICITY
 		0.14,	// W_SLOWING
 		0.11,	// W_CONFUSION
@@ -517,15 +482,10 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
 	
 	// Innately high-damage weapon types are less likely to trigger runic effects.
 	adjustedBaseDamage = (theItem->damage.lowerBound + theItem->damage.upperBound) / 2;
-	
-    if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
+	if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
 		adjustedBaseDamage /= 2; // Normalize as though they attacked once per turn instead of every other turn.
 	}
-    if (theItem->flags & ITEM_ATTACKS_QUICKLY) {
-		adjustedBaseDamage *= 2; // Normalize as though they attacked once per turn instead of twice per turn.
-	}
-	
-    modifier = 1.0 - min(0.99, ((float) adjustedBaseDamage) / 18.0);
+	modifier = 1.0 - min(0.99, ((float) adjustedBaseDamage) / 18.0);
 	rootChance *= modifier;
 	
 	chance = 100 - (short) (100 * pow(1.0 - rootChance, enchantLevel)); // good runic
@@ -533,10 +493,6 @@ short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchant
 	// Slow weapons get an adjusted chance of 1 - (1-p)^2 to reflect two bites at the apple instead of one.
 	if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
 		chance = 100 - (100 - chance) * (100 - chance) / 100;
-	}
-    // Fast weapons get an adjusted chance of 1 - sqrt(1-p) to reflect one bite at the apple instead of two.
-	if (theItem->flags & ITEM_ATTACKS_QUICKLY) {
-		chance = 100 * (1.0 - sqrt(1 - ((double)(chance)/100.0)));
 	}
 	
 	// The lowest percent change that a weapon will ever have is its enchantment level (if greater than 0).
@@ -635,9 +591,6 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 					if (theItem->flags & ITEM_ATTACKS_SLOWLY) {
 						newMonst->info.attackSpeed *= 2;
 					}
-					if (theItem->flags & ITEM_ATTACKS_QUICKLY) {
-						newMonst->info.attackSpeed /= 2;
-					}
 					newMonst->ticksUntilTurn = 100;
 					newMonst->info.accuracy = player.info.accuracy + 5 * netEnchant(theItem);
 					newMonst->info.damage = player.info.damage;
@@ -707,11 +660,6 @@ void attackVerb(char returnString[DCOLS], creature *attacker, short hitPercentil
 		strcpy(returnString, "hits");
 		return;
 	}
-    
-    if (attacker == &player && !rogue.weapon) {
-		strcpy(returnString, "punch");
-		return;
-    }
 	
 	for (verbCount = 0; verbCount < 4 && monsterText[attacker->info.monsterID].attack[verbCount + 1][0] != '\0'; verbCount++);
 	increment = (100 / (verbCount + 1));
@@ -965,7 +913,7 @@ boolean attack(creature *attacker, creature *defender) {
 	
 	if (sneakAttack || defenderWasAsleep || defenderWasParalyzed || attackHit(attacker, defender)) {
 		// If the attack hit:
-		damage = (defender->info.flags & MONST_IMMUNE_TO_WEAPONS ? 0 : randClump(attacker->info.damage) * monsterDamageAdjustmentAmount(attacker));
+		damage = (defender->info.flags & MONST_IMMUNE_TO_WEAPONS ? 0 : randClump(attacker->info.damage));
 		
 		if (sneakAttack || defenderWasAsleep || defenderWasParalyzed) {
             if (defender != &player) {
@@ -1061,8 +1009,8 @@ boolean attack(creature *attacker, creature *defender) {
 			}
 		} else { // if the defender survived
 			if (!rogue.blockCombatText && (canSeeMonster(attacker) || canSeeMonster(defender))) {
-				attackVerb(verb, attacker, max(damage - attacker->info.damage.lowerBound * monsterDamageAdjustmentAmount(attacker), 0) * 100
-						   / max(1, (attacker->info.damage.upperBound - attacker->info.damage.lowerBound) * monsterDamageAdjustmentAmount(attacker)));
+				attackVerb(verb, attacker, max(damage - attacker->info.damage.lowerBound, 0) * 100
+						   / max(1, attacker->info.damage.upperBound - attacker->info.damage.lowerBound));
 				sprintf(buf, "%s %s %s%s", attackerName, verb, defenderName, explicationClause);
 				if (sightUnseen) {
 					if (!rogue.heardCombatThisTurn) {
@@ -1104,9 +1052,6 @@ boolean attack(creature *attacker, creature *defender) {
 			&& !((rogue.weapon->flags & ITEM_RUNIC) && rogue.weapon->enchant2 == W_SLAYING && rogue.weapon->vorpalEnemy == defender->info.monsterID)) {
 			
 			rogue.weapon->enchant1--;
-            if (rogue.weapon->quiverNumber) {
-                rogue.weapon->quiverNumber = rand_range(1, 60000);
-            }
 			equipItem(rogue.weapon, true);
 			itemName(rogue.weapon, buf2, false, false, NULL);
 			sprintf(buf, "your %s weakens!", buf2);
@@ -1457,10 +1402,10 @@ short monsterPower(const creature *theMonst) {
 		statuses[i] = theMonst->status[i];
 	}
 	
-	damagePerHit[0] = (theMonst->info.damage.lowerBound + theMonst->info.damage.upperBound) * monsterDamageAdjustmentAmount(theMonst) / 2;
+	damagePerHit[0] = (theMonst->info.damage.lowerBound + theMonst->info.damage.upperBound) / 2;
 	damagePerHit[1] = 10;
-	hitChance[0] = monsterAccuracyAdjusted(theMonst) * pow(DEFENSE_FACTOR, 100); // Assumes the dummy has 100 armor.
-	hitChance[1] = monsterAccuracyAdjusted(theMonst) * pow(DEFENSE_FACTOR, theMonst->info.defense);
+	hitChance[0] = theMonst->info.accuracy * pow(DEFENSE_FACTOR, 100); // Assumes the dummy has 100 armor.
+	hitChance[1] = theMonst->info.accuracy * pow(DEFENSE_FACTOR, theMonst->info.defense);
 
 	while (damageDealt[1] < theMonst->currentHP) { // Loop until the dummy kills the monster in the simulation.
 		for (k=0; k<=1; k++) { // k is whose turn it is

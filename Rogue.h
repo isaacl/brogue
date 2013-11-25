@@ -31,7 +31,7 @@
 #define USE_UNICODE
 
 // version string -- no more than 16 bytes:
-#define BROGUE_VERSION_STRING "1.7"
+#define BROGUE_VERSION_STRING "1.6.4"
 
 // debug macros -- define DEBUGGING as 1 to enable debugging.
 
@@ -116,7 +116,7 @@
 #define WEAPON_ENCHANT_DAMAGE_FACTOR        1.065		// Each marginal point of weapon enchantment
                                                         // multiplies damage by this factor.
 #define WEAPON_ENCHANT_ACCURACY_FACTOR      1.065		// Each marginal point of weapon enchantment
-                                                        // multiplies accuracy by this factor.
+                                                        // multiplies damage by this factor.
 
 #define WEAPON_KILLS_TO_AUTO_ID	20
 #define ARMOR_DELAY_TO_AUTO_ID	1000
@@ -169,8 +169,7 @@
 #define AMULET_CHAR		0x2640
 #define FOOD_CHAR		':'
 #define SCROLL_CHAR		0x266A//'?'		// 0x039E
-//#define RING_CHAR		0x26AA //0xffee
-#define RING_CHAR		0xffee
+#define RING_CHAR		0x26AA //0xffee
 #define CHARM_CHAR      0x03DE
 #define POTION_CHAR		'!'
 #define ARMOR_CHAR		'['
@@ -193,7 +192,7 @@
 #define OMEGA_CHAR			0x03A9
 #define THETA_CHAR			0x03B8
 #define LAMDA_CHAR			0x03BB
-#define KOPPA_CHAR			0x03DF//0x03DE
+#define KOPPA_CHAR			0x03DE
 #define LOZENGE_CHAR		0x29EB
 #define CROSS_PRODUCT_CHAR	0x2A2F
 
@@ -387,7 +386,7 @@ enum tileType {
 	STATUE_CRACKING,
 	PORTAL,
 	TURRET_DORMANT,
-	WALL_MONSTER_DORMANT,
+	WORM_DORMANT,
 	DARK_FLOOR_DORMANT,
 	DARK_FLOOR_DARKENING,
 	DARK_FLOOR,
@@ -427,7 +426,6 @@ enum tileType {
 	MACHINE_METHANE_VENT,
 	STEAM_VENT,
 	MACHINE_PRESSURE_PLATE,
-    MACHINE_PRESSURE_PLATE_USED,
     MACHINE_GLYPH,
     MACHINE_GLYPH_INACTIVE,
 	
@@ -512,16 +510,9 @@ enum tileType {
 	STEAM,
 	DARKNESS_CLOUD,
     
-    DEEP_WATER_ALGAE_WELL,
-    DEEP_WATER_ALGAE_1,
-    DEEP_WATER_ALGAE_2,
-    
 	CHASM_WITH_HIDDEN_BRIDGE,
 	CHASM_WITH_HIDDEN_BRIDGE_ACTIVE,
 	MACHINE_CHASM_EDGE,
-    
-    RAT_TRAP_WALL_DORMANT,
-    RAT_TRAP_WALL_CRACKING,
     
     WORM_TUNNEL_MARKER_DORMANT,
     WORM_TUNNEL_MARKER_ACTIVE,
@@ -558,8 +549,6 @@ enum lightType {
 	DARKNESS_PATCH_LIGHT,
 	FUNGUS_LIGHT,
 	FUNGUS_FOREST_LIGHT,
-    LUMINESCENT_ALGAE_BLUE_LIGHT,
-    LUMINESCENT_ALGAE_GREEN_LIGHT,
 	ECTOPLASM_LIGHT,
 	UNICORN_POOP_LIGHT,
 	EMBER_LIGHT,
@@ -615,14 +604,13 @@ enum foodKind {
 };
 
 enum potionKind {
-	POTION_LIFE,
-	POTION_STRENGTH,
+	POTION_HEALING,
 	POTION_TELEPATHY,
 	POTION_LEVITATION,
 	POTION_DETECT_MAGIC,
 	POTION_HASTE_SELF,
 	POTION_FIRE_IMMUNITY,
-	POTION_INVISIBILITY,
+	POTION_GAIN_STRENGTH,
 	POTION_POISON,
 	POTION_PARALYSIS,
 	POTION_HALLUCINATION,
@@ -638,8 +626,6 @@ enum weaponKind {
 	DAGGER,
 	SWORD,
 	BROADSWORD,
-    
-    RAPIER,
 	
 	MACE,
 	HAMMER,
@@ -687,7 +673,6 @@ enum armorEnchants {
 	A_REPRISAL,
 	A_IMMUNITY,
 	A_REFLECTION,
-    A_DAMPENING,
 	A_BURDEN,
 	NUMBER_GOOD_ARMOR_ENCHANT_KINDS = A_BURDEN,
 	A_VULNERABILITY,
@@ -776,10 +761,10 @@ enum charmKind {
 };
 
 enum scrollKind {
-	SCROLL_ENCHANTING,
 	SCROLL_IDENTIFY,
 	SCROLL_TELEPORT,
 	SCROLL_REMOVE_CURSE,
+	SCROLL_ENCHANT_ITEM,
 	SCROLL_RECHARGING,
 	SCROLL_PROTECT_ARMOR,
 	SCROLL_PROTECT_WEAPON,
@@ -868,7 +853,7 @@ enum monsterTypes {
 	NUMBER_MONSTER_KINDS
 };
 
-#define	NUMBER_HORDES				157
+#define	NUMBER_HORDES				154
 
 // flavors
 
@@ -953,8 +938,6 @@ enum tileFlags {
 
 #define MAX_WAYPOINTS						200
 #define WAYPOINT_SIGHT_RADIUS				10
-
-#define MAX_ITEMS_IN_MONSTER_ITEMS_HOPPER   100
 
 typedef struct levelSpecProfile {
 	short roomMinWidth;
@@ -1061,7 +1044,7 @@ boolean cellHasTerrainFlag(short x, short y, unsigned long flagMask);
 
 #define cellIsPassableOrDoor(x, y)			(!cellHasTerrainFlag((x), (y), T_PATHING_BLOCKER) \
 											|| (cellHasTerrainFlag((x), (y), (T_IS_SECRET | T_PROMOTES_WITH_KEY)) \
-												&& cellHasTerrainFlag((x), (y), T_OBSTRUCTS_PASSABILITY))) // May not be perfect with hidden levers.
+												&& cellHasTerrainFlag((x), (y), T_OBSTRUCTS_PASSABILITY)))
 
 #define coordinatesAreInMap(x, y)			((x) >= 0 && (x) < DCOLS	&& (y) >= 0 && (y) < DROWS)
 #define coordinatesAreInWindow(x, y)		((x) >= 0 && (x) < COLS		&& (y) >= 0 && (y) < ROWS)
@@ -1229,11 +1212,10 @@ enum itemFlags {
 	ITEM_MAX_CHARGES_KNOWN	= Fl(13),
 	ITEM_IS_KEY				= Fl(14),
 	ITEM_ATTACKS_SLOWLY		= Fl(15),	// mace, hammer
-    ITEM_ATTACKS_QUICKLY    = Fl(16),   // rapier
-	ITEM_ATTACKS_PENETRATE	= Fl(17),	// spear, pike
-	ITEM_ATTACKS_ALL_ADJACENT=Fl(18),	// axe, war axe
-	ITEM_CATEGORY_IDS_ON_PICKUP=Fl(19),	// the item type will become known when the item is picked up.
-	ITEM_PLAYER_AVOIDS		= Fl(20),	// explore and travel will try to avoid picking the item up
+	ITEM_ATTACKS_PENETRATE	= Fl(16),	// spear, pike
+	ITEM_ATTACKS_ALL_ADJACENT=Fl(17),	// axe, war axe
+	ITEM_CATEGORY_IDS_ON_PICKUP=Fl(18),	// the item type will become known when the item is picked up.
+	ITEM_PLAYER_AVOIDS		= Fl(19),	// explore and travel will try to avoid picking the item up
 };
 
 #define KEY_ID_MAXIMUM	20
@@ -1346,15 +1328,8 @@ enum dungeonFeatureTypes {
 	DF_TRAMPLED_FUNGUS_FOREST,
 	DF_FUNGUS_FOREST_REGROW,
 	
-    // brimstone
 	DF_ACTIVE_BRIMSTONE,
 	DF_INERT_BRIMSTONE,
-    
-    // algae
-    DF_BUILD_ALGAE_WELL,
-    DF_ALGAE_1,
-    DF_ALGAE_2,
-    DF_ALGAE_REVERT,
 	
 	DF_OPEN_DOOR,
 	DF_CLOSED_DOOR,
@@ -1417,10 +1392,6 @@ enum dungeonFeatureTypes {
 	DF_CAGE_DISAPPEARS,
 	DF_MEDIUM_HOLE,
 	DF_MEDIUM_LAVA_POND,
-    DF_MACHINE_PRESSURE_PLATE_USED,
-    
-    // rat trap
-    DF_WALL_CRACK,
 	
 	// wooden barricade at entrance
 	DF_ADD_WOODEN_BARRICADE,
@@ -1449,7 +1420,6 @@ enum dungeonFeatureTypes {
     DF_ADD_DORMANT_CHASM_HALO,
 	
 	// when triggered, the lava retracts:
-    DF_LAVA_RETRACTABLE,
 	DF_RETRACTING_LAVA,
 	DF_OBSIDIAN_WITH_STEAM,
 	
@@ -1632,7 +1602,7 @@ enum terrainFlagCatalog {
 													// can be overwritten anyway depending on priorities and layers of dungeon feature
 	T_CAUSES_EXPLOSIVE_DAMAGE		= Fl(31),		// is an explosion; deals higher of 15-20 or 50% damage instantly, but not again for five turns
 	
-	T_OBSTRUCTS_SCENT				= (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_VISION | T_AUTO_DESCENT | T_IS_DF_TRAP | T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_SPONTANEOUSLY_IGNITES),
+	T_OBSTRUCTS_SCENT				= (T_OBSTRUCTS_PASSABILITY | T_AUTO_DESCENT | T_IS_DF_TRAP | T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_SPONTANEOUSLY_IGNITES),
 	
 	T_PATHING_BLOCKER				= (T_OBSTRUCTS_PASSABILITY | T_AUTO_DESCENT | T_IS_DF_TRAP | T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_IS_FIRE | T_SPONTANEOUSLY_IGNITES),
 	T_LAKE_PATHING_BLOCKER			= (T_AUTO_DESCENT | T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_SPONTANEOUSLY_IGNITES),
@@ -1687,14 +1657,13 @@ enum hordeFlags {
 	HORDE_MACHINE_KENNEL			= Fl(11),	// monsters that can appear in cages in kennels
 	HORDE_VAMPIRE_FODDER			= Fl(12),	// monsters that are prone to capture and farming by vampires
 	HORDE_MACHINE_LEGENDARY_ALLY	= Fl(13),	// legendary allies
-    HORDE_NEVER_OOD                 = Fl(14),   // Horde cannot be generated out of depth
-    HORDE_MACHINE_THIEF                     = Fl(15),   // monsters that can be generated in the key thief area machines
+    HORDE_NEVER_OOD                 = Fl(14),   // Horde c
 	
 	HORDE_MACHINE_ONLY				= (HORDE_MACHINE_BOSS | HORDE_MACHINE_WATER_MONSTER
 									   | HORDE_MACHINE_CAPTIVE | HORDE_MACHINE_STATUE
 									   | HORDE_MACHINE_TURRET | HORDE_MACHINE_MUD
 									   | HORDE_MACHINE_KENNEL | HORDE_VAMPIRE_FODDER
-									   | HORDE_MACHINE_LEGENDARY_ALLY | HORDE_MACHINE_THIEF),
+									   | HORDE_MACHINE_LEGENDARY_ALLY),
 };
 
 enum monsterBehaviorFlags {
@@ -1920,6 +1889,7 @@ enum NGCommands {
 typedef struct playerCharacter {
 	short depthLevel;					// which dungeon level are we on
     short deepestLevel;
+	long foodSpawned;					// amount of nutrition units spawned so far this game
 	boolean disturbed;					// player should stop auto-acting
 	boolean gameHasEnded;				// stop everything and go to death screen
 	boolean highScoreSaved;				// so that it saves the high score only once
@@ -1969,7 +1939,7 @@ typedef struct playerCharacter {
 	
 	short cursorLoc[2];					// used for the return key functionality
 	creature *lastTarget;				// to keep track of the last monster the player has thrown at or zapped
-	short rewardRoomsGenerated;			// to meter the number of reward machines
+	short rewardRoomsGenerated;			// to meter the number of machines
 	short machineNumber;				// so each machine on a level gets a unique number
 	short sidebarLocationList[ROWS*2][2];	// to keep track of which location each line of the sidebar references
 	
@@ -1994,9 +1964,6 @@ typedef struct playerCharacter {
 	unsigned long locationInAnnotationFile; // how far we've read in the annotations file
 	
 	// metered items
-	long foodSpawned;					// amount of nutrition units spawned so far this game
-	short lifePotionFrequency;
-    short lifePotionsSpawned;
 	short strengthPotionFrequency;
 	short enchantScrollFrequency;
 	
@@ -2048,7 +2015,7 @@ typedef struct levelData {
 enum machineFeatureFlags {
 	MF_GENERATE_ITEM				= Fl(0),	// feature entails generating an item (overridden if the machine is adopting an item)
 	MF_OUTSOURCE_ITEM_TO_MACHINE	= Fl(1),	// item must be adopted by another machine
-	MF_BUILD_VESTIBULE              = Fl(2),	// call this at the origin of a door room to create a new door guard machine there
+	//MF_OUTSOURCE_ITEM_TO_FEATURE	= Fl(2),	// item must be adopted by a subsequent feature in the same machine
 	MF_ADOPT_ITEM					= Fl(3),	// this feature will take the adopted item (be it from another machine or a previous feature)
 	MF_NO_THROWING_WEAPONS			= Fl(4),	// the generated item cannot be a throwing weapon
 	MF_GENERATE_HORDE				= Fl(5),	// generate a monster horde that has all of the horde flags
@@ -2060,23 +2027,22 @@ enum machineFeatureFlags {
 	MF_FAR_FROM_ORIGIN				= Fl(11),	// feature must spawn in the rough quarter of tiles farthest from the door
 	MF_MONSTER_TAKE_ITEM			= Fl(12),	// the item associated with this feature (including if adopted) will be in possession of the horde leader that's generated
 	MF_MONSTER_SLEEPING				= Fl(13),	// the monsters should be asleep when generated
-    MF_MONSTER_FLEEING              = Fl(14),   // the monsters should be permanently fleeing when generated
-	MF_EVERYWHERE					= Fl(15),	// generate the feature on every tile of the machine (e.g. carpeting)
-	MF_ALTERNATIVE					= Fl(16),	// build only one feature that has this flag per machine; the rest are skipped
-	MF_ALTERNATIVE_2				= Fl(17),	// same as MF_ALTERNATIVE, but provides for a second set of alternatives of which only one will be chosen
-	MF_REQUIRE_GOOD_RUNIC			= Fl(18),	// generated item must be uncursed runic
-	MF_MONSTERS_DORMANT				= Fl(19),	// monsters are dormant, and appear when a dungeon feature with DFF_ACTIVATE_DORMANT_MONSTER spawns on their tile
-	MF_GENERATE_MONSTER				= Fl(20),	// generate a single monster
-	MF_BUILD_IN_WALLS				= Fl(21),	// build in an impassable tile that is adjacent to the interior
-	MF_BUILD_ANYWHERE_ON_LEVEL		= Fl(22),	// build anywhere on the level that is not inside the machine
-	MF_REPEAT_UNTIL_NO_PROGRESS		= Fl(23),	// keep trying to build this feature set until no changes are made
-	MF_IMPREGNABLE					= Fl(24),	// this feature's location will be immune to tunneling
-	MF_IN_VIEW_OF_ORIGIN			= Fl(25),	// this feature must be in view of the origin
-	MF_IN_PASSABLE_VIEW_OF_ORIGIN	= Fl(26),	// this feature must be in view of the origin, where "view" is blocked by pathing blockers
-	MF_NOT_IN_HALLWAY				= Fl(27),	// the feature location must have a passableArcCount of <= 1
-	MF_NOT_ON_LEVEL_PERIMETER		= Fl(28),	// don't build it in the outermost walls of the level
-	MF_SKELETON_KEY					= Fl(29),	// if a key is generated or adopted by this feature, it will open all locks in this machine.
-	MF_KEY_DISPOSABLE				= Fl(30),	// if a key is generated or adopted, it will self-destruct after being used at this current location.
+	MF_EVERYWHERE					= Fl(14),	// generate the feature on every tile of the machine (e.g. carpeting)
+	MF_ALTERNATIVE					= Fl(15),	// build only one feature that has this flag per machine; the rest are skipped
+	MF_ALTERNATIVE_2				= Fl(16),	// same as MF_ALTERNATIVE, but provides for a second set of alternatives of which only one will be chosen
+	MF_REQUIRE_GOOD_RUNIC			= Fl(17),	// generated item must be uncursed runic
+	MF_MONSTERS_DORMANT				= Fl(18),	// monsters are dormant, and appear when a dungeon feature with DFF_ACTIVATE_DORMANT_MONSTER spawns on their tile
+	MF_GENERATE_MONSTER				= Fl(19),	// generate a single monster
+	MF_BUILD_IN_WALLS				= Fl(20),	// build in an impassable tile that is adjacent to the interior
+	MF_BUILD_ANYWHERE_ON_LEVEL		= Fl(21),	// build anywhere on the level, whether or not inside the machine
+	MF_REPEAT_UNTIL_NO_PROGRESS		= Fl(22),	// keep trying to build this feature set until no changes are made
+	MF_IMPREGNABLE					= Fl(23),	// this feature's location will be immune to tunneling
+	MF_IN_VIEW_OF_ORIGIN			= Fl(24),	// this feature must be in view of the origin
+	MF_IN_PASSABLE_VIEW_OF_ORIGIN	= Fl(25),	// this feature must be in view of the origin, where "view" is blocked by pathing blockers
+	MF_NOT_IN_HALLWAY				= Fl(26),	// the feature location must have a passableArcCount of <= 1
+	MF_NOT_ON_LEVEL_PERIMETER		= Fl(27),	// don't build it in the outermost walls of the level
+	MF_SKELETON_KEY					= Fl(28),	// if a key is generated or adopted by this feature, it will open all locks in this machine.
+	MF_KEY_DISPOSABLE				= Fl(29),	// if a key is generated or adopted, it will self-destruct after being used at this current location.
 };
 
 typedef struct machineFeature {
@@ -2102,20 +2068,19 @@ typedef struct machineFeature {
 } machineFeature;
 
 enum blueprintFlags {
-	BP_ADOPT_ITEM                   = Fl(0),	// the machine must adopt an item (e.g. a door key)
-    BP_VESTIBULE                    = Fl(1),    // spawns in a doorway (location must be given) and expands outward, to guard the room
-	BP_PURGE_PATHING_BLOCKERS		= Fl(2),	// clean out traps and other T_PATHING_BLOCKERs
-	BP_PURGE_INTERIOR				= Fl(3),	// clean out all of the terrain in the interior before generating the machine
-	BP_PURGE_LIQUIDS				= Fl(4),	// clean out all of the liquids in the interior before generating the machine
-	BP_SURROUND_WITH_WALLS			= Fl(5),	// fill in any impassable gaps in the perimeter (e.g. water, lava, brimstone, traps) with wall
-	BP_IMPREGNABLE					= Fl(6),	// impassable perimeter and interior tiles are locked; tunneling bolts will bounce off harmlessly
-	BP_REWARD						= Fl(7),	// metered reward machines
-	BP_OPEN_INTERIOR				= Fl(8),	// clear out walls in the interior, widen the interior until convex or bumps into surrounding areas
-    BP_MAXIMIZE_INTERIOR            = Fl(9),    // same as BP_OPEN_INTERIOR but expands the room as far as it can go, potentially surrounding the whole level.
-	BP_ROOM							= Fl(10),	// spawns in a dead-end room that is dominated by a chokepoint of the given size (as opposed to a random place of the given size)
-	BP_TREAT_AS_BLOCKING			= Fl(11),	// abort the machine if, were it filled with wall tiles, it would disrupt the level connectivity
-	BP_REQUIRE_BLOCKING				= Fl(12),	// abort the machine unless, were it filled with wall tiles, it would disrupt the level connectivity
-	BP_NO_INTERIOR_FLAG				= Fl(13),	// don't flag the area as being part of a machine
+	BP_ADOPT_ITEM_MANDATORY			= Fl(0),	// first feature MUST adopt an item
+	BP_PURGE_PATHING_BLOCKERS		= Fl(1),	// clean out traps and other T_PATHING_BLOCKERs
+	BP_PURGE_INTERIOR				= Fl(2),	// clean out all of the terrain in the interior before generating the machine
+	BP_PURGE_LIQUIDS				= Fl(3),	// clean out all of the liquids in the interior before generating the machine
+	BP_SURROUND_WITH_WALLS			= Fl(4),	// fill in any impassable gaps in the perimeter (e.g. water, lava, brimstone, traps) with wall
+	BP_IMPREGNABLE					= Fl(5),	// impassable perimeter and interior tiles are locked; tunneling bolts will bounce off harmlessly
+	BP_REWARD						= Fl(6),	// metered reward machines
+	BP_OPEN_INTERIOR				= Fl(7),	// clear out walls in the interior, widen the interior until convex or bumps into surrounding areas
+    BP_MAXIMIZE_INTERIOR            = Fl(8),    // same as BP_OPEN_INTERIOR but expands the room as far as it can go, potentially surrounding the whole level.
+	BP_ROOM							= Fl(9),	// spawns in a dead-end room that is dominated by a chokepoint of the given size (as opposed to a random place of the given size)
+	BP_TREAT_AS_BLOCKING			= Fl(10),	// abort the machine if, were it filled with wall tiles, it would disrupt the level connectivity
+	BP_REQUIRE_BLOCKING				= Fl(11),	// abort the machine unless, were it filled with wall tiles, it would disrupt the level connectivity
+	BP_NO_INTERIOR_FLAG				= Fl(12),	// don't flag the area as being part of a machine
 };
 
 typedef struct blueprint {
@@ -2132,34 +2097,19 @@ enum machineTypes {
 	MT_REWARD_MULTI_LIBRARY = 1,
 	MT_REWARD_MONO_LIBRARY,
 	MT_REWARD_CONSUMABLES,
-	MT_REWARD_PEDESTALS_PERMANENT,
-	MT_REWARD_PEDESTALS_CONSUMABLE,
-    MT_REWARD_ADOPTED_ITEM,
+	MT_REWARD_PEDESTALS,
 	MT_REWARD_DUNGEON,
 	MT_REWARD_KENNEL,
 	MT_REWARD_VAMPIRE_LAIR,
 	MT_REWARD_ASTRAL_PORTAL,
-    
-    // Door guard machines:
-    MT_LOCKED_DOOR_VESTIBULE,
-    MT_SECRET_DOOR_VESTIBULE,
-    MT_SECRET_LEVER_VESTIBULE,
-	MT_FLAMMABLE_BARRICADE_VESTIBULE,
-	MT_STATUE_SHATTERING_VESTIBULE,
-	MT_THROWING_TUTORIAL_VESTIBULE,
-    MT_PIT_TRAPS_VESTIBULE,
-    MT_BECKONING_OBSTACLE_VESTIBULE,
-    MT_GUARDIAN_VESTIBULE,
 	
 	// Key guard machines:
 	MT_KEY_REWARD_LIBRARY,
 	MT_KEY_SECRET_ROOM,
 	MT_KEY_THROWING_TUTORIAL_AREA,
-    MT_KEY_RAT_TRAP_ROOM,
+	MT_KEY_FLAMMABLE_BARRICADE_ROOM,
 	MT_KEY_FIRE_TRANSPORTATION_ROOM,
 	MT_KEY_FLOOD_TRAP_ROOM,
-    MT_KEY_FIRE_TRAP_ROOM,
-    MT_KEY_THIEF_AREA,
 	MT_KEY_COLLAPSING_FLOOR_AREA,
 	MT_KEY_PIT_TRAP_ROOM,
 	MT_KEY_LEVITATION_ROOM,
@@ -2194,6 +2144,7 @@ enum machineTypes {
 	MT_TRICK_STATUE_AREA,
 	MT_WORM_AREA,
 	MT_SENTINEL_AREA,
+    MT_GUARDIAN_AREA,
 	
 	NUMBER_BLUEPRINTS,
 };
@@ -2209,7 +2160,6 @@ typedef struct autoGenerator {
 	
 	// Parameters governing when and where it spawns:
 	enum tileType requiredDungeonFoundationType;
-	enum tileType requiredLiquidFoundationType;
 	short minDepth;
 	short maxDepth;
 	short frequency;
@@ -2218,7 +2168,7 @@ typedef struct autoGenerator {
 	short maxNumber;
 } autoGenerator;
 
-#define NUMBER_AUTOGENERATORS 35
+#define NUMBER_AUTOGENERATORS 32
 
 #define NUMBER_LEVEL_PROFILES 1
 
@@ -2486,7 +2436,6 @@ extern "C" {
 	short nextStep(short **distanceMap, short x, short y, boolean reverseDirections);
 	void travelRoute(short path[1000][2], short steps);
 	void travel(short x, short y, boolean autoConfirm);
-    void populateGenericCostMap(short **costMap);
 	void populateCreatureCostMap(short **costMap, creature *monst);
 	void getExploreMap(short **map, boolean headingToStairs);
 	boolean explore(short frameDelay);
@@ -2507,7 +2456,7 @@ extern "C" {
 	void startFighting(enum directions dir, boolean tillDeath);
 	void autoFight(boolean tillDeath);
 	void playerTurnEnded();
-	void resetScentTurnNumber();
+	void resetTurnNumber();
 	void displayMonsterFlashes(boolean flashingEnabled);
 	void displayMessageArchive();
 	void temporaryMessage(char *msg1, boolean requireAcknowledgment);
@@ -2576,8 +2525,6 @@ extern "C" {
 	boolean canPass(creature *mover, creature *blocker);
 	boolean isPassableOrSecretDoor(short x, short y);
 	boolean moveMonster(creature *monst, short dx, short dy);
-    unsigned long burnedTerrainFlagsAtLoc(short x, short y);
-    unsigned long discoveredTerrainFlagsAtLoc(short x, short y);
 	boolean monsterAvoids(creature *monst, short x, short y);
 	short distanceBetween(short x1, short y1, short x2, short y2);
 	void wakeUp(creature *monst);
@@ -2603,9 +2550,7 @@ extern "C" {
 	void getImpactLoc(short returnLoc[2], short originLoc[2], short targetLoc[2],
 					  short maxDistance, boolean returnLastEmptySpace);
 	void negate(creature *monst);
-    short monsterAccuracyAdjusted(creature *monst);
-    float monsterDamageAdjustmentAmount(creature *monst);
-    short monsterDefenseAdjusted(creature *monst);
+	void refreshMonsterWeaknessPenalties(creature *monst);
 	void weaken(creature *monst, short maxDuration);
 	void slow(creature *monst, short turns);
 	void haste(creature *monst, short turns);
