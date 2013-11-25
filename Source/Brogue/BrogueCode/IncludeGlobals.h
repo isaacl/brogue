@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 2/8/09.
- *  Copyright 2011. All rights reserved.
+ *  Copyright 2012. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -83,6 +83,7 @@ extern color blue;
 extern color darkRed;
 extern color gray;
 extern color darkGray;
+extern color veryDarkGray;
 extern color black;
 extern color yellow;
 extern color darkYellow;
@@ -95,6 +96,7 @@ extern color darkGreen;
 extern color orange;
 extern color darkOrange;
 extern color darkBlue;
+extern color lightBlue;
 extern color pink;
 extern color tanColor;
 extern color sunlight;
@@ -135,20 +137,25 @@ extern color memoryColor;
 extern color memoryOverlay;
 extern color magicMapColor;
 extern color clairvoyanceColor;
+extern color telepathyMultiplier;
 extern color omniscienceColor;
+extern color basicLightColor;
 
 extern color colorDim25;
 
 extern color magicMapFlashColor;
 
+extern color itemColor;
 extern color blueBar;
 extern color redBar;
 extern color hiliteColor;
-extern color itemBoxColor;
+extern color interfaceBoxColor;
+extern color interfaceButtonColor;
 
 extern color playerInShadowColor;
 extern color playerInLightColor;
 extern color playerInDarknessColor;
+extern const color buttonHoverColor;
 
 // other colors
 extern color centipedeColor;
@@ -165,6 +172,8 @@ extern color backgroundMessageColor;
 extern color flavorTextColor;
 
 extern color *dynamicColors[NUMBER_DYNAMIC_COLORS][3];
+
+extern const autoGenerator autoGeneratorCatalog[NUMBER_AUTOGENERATORS];
 
 extern floorTileType tileCatalog[NUMBER_TILETYPES];
 
@@ -194,6 +203,7 @@ extern char itemWoodsRef[NUMBER_ITEM_WOODS][30];
 extern char itemMetalsRef[NUMBER_ITEM_METALS][30];
 extern char itemGemsRef[NUMBER_ITEM_GEMS][30];
 
+extern itemTable keyTable[NUMBER_KEY_TYPES];
 extern itemTable foodTable[NUMBER_FOOD_KINDS];
 extern itemTable weaponTable[NUMBER_WEAPON_KINDS];
 extern itemTable armorTable[NUMBER_ARMOR_KINDS];

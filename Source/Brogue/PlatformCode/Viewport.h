@@ -3,7 +3,7 @@
 //  Brogue
 //
 //  Created by Brian and Kevin Walker.
-//  Copyright 2011. All rights reserved.
+//  Copyright 2012. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
@@ -26,7 +26,7 @@
 #define	VERT_PX		18
 #define	HORIZ_PX	11
 
-#define kROWS		(29+3)
+#define kROWS		(30+3+1)
 #define kCOLS		100
 
 #define FONT_SIZE	14

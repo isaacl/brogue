@@ -3,7 +3,7 @@
 //  Brogue
 //
 //  Created by Brian and Kevin Walker on 12/26/08.
-//  Copyright 2011. All rights reserved.
+//  Copyright 2012. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
@@ -26,7 +26,7 @@
 #include "CoreFoundation/CoreFoundation.h"
 #import "RogueDriver.h"
 
-#define BROGUE_VERSION	2
+#define BROGUE_VERSION	4
 
 static Viewport *theMainDisplay;
 NSDate *pauseStartDate;
@@ -43,7 +43,7 @@ short mouseX, mouseY;
 	
 	versionNumber = [[NSUserDefaults standardUserDefaults] integerForKey:@"Brogue version"];
 	if (versionNumber == nil || versionNumber < BROGUE_VERSION) {
-		
+		// This is so we know when to purge the relevant preferences and save them anew.
 		[[NSUserDefaults standardUserDefaults] removeObjectForKey:@"NSWindow Frame Brogue main window"];
 		
 		if (versionNumber != nil) {
@@ -167,6 +167,7 @@ void pausingTimerStartsNow() {
 	}
 	pauseStartDate = [NSDate date];
 	[pauseStartDate retain];
+	//printf("\nPause timer started!");
 }
 
 // Returns true if the player interrupted the wait with a keystroke; otherwise false.
@@ -199,7 +200,7 @@ boolean pauseForMilliseconds(short milliseconds) {
 	return false;
 }
 
-void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
+void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance) {
 	NSEvent *theEvent;
 	NSEventType theEventType;
 	NSPoint event_location;
@@ -215,8 +216,9 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 		}
 		
 		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask
-									  untilDate:[NSDate dateWithTimeIntervalSinceNow: (double) 50 / 1000]
-										 inMode:NSDefaultRunLoopMode dequeue:YES];
+									  untilDate:[NSDate dateWithTimeIntervalSinceNow: ((NSTimeInterval) ((double) 50) / ((double) 1000))]
+										 inMode:NSDefaultRunLoopMode
+										dequeue:YES];
 		theEventType = [theEvent type];
 		if (theEventType == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)) {
 			returnEvent->eventType = KEYSTROKE;
@@ -225,7 +227,13 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
 			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
 			break;
-		} else if (theEventType == NSLeftMouseDown || theEventType == NSLeftMouseUp || theEventType == NSMouseMoved) {
+		} else if (theEventType == NSLeftMouseDown
+				   || theEventType == NSLeftMouseUp
+				   || theEventType == NSRightMouseDown
+				   || theEventType == NSRightMouseUp
+				   || theEventType == NSMouseMoved
+				   || theEventType == NSLeftMouseDragged
+				   || theEventType == NSRightMouseDragged) {
 			[NSApp sendEvent:theEvent];
 			switch (theEventType) {
 				case NSLeftMouseDown:
@@ -234,7 +242,15 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 				case NSLeftMouseUp:
 					returnEvent->eventType = MOUSE_UP;
 					break;
+				case NSRightMouseDown:
+					returnEvent->eventType = RIGHT_MOUSE_DOWN;
+					break;
+				case NSRightMouseUp:
+					returnEvent->eventType = RIGHT_MOUSE_UP;
+					break;
 				case NSMouseMoved:
+				case NSLeftMouseDragged:
+				case NSRightMouseDragged:
 					returnEvent->eventType = MOUSE_ENTERED_CELL;
 					break;
 				default:
@@ -279,11 +295,11 @@ void initHighScores() {
 		|| [[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores text"] == nil
 		|| [[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores dates"] == nil) {
 		
-		scoresArray = [NSMutableArray arrayWithCapacity:25];
-		textArray = [NSMutableArray arrayWithCapacity:25];
-		datesArray = [NSMutableArray arrayWithCapacity:25];
+		scoresArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+		textArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+		datesArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
 		
-		for (j=0; j<25; j++) {
+		for (j=0; j<HIGH_SCORES_COUNT; j++) {
 			[scoresArray addObject:[NSNumber numberWithLong:0]];
 			[textArray addObject:[NSString string]];
 			[datesArray addObject:[NSDate date]];
@@ -296,16 +312,16 @@ void initHighScores() {
 	
 	theCount = [[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores scores"] count];
 	
-	if (theCount < 25) { // backwards compatibility
-		scoresArray = [NSMutableArray arrayWithCapacity:25];
-		textArray = [NSMutableArray arrayWithCapacity:25];
-		datesArray = [NSMutableArray arrayWithCapacity:25];
+	if (theCount < HIGH_SCORES_COUNT) { // backwards compatibility
+		scoresArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+		textArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+		datesArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
 		
 		[scoresArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores scores"]];
 		[textArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores text"]];
 		[datesArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores dates"]];
 		
-		for (j=theCount; j<25; j++) {
+		for (j=theCount; j<HIGH_SCORES_COUNT; j++) {
 			[scoresArray addObject:[NSNumber numberWithLong:0]];
 			[textArray addObject:[NSString string]];
 			[datesArray addObject:[NSDate date]];
@@ -318,16 +334,16 @@ void initHighScores() {
 }
 
 // returns the index number of the most recent score
-short getHighScoresList(rogueHighScoresEntry returnList[25]) {
+short getHighScoresList(rogueHighScoresEntry returnList[HIGH_SCORES_COUNT]) {
 	NSArray *scoresArray, *textArray, *datesArray;
 	NSDateFormatter *dateFormatter;
 	NSDate *mostRecentDate;
 	short i, j, maxIndex, mostRecentIndex;
 	long maxScore;
-	boolean scoreTaken[25];
+	boolean scoreTaken[HIGH_SCORES_COUNT];
 	
 	// no scores have been taken
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		scoreTaken[i] = false;
 	}
 	
@@ -341,10 +357,10 @@ short getHighScoresList(rogueHighScoresEntry returnList[25]) {
 	dateFormatter = [[NSDateFormatter alloc] initWithDateFormat:@"%1m/%1d/%y" allowNaturalLanguage:YES];
 	
 	// store each value in order into returnList
-	for (i=0; i<25; i++) {
+	for (i=0; i<HIGH_SCORES_COUNT; i++) {
 		// find the highest value that hasn't already been taken
-		maxScore = 0;
-		for (j=0; j<25; j++) {
+		maxScore = 0; // excludes scores of zero
+		for (j=0; j<HIGH_SCORES_COUNT; j++) {
 			if (scoreTaken[j] == false && [[scoresArray objectAtIndex:j] longValue] >= maxScore) {
 				maxScore = [[scoresArray objectAtIndex:j] longValue];
 				maxIndex = j;
@@ -380,16 +396,16 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	// generate high scores if prefs don't exist or contain no high scores data
 	initHighScores();
 	
-	scoresArray = [NSMutableArray arrayWithCapacity:25];
-	textArray = [NSMutableArray arrayWithCapacity:25];
-	datesArray = [NSMutableArray arrayWithCapacity:25];
+	scoresArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+	textArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
+	datesArray = [NSMutableArray arrayWithCapacity:HIGH_SCORES_COUNT];
 	
 	[scoresArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores scores"]];
 	[textArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores text"]];
 	[datesArray setArray:[[NSUserDefaults standardUserDefaults] arrayForKey:@"high scores dates"]];
 	
 	// find the lowest value
-	for (j=0; j<25; j++) {
+	for (j=0; j<HIGH_SCORES_COUNT; j++) {
 		if ([[scoresArray objectAtIndex:j] longValue] < minScore) {
 			minScore = [[scoresArray objectAtIndex:j] longValue];
 			minIndex = j;
@@ -448,3 +464,18 @@ void initializeBrogueSaveLocation() {
     // Set the working directory to this path, so that savegames and recordings will be stored here.
     [manager changeCurrentDirectoryPath: supportPath];
 }
+
+//short getFileNames(char *fileNameList) {
+//	short i, j, count;
+//	NSArray *array;
+//	NSFileManager *manager = [NSFileManager defaultManager];
+//	
+//	array = [manager directoryContentsAtPath:[manager currentDirectoryPath]];
+//	count = [array count];
+//	
+//	fileNameList = malloc(count * sizeof(char));
+//	
+//	for (i=0; i < count; i++) {
+//		
+//	}
+//}

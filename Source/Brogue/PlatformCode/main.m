@@ -3,7 +3,7 @@
 //  Brogue
 //
 //  Created by Brian and Kevin Walker on 11/28/08.
-//  Copyright 2011. All rights reserved.
+//  Copyright 2012. All rights reserved.
 //  
 //  This file is part of Brogue.
 //
