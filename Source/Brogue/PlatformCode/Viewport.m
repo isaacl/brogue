@@ -106,7 +106,7 @@ short theFontSize = 13;
 	int i, j, startX, startY, endX, endY;
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 	
-	startX = (int) rect.origin.x / hPixels;
+	startX = (int) (rect.origin.x / hPixels);
 	startY = kROWS - (int) ((rect.origin.y + rect.size.height + vPixels - 1 ) / vPixels);
 	endX = (rect.origin.x + rect.size.width + hPixels - 1) / hPixels;
 	endY = kROWS - (int) (rect.origin.y / vPixels);

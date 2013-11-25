@@ -1136,7 +1136,7 @@ void executeKeystroke(unsigned short keystroke, boolean controlKey, boolean shif
 			}*/
 			// DEBUG showWaypoints();
 			// DEBUG displayLoops();
-			parseFile();
+			// parseFile();
 			// DEBUG spawnDungeonFeature(player.xLoc, player.yLoc, &dungeonFeatureCatalog[DF_METHANE_GAS_ARMAGEDDON], true);
 			printSeed();
 			// DEBUG victory();
@@ -1646,7 +1646,7 @@ char nextKeyPress() {
 
 void printHelpScreen() {
 	short i, j;
-	char helpText[28][80] = {
+	char helpText[29][80] = {
 		"Commands:",
 		"hjklyubn, arrow keys, or numpad:              move or attack",
 		"<control> + hjklyubn, arrow keys, or numpad:  run",
@@ -1661,6 +1661,7 @@ void printHelpScreen() {
 		"            s: search for secret doors and traps",
 		"            >: descend a flight of stairs",
 		"            <: ascend a flight of stairs",
+		"            i: view inventory",
 		"            f: fight monster (shift-f: fight to the death)",
 		"            D: display discovered items",
 		"            x: examine your surroundings",

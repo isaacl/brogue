@@ -1309,6 +1309,9 @@ void moveTowardLeader(creature *monst) {
 
 // isomorphs a number in [0, 40] to coordinates along the square of radius 5 surrounding (0,0)
 void perimeterCoords(short returnCoords[2], short n) {
+	if (n == 40) {
+		n = 0;
+	}
 	if (n <= 10) {			// top edge, left to right
 		returnCoords[0] = n - 5;
 		returnCoords[1] = -5;
