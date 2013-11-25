@@ -11,7 +11,7 @@
 \b0\fs26 \
 
 \fs24 \
-v1.5\
+v1.5.1\
 \
 \pard\pardeftab720\ql\qnatural
 
@@ -24,16 +24,16 @@ The latest version can be downloaded at http://sites.google.com/site/broguegame/
 \
 I can be reached at penderprime@gmail.com -- feel free to send me any thoughts or bug reports.\
 \
-Many thanks to Joshua Day, Frank Brown and Kevin Walker for brainstorming, coding assistance and testing.\
+Many thanks to Joshua Day, Andrew Doull, Frank Brown and Kevin Walker for brainstorming, coding assistance and testing.\
 \
 \
 
 \b How to Play
 \b0 \
 \
-You are the @ symbol. Move around the dungeon with the vi-keys (hjklyubn) or keypad keys. The arrow keys will also work, but they do not allow diagonal movement.\
+You are the @ symbol. Move around the dungeon with the mouse, the vi-keys (hjklyubn) or keypad keys. The arrow keys will also work, but they do not allow diagonal movement.\
 \
-Other commands are as listed in the help screen, which you can access by typing a question mark. I strongly encourage at least a cursory inspection of this list of commands, as many are non-standard in the roguelike genre, and you may not otherwise realize that some commands even exist (such as the command to list 'D'iscovered items or automatically e'X'plore the dungeon).\
+Other commands are as listed in the help screen, which you can access by typing a question mark. I strongly encourage at least a cursory inspection of this list of commands, as many are non-standard in the roguelike genre, and you may not otherwise realize that some commands even exist (such as the command to list 'D'iscovered items or automatically e'x'plore the dungeon).\
 \
 Your goal is to travel to the 26th subterranean floor of the dungeon, retrieve the Amulet of Yendor and return with it to the surface. For the truly skillful who desire further challenge, depths below 26 contain three lumenstones each -- items which confer no benefit except an increased score upon victory.\
 \
@@ -46,7 +46,7 @@ Games can be 'S'uspended and 'O'pened at a later time. Recordings of games can b
 \
 Scrolls of Enchantment are unique to Brogue and are indispensable to the success of any character. Using one will permanently make a single item more powerful. Enchanting a weapon provides a boost to both its damage and accuracy and also lowers its strength requirement. Enchanting a suit of armor increases its effectiveness and also lowers its strength requirement. Enchanting a ring increases the power of its magical effect. Enchanting a staff increases both its effect and its maximum number of charges. Enchanting a wand gives it one additional disposable charge.\
 \
-If you encounter a monster that you haven't seen before, examine the monster by pressing 'x' to learn more about the monster. If you find an item you don't recognize, hold the shift key while selecting it from your inventory to inspect it.\
+If you encounter a monster that you haven't seen before, examine the monster with the mouse or by pressing return and moving the cursor over it to learn more about the monster. If you find an item you don't recognize, hold the shift key while selecting it from your inventory to inspect it.\
 \'a0\
 Unlike wands, staves are permanent magical items. They have a maximum number of charges and will recharge from zero to maximum over a set period of time -- which means that increasing the maximum number of charges also increases the speed with which a single charge regenerates. Staves of Blinking and Staves of Obstruction recharge half as quickly as other staves. If you use a Scroll of Identify to identify a staff, its current and maximum charges will be permanently revealed. This is particularly useful for the Staff of Blinking, since its maximum distance will be illustrated while aiming the staff. If you zap with a staff when it has no charges, nothing will happen and you will lose that turn, but the maximum number of charges will be permanently revealed.\
 \
@@ -87,37 +87,31 @@ Scrolls are flammable and will be lost to brushfires.\
 Do not be discouraged by the difficulty of the game. Very few characters will survive the Dungeons of Doom, but your odds will improve enormously once you're acquainted with the dungeon's treasures and inhabitants.\
 \
 
-\b Changes since 1.4:
+\b New with v1.5.1:
 \b0 \
 \pard\tx220\tx720\pardeftab720\li720\fi-720\ql\qnatural
-\ls1\ilvl0\cf0 {\listtext	\'95	}Dungeons now include interactive \'93quest rooms,\'94 which include lock-and-key puzzles, collapsing/flooding terrain, hidden items, elaborate traps, challenges, boss monsters and more.\
-{\listtext	\'95	}All new weapons: spears/pikes, which hit an adjacent enemy and the enemy behind it; axes, which hit all adjacent enemies; and maces/hammers, which hit twice as hard and require an extra turn to recover afterward.\
-{\listtext	\'95	}Added item description screens, which include useful statistics about the item and are accessible via the inventory or by examining a discarded item on the ground.\
-{\listtext	\'95	}New monsters, items and weapon/armor runic abilities.\
-{\listtext	\'95	}Monster descriptions include statistics about how certain staffs and wands will harm or affect the monster, and whether the monster is carrying an item that it stole from you.\
-{\listtext	\'95	}Messages and monster descriptions are color-coded for clarity.\
-{\listtext	\'95	}Monsters that can blink will now do so more intelligently to approach enemies, flee attackers and escape harmful terrain.\
-{\listtext	\'95	}Numerous tweaks to make colors crisper and the interface less distracting.\
-{\listtext	\'95	}Allies get stronger over time at a faster rate, are able to attack wall turrets, and are better at following you down pits and stairs.\
-{\listtext	\'95	}Monsters are no longer generated in sight of the level start.\
-{\listtext	\'95	}Merged Potions of Healing and Extra Healing; eliminated Scrolls of Sanctuary.\
-{\listtext	\'95	}Gold is now generated independently from items, both to reduce the variance of per-game aggregate gold quantity and to stop gold from being generated at the expense of items.\
-{\listtext	\'95	}Rings now auto-identify after being worn for a while, similarly to armor and weapons.\
-{\listtext	\'95	}Subtle change in ally color to distinguish allies from enemies.\
-{\listtext	\'95	}Spectral blades and other inanimate creatures do not avoid gas clouds if the clouds would not affect them.\
-{\listtext	\'95	}Wisdom is now a ring instead of an armor runic.\
-{\listtext	\'95	}Reflection is now an armor runic instead of a ring.\
-{\listtext	\'95	}Cancellation is now called negation; certain monsters are marked as animated by magic and will die if negated. New Scrolls of Negation will negate all creatures and items within your field of view (but will not affect items in your inventory). Negated weapons, armor and rings will lose their magical properties, and negated wands and staffs will lose their charges.\
-{\listtext	\'95	}Removed Scrolls of Sanctuary.\
-{\listtext	\'95	}Added a point of damage to darts.\
-{\listtext	\'95	}Creatures exposed to fire will burn about half as long.\
-{\listtext	\'95	}The duration of entrancement no longer varies with the target\'92s maximum health.\
-{\listtext	\'95	}Auto-resting will terminate if you are embedded in an obstruction and it dissolves.\
-{\listtext	\'95	}When pink jellies split, their health is divided between their progeny, and they have commensurately more health initially.\
-{\listtext	\'95	}Items and monsters won\'92t spawn in hallways or doorways, but items may spawn in shallow water.\
-{\listtext	\'95	}Detect magic icons are now also color-coded to distinguish good items from bad.\
-{\listtext	\'95	}The \'91D\'92iscoveries screen specifies whether the detect magic potion will flag that item as good or bad magic.\
-{\listtext	\'95	}Wands and staffs that are meant to target enemies once identified will not default to auto-aiming at captive monsters.\
-{\listtext	\'95	}You can now see allies that are invisible (and wands of invisibility will auto-identify if you use them on an ally).\
-{\listtext	\'95	}New special effects for magic mapping and aggravate monsters scrolls.\
-}
+\ls1\ilvl0\cf0 {\listtext	\'95	}New mouse control features that combine examine mode with auto-travel, and that make the game fully playable without the use of vi-keys. Some related changes to key commands.\
+{\listtext	\'95	}New quest rooms, some tweaks to existing quest rooms, and some new flavor terrain throughout the dungeon.\
+{\listtext	\'95	}Added Scrolls of Shattering.\
+{\listtext	\'95	}Added a brief alert that pops up next to the player when your health drops below 40, 25, 10 or 5%.\
+{\listtext	\'95	}Added a message informing you what kind of item a scroll, potion, wand or staff is when its effects identify it (in addition to marking the item category as identified).\
+{\listtext	\'95	}Added flavor text for impassible terrain, accessible by \'93bumping\'94 the terrain.\
+{\listtext	\'95	}Items in certain treasure rooms will be pre-identified.\
+{\listtext	\'95	}Liches are now more interesting.\
+{\listtext	\'95	}Explore mode will not seek out keys, since picking them up often triggers traps, and it will be interrupted when a key or stairs are discovered.\
+{\listtext	\'95	}\'93Dungeon\'94 reward rooms now contain only two imprisoned allies.\
+{\listtext	\'95	}Starvation is now gradual. When your nutrition level reaches zero and you have no food, your health will decrease by 1 every turn and will not regenerate.\
+{\listtext	\'95	}Pink jellies have slightly less health.\
+{\listtext	\'95	}For balance reasons, allies will cast healing magic less frequently and less effectively, will absorb enemy abilities half as frequently, and will improve their other stats about 40% slower.\
+{\listtext	\'95	}Monsters with only one maximum health point will not display a health bar.\
+{\listtext	\'95	}The player\'92s throwing range has been shortened.\
+{\listtext	\'95	}When displaying the player\'92s armor while wearing unidentified armor, the strength penalty/bonus will be taken into account even though the armor enchantment level, if any, will not.\
+{\listtext	\'95	}Fixed a bug that could lead to insufficient food being generated.\
+{\listtext	\'95	}Fixed a bug that could cause an item placed randomly on the level by one quest room to be rendered inaccessible by another quest room.\
+{\listtext	\'95	}Fixed various issues with the item details screen for certain items, especially runic weapons and armor and the Staff of Tunneling.\
+{\listtext	\'95	}Fixed an errant message when drinking a potion of paralysis.\
+{\listtext	\'95	}The player turns a shade of blue instead of purple when standing in dark shadows.\
+{\listtext	\'95	}Scrolls of negation will now properly strip curses from rings on the floor in addition to enchantments.\
+{\listtext	\'95	}Wands of plenty will clone their target but also halve its health.\
+{\listtext	\'95	}On Mac OS X, saved games and recordings will be placed in ~/Library/Application Support/Brogue instead of the same folder as the application.\
+{\listtext	\'95	}When saving a recording or saved game, the suggested filename will be incremented as necessary to default to an unused name.}

@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 8/8/10.
- *  Copyright 2010 __MyCompanyName__. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *
  */
 
@@ -166,7 +166,9 @@ void writeHeaderInfo() {
 	
 	if (!fileExists(currentFilePath)) {
 		recordFile = fopen(currentFilePath, "wb");
-		fclose(recordFile);
+		if (recordFile) {
+			fclose(recordFile);
+		}
 	}
 	
 	recordFile = fopen(currentFilePath, "r+b");
@@ -174,7 +176,9 @@ void writeHeaderInfo() {
 	for (i=0; i<RECORDING_HEADER_LENGTH; i++) {
 		putc(c[i], recordFile);
 	}
-	fclose(recordFile);
+	if (recordFile) {
+		fclose(recordFile);
+	}
 	
 	if (lengthOfPlaybackFile < RECORDING_HEADER_LENGTH) {
 		lengthOfPlaybackFile = RECORDING_HEADER_LENGTH;
@@ -201,7 +205,9 @@ void flushBufferToFile() {
 			putc(inputRecordBuffer[i], recordFile);
 		}
 		
-		fclose(recordFile);
+		if (recordFile) {
+			fclose(recordFile);
+		}
 		
 		locationInRecordingBuffer = 0;
 	}
@@ -276,7 +282,7 @@ void playbackPanic() {
 		rogue.playbackOOS = true;
 		displayLevel();
 		
-		message("Playback is out of sync. The file is corrupted.", true, false);
+		message("Playback is out of sync. The file is corrupted.", false);
 		
 		printTextBox(OOS_APOLOGY, 0, 0, 0, &white, &black, rbuf);
 		
@@ -321,7 +327,7 @@ void recallEvent(rogueEvent *event) {
 			case END_OF_RECORDING:
 			case EVENT_ERROR:
 			default:
-				message("Unrecognized event type in playback.", true, true);
+				message("Unrecognized event type in playback.", true);
 				tryAgain = true;
 //				playbackPanic();
 				break;
@@ -449,7 +455,7 @@ void initRecording() {
 		if (strcmp(versionString, BROGUE_VERSION_STRING)) {
 			rogue.playbackMode = false;
 			sprintf(buf, "This file is from version %s and cannot be opened in version %s.", versionString, BROGUE_VERSION_STRING);
-			message(buf, true, true);
+			message(buf, true);
 			rogue.playbackMode = true;
 			rogue.playbackFastForward = false;
 			rogue.playbackPaused = true;
@@ -486,7 +492,7 @@ void OOSCheck(unsigned long x, short numberOfBytes) {
 		recordedNumber = recallNumber(numberOfBytes);
 		if (eventType != RNG_CHECK || recordedNumber != x) {
 			if (eventType != RNG_CHECK) {
-				message("Event type mismatch in RNG check.", true, false);
+				message("Event type mismatch in RNG check.", false);
 			}
 			playbackPanic();
 		}
@@ -716,7 +722,7 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				rogue.playbackPaused = pauseState;
 				break;
 			case EXAMINE_KEY:
-				examineMode();
+				inputLoop();
 				break;
 			case INVENTORY_KEY:
 				rogue.playbackMode = false;
@@ -800,27 +806,42 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 	}
 }
 
+void getAvailableFilePath(char *filePath, const char *defaultPath, const char *suffix) {
+	char fullPath[FILENAME_MAX];
+	short fileNameIterator = 2;
+	
+	strcpy(filePath, defaultPath);
+	sprintf(fullPath, "%s%s", filePath, suffix);
+	while (fileExists(fullPath)) {
+		sprintf(filePath, "%s %i", defaultPath, fileNameIterator);
+		sprintf(fullPath, "%s%s", filePath, suffix);
+		fileNameIterator++;
+	}
+}
+
 void saveGame() {
-	char filePath[FILENAME_MAX];
+	char filePath[FILENAME_MAX], defaultPath[FILENAME_MAX];
 	boolean askAgain;
 	
 	if (rogue.playbackMode) {
 		return; // call me paranoid, but I'd rather it be impossible to embed malware in a recording
 	}
 	
+	getAvailableFilePath(defaultPath, "Saved game", GAME_SUFFIX);
+	
 	deleteMessages();
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save game as (<esc> to cancel): ",
-							   FILENAME_MAX - strlen(GAME_SUFFIX), "Saved game", GAME_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   FILENAME_MAX - strlen(GAME_SUFFIX), defaultPath, GAME_SUFFIX, TEXT_INPUT_NORMAL)) {
 			
 			strcat(filePath, GAME_SUFFIX);
-			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite? (y/n)", true)) {
+			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite? (y/n)", true, -1, -1)) {
 				remove(filePath);
 				flushBufferToFile();
 				rename(currentFilePath, filePath);
 				strcpy(currentFilePath, filePath);
-				message("Saved.", true, true);
+				message("Saved.", true);
 				printHighScores(false);
 				commitDraws();
 				rogue.gameHasEnded = true;
@@ -833,21 +854,23 @@ void saveGame() {
 }
 
 void saveRecording() {
-	char filePath[FILENAME_MAX];
+	char filePath[FILENAME_MAX], defaultPath[FILENAME_MAX];
 	boolean askAgain;
 	
 	if (rogue.playbackMode) {
 		return;
 	}
 	
+	getAvailableFilePath(defaultPath, "Recording", RECORDING_SUFFIX);
+	
 	deleteMessages();
 	do {
 		askAgain = false;
 		if (getInputTextString(filePath, "Save recording as (<esc> to cancel): ",
-							   FILENAME_MAX - strlen(RECORDING_SUFFIX), "Recording", RECORDING_SUFFIX, TEXT_INPUT_NORMAL)) {
+							   FILENAME_MAX - strlen(RECORDING_SUFFIX), defaultPath, RECORDING_SUFFIX, TEXT_INPUT_NORMAL)) {
 			
 			strcat(filePath, RECORDING_SUFFIX);
-			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite? (y/n)", true)) {
+			if (!fileExists(filePath) || confirm("File of that name already exists. Overwrite? (y/n)", true, -1, -1)) {
 				remove(filePath);
 				rename(currentFilePath, filePath);
 			} else {
@@ -1061,7 +1084,7 @@ void parseFile() {
 		recordingLocation = oldRecLoc;
 		lengthOfPlaybackFile = oldLength;
 		locationInRecordingBuffer = oldBufLoc;
-		message("File parsed.", true, false);
+		message("File parsed.", false);
 	} else {
 		confirmMessages();
 	}

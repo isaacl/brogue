@@ -4,7 +4,7 @@
  *
  *  Created by Brian Walker on 4/13/10.
  *  Copyright 2010. All rights reserved.
- *  
+ *
  *  This file is part of Brogue.
  *
  *  Brogue is free software: you can redistribute it and/or modify
@@ -32,6 +32,8 @@ extern TCOD_renderer_t renderer;
 extern short brogueFontSize;
 extern short mouseX, mouseY;
 
+boolean hasMouseMoved = 0;
+
 typedef struct brogueScoreEntry {
 	long int score;
 	long int dateNumber; // in seconds
@@ -50,17 +52,17 @@ void plotChar(uchar inputChar,
 			  short xLoc, short yLoc,
 			  short foreRed, short foreGreen, short foreBlue,
 			  short backRed, short backGreen, short backBlue) {
-	
+
 	TCOD_color_t fore;
 	TCOD_color_t back;
-	
+
 	fore.r = (uint8) foreRed * 255 / 100;
 	fore.g = (uint8) foreGreen * 255 / 100;
 	fore.b = (uint8) foreBlue * 255 / 100;
 	back.r = (uint8) backRed * 255 / 100;
 	back.g = (uint8) backGreen * 255 / 100;
 	back.b = (uint8) backBlue * 255 / 100;
-	
+
 	if (inputChar == STATUE_CHAR) {
 		inputChar = 223;
 	} else if (inputChar > 255) {
@@ -118,14 +120,14 @@ void plotChar(uchar inputChar,
 }
 
 void pausingTimerStartsNow() {
-	
+
 }
 
 static void initWithFont(int fontSize) {
 	char font[80];
-	
+
 	sprintf(font,"BrogueFont%i.png",fontSize);
-	
+
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
 	TCOD_console_init_root(COLS, ROWS, "Brogue", false, renderer);
 	TCOD_console_map_ascii_codes_to_font(0, 255, 0, 0);
@@ -134,7 +136,7 @@ static void initWithFont(int fontSize) {
 }
 
 boolean processSpecialKeystrokes(TCOD_key_t k) {
-	
+
 	if (k.vk == TCODK_PRINTSCREEN) {
 		// screenshot
 		TCOD_sys_save_screenshot(NULL);
@@ -167,11 +169,11 @@ boolean processSpecialKeystrokes(TCOD_key_t k) {
 
 // returns true if input is acceptable
 boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
-	
+
 	if (processSpecialKeystrokes(key)) {
 		return false;
 	}
-	
+
 	returnEvent->eventType = KEYSTROKE;
 	returnEvent->controlKey = (key.rctrl || key.lctrl);
 	returnEvent->shiftKey = key.shift;
@@ -266,27 +268,27 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 	TCOD_mouse_t mouse;
 	uint32 theTime, waitTime;
 	short x, y;
-	
+
 	TCOD_console_flush();
-	
+
 	for (;;) {
-		
+
 		theTime = TCOD_sys_elapsed_milli();
-		
+
 		if (TCOD_console_is_window_closed()) {
 			rogue.gameHasEnded = true; // causes the game loop to terminate quickly
 			returnEvent->eventType = KEYSTROKE;
 			returnEvent->param1 = ACKNOWLEDGE_KEY;
 			return;
 		}
-		
+
 		tryAgain = false;
-		
+
 		if (bufferedKey.vk != TCODK_NONE && processKeystroke(bufferedKey, returnEvent)) {
 			bufferedKey.vk = TCODK_NONE;
 			return;
 		}
-		
+
 		if (bufferedMouseClick[0] >= 0 && bufferedMouseClick[1] >= 0) {
 			returnEvent->eventType = MOUSE_UP;
 			returnEvent->param1 = bufferedMouseClick[0];
@@ -297,22 +299,22 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 			if (TCOD_console_is_key_pressed(TCODK_SHIFT)) {
 				returnEvent->shiftKey = true;
 			}
-			
+
 			bufferedMouseClick[0] = -1;
 			return;
 		}
-		
+
 		if (colorsDance) {
 			shuffleTerrainColors(3, true);
 			commitDraws();
 		}
-		
+
 		TCOD_console_flush();
 		key = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
 		if (processKeystroke(key, returnEvent)) {
 			return;
 		}
-		
+
 		mouse = TCOD_mouse_get_status();
 		x = mouse.cx;
 		y = mouse.cy;
@@ -333,10 +335,15 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 			} else {
 				returnEvent->eventType = MOUSE_ENTERED_CELL;
 			}
-			return;
+
+			if (returnEvent->eventType == MOUSE_ENTERED_CELL && !hasMouseMoved) {
+                hasMouseMoved = 1;
+			} else {
+                return;
+			}
 		}
 		waitTime = PAUSE_BETWEEN_EVENT_POLLING + theTime - TCOD_sys_elapsed_milli();
-		
+
 		if (waitTime > 0 && waitTime <= PAUSE_BETWEEN_EVENT_POLLING) {
 			TCOD_sys_sleep_milli(waitTime);
 		}
@@ -348,14 +355,14 @@ boolean pauseForMilliseconds(short milliseconds) {
 	TCOD_console_flush();
 	TCOD_sys_sleep_milli((unsigned int) milliseconds);
 	bufferedKey = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
-	
-	
+
+
 	mouse = TCOD_mouse_get_status();
 	if (mouse.lbutton_pressed) {
 		bufferedMouseClick[0] = mouse.cx;
 		bufferedMouseClick[1] = mouse.cy;
 	}
-	
+
 	return (bufferedKey.vk != TCODK_NONE || bufferedMouseClick[0] >= 0);
 }
 
@@ -363,7 +370,7 @@ boolean pauseForMilliseconds(short milliseconds) {
 void initScores() {
 	short i;
 	FILE *scoresFile;
-	
+
 	scoresFile = fopen("BrogueHighScores.txt", "w");
 	for (i=0; i<25; i++) {
 		fprintf(scoresFile, "%li\t%li\t%s", (long) 0, (long) 0, "(empty entry)\n");
@@ -378,13 +385,13 @@ short sortScoreBuffer() {
 	long highestUnsortedScore, mostRecentDate;
 	brogueScoreEntry sortedScoreBuffer[25];
 	boolean lineSorted[25];
-	
+
 	mostRecentDate = 0;
-	
+
 	for (i=0; i<25; i++) {
 		lineSorted[i] = false;
 	}
-	
+
 	for (i=0; i<25; i++) {
 		highestUnsortedLine = 0;
 		highestUnsortedScore = 0;
@@ -397,7 +404,7 @@ short sortScoreBuffer() {
 		sortedScoreBuffer[i] = scoreBuffer[highestUnsortedLine];
 		lineSorted[highestUnsortedLine] = true;
 	}
-	
+
 	// copy the sorted list back into scoreBuffer, remember the most recent entry
 	for (i=0; i<25; i++) {
 		scoreBuffer[i] = sortedScoreBuffer[i];
@@ -416,23 +423,23 @@ short loadScoreBuffer() {
 	FILE *scoresFile;
 	time_t rawtime;
 	struct tm * timeinfo;
-	
+
 	scoresFile = fopen("BrogueHighScores.txt", "r");
-	
+
 	if (scoresFile == NULL) {
 		initScores();
 		scoresFile = fopen("BrogueHighScores.txt", "r");
 	}
-	
+
 	for (i=0; i<25; i++) {
 		// load score and also the date in seconds
 		fscanf(scoresFile, "%li\t%li\t", &(scoreBuffer[i].score), &(scoreBuffer[i].dateNumber));
-		
+
 		// load description
 		fgets(scoreBuffer[i].description, COLS, scoresFile);
 		// strip the newline off the end
 		scoreBuffer[i].description[strlen(scoreBuffer[i].description) - 1] = '\0';
-		
+
 		// convert date to mm/dd/yy format
 		rawtime = (time_t) scoreBuffer[i].dateNumber;
 		timeinfo = localtime(&rawtime);
@@ -449,59 +456,59 @@ short loadScoreBuffer() {
 void saveScoreBuffer() {
 	short i;
 	FILE *scoresFile;
-	
+
 	scoresFile = fopen("BrogueHighScores.txt", "w");
-	
+
 	for (i=0; i<25; i++) {
 		// save the entry
 		fprintf(scoresFile, "%li\t%li\t%s\n", scoreBuffer[i].score, scoreBuffer[i].dateNumber, scoreBuffer[i].description);
 	}
-	
+
 	fclose(scoresFile);
 }
 
 short getHighScoresList(rogueHighScoresEntry returnList[25]) {
 	short i, mostRecentLineNumber;
-	
+
 	mostRecentLineNumber = loadScoreBuffer();
-	
+
 	for (i=0; i<25; i++) {
 		returnList[i].score =				scoreBuffer[i].score;
 		strcpy(returnList[i].date,			scoreBuffer[i].dateText);
 		strcpy(returnList[i].description,	scoreBuffer[i].description);
 	}
-	
+
 	return mostRecentLineNumber;
 }
 
 boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	short i, lowestScoreIndex;
 	long lowestScore;
-	
+
 	loadScoreBuffer();
-	
+
 	for (i=0; i<25; i++) {
 		if (scoreBuffer[i].score < lowestScore || i == 0) {
 			lowestScore = scoreBuffer[i].score;
 			lowestScoreIndex = i;
 		}
 	}
-	
+
 	if (lowestScore > theEntry.score) {
 		return false;
 	}
-	
+
 	scoreBuffer[lowestScoreIndex].score	=				theEntry.score;
 	scoreBuffer[lowestScoreIndex].dateNumber =			(long) time(NULL);
 	strcpy(scoreBuffer[lowestScoreIndex].description,	theEntry.description);
-	
+
 	saveScoreBuffer();
-	
+
 	return true;
 }
 
 // not needed in libtcod
 void initializeBrogueSaveLocation() {
-    
+
 }
 
