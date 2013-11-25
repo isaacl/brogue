@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/10/09.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -317,22 +317,28 @@ void analyzeMap(boolean calculateChokeMap) {
 	}
 }
 
-// assumes (startX, startY) is in the machine
-void addTileToMachineInteriorAndIterate(char interior[DCOLS][DROWS], short startX, short startY) {
+// Assumes (startX, startY) is in the machine.
+// Returns true if everything went well, and false if we ran into an item that was already there -- don't want to build a machine around it.
+boolean addTileToMachineInteriorAndIterate(char interior[DCOLS][DROWS], short startX, short startY) {
 	short dir, newX, newY;
+	boolean goodSoFar = true;
 	
 	interior[startX][startY] = true;
 	
-	for (dir = 0; dir < 4; dir++) {
+	for (dir = 0; dir < 4 && goodSoFar; dir++) {
 		newX = startX + nbDirs[dir][0];
 		newY = startY + nbDirs[dir][1];
+		if (pmap[newX][newY].flags & HAS_ITEM) {
+			return false;
+		}
 		if (coordinatesAreInMap(newX, newY)
 			&& !interior[newX][newY]
 			&& chokeMap[newX][newY] <= chokeMap[startX][startY] // don't have to worry about walls since they're all 30000
 			&& !(pmap[newX][newY].flags & IS_IN_MACHINE)) {
-			addTileToMachineInteriorAndIterate(interior, newX, newY);
+			goodSoFar = goodSoFar && addTileToMachineInteriorAndIterate(interior, newX, newY);
 		}
 	}
+	return goodSoFar;
 }
 
 void copyMap(pcell from[DCOLS][DROWS], pcell to[DCOLS][DROWS]) {
@@ -375,6 +381,7 @@ boolean cellIsFeatureCandidate(short x, short y,
 							   short distanceBound[2],
 							   char interior[DCOLS][DROWS],
 							   char occupied[DCOLS][DROWS],
+							   char viewMap[DCOLS][DROWS],
 							   short **distanceMap,
 							   unsigned long featureFlags) {
 	short newX, newY, dir, distance;
@@ -389,6 +396,12 @@ boolean cellIsFeatureCandidate(short x, short y,
 	// No building in another feature's personal space!
 	if (occupied[x][y]) {
 		return false; 
+	}
+	
+	// Must be in the viewmap if the appropriate flag is set.
+	if ((featureFlags & MF_IN_VIEW_OF_GATE)
+		&& !viewMap[x][y]) {
+		return false;
 	}
 	
 	// Do a distance check if the feature requests it.
@@ -440,21 +453,23 @@ boolean cellIsFeatureCandidate(short x, short y,
 // Returns true if the machine got built; false if it was aborted.
 // If empty array parentSpawnedItems or parentSpawnedMonsters is given, will pass those back for deletion if necessary.
 boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature *parentSpawnedMonsters[50], unsigned long requiredMachineFlags) {
-	short i, j, feat, bp, randIndex, totalFreq, doorX, doorY, gateCandidates[50][2],
+	short i, j, nbcount, feat, bp, randIndex, totalFreq, doorX, doorY, gateCandidates[50][2],
 	layer, dir, newX, newY, instance, instanceCount, qualifyingTileCount,
 	featX, featY, itemCount, monsterCount,
 	**distanceMap, distance25, distance75, distances[100], distanceBound[2],
 	personalSpace, failsafe,
 	machineNumber;
+	const unsigned long alternativeFlags[2] = {MF_ALTERNATIVE, MF_ALTERNATIVE_2};
 	
 	// Our boolean grids:
 	//	Interior:		This is the master grid for the machine. All area inside the machine are set to true.
 	//	Occupied:		This keeps track of what is within the personal space of a previously built feature in the same machine.
 	//	Candidates:		This is calculated at the start of each feature, and is true where that feature is eligible for building.
 	//	BlockingMap:	Used during terrain/DF placement in features that are flagged not to tolerate blocking, to see if they block.
-	char interior[DCOLS][DROWS], occupied[DCOLS][DROWS], candidates[DCOLS][DROWS], blockingMap[DCOLS][DROWS];
+	//	ViewMap:		Used for features with MF_IN_VIEW_OF_GATE, to calculate which cells are in view of the gate.
+	char interior[DCOLS][DROWS], occupied[DCOLS][DROWS], candidates[DCOLS][DROWS], blockingMap[DCOLS][DROWS], viewMap[DCOLS][DROWS];
 	
-	boolean DFSucceeded, terrainSucceeded, generateEverywhere, skipFeature[20];
+	boolean DFSucceeded, terrainSucceeded, generateEverywhere, madeChange, skipFeature[20];
 	
 	pcell levelBackup[DCOLS][DROWS];
 	
@@ -465,63 +480,121 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 	
 	const machineFeature *feature;
 	
-	// first choose the blueprint
-	totalFreq = 0;
-	for (i=0; i<NUMBER_BLUEPRINTS; i++) {
-		if (blueprintQualifies(i, requiredMachineFlags)) {
-			totalFreq += blueprintCatalog[i].frequency;
+	failsafe = 10;
+	do {
+		if (failsafe <= 0) {
+			return false;
 		}
-	}
-	
-	if (!totalFreq) { // no suitable blueprints are in the library
-		return false;
-	}
-	
-	randIndex = rand_range(1, totalFreq);
-	for (i=0; i<NUMBER_BLUEPRINTS; i++) {
-		if (blueprintQualifies(i, requiredMachineFlags)) {
-			if (randIndex <= blueprintCatalog[i].frequency) {
-				bp = i;
-				break;
-			} else {
-				randIndex -= blueprintCatalog[i].frequency;
+		
+		// first choose the blueprint
+		totalFreq = 0;
+		for (i=0; i<NUMBER_BLUEPRINTS; i++) {
+			if (blueprintQualifies(i, requiredMachineFlags)) {
+				totalFreq += blueprintCatalog[i].frequency;
 			}
 		}
-	}
-	
-	// now count up the gates of appropriate choke size and remember where they are
-	totalFreq = 0;
-	for(i=0; i<DCOLS; i++) {
-		for(j=0; j<DROWS && totalFreq < 50; j++) {
-			if ((pmap[i][j].flags & IS_GATE_SITE)
-				&& !(pmap[i][j].flags & IS_IN_MACHINE)
-				&& chokeMap[i][j] >= blueprintCatalog[bp].roomSize[0]
-				&& chokeMap[i][j] <= blueprintCatalog[bp].roomSize[1]) {
-				gateCandidates[totalFreq][0] = i;
-				gateCandidates[totalFreq][1] = j;
-				totalFreq++;
+		
+		if (!totalFreq) { // no suitable blueprints are in the library
+			return false;
+		}
+		
+		randIndex = rand_range(1, totalFreq);
+		for (i=0; i<NUMBER_BLUEPRINTS; i++) {
+			if (blueprintQualifies(i, requiredMachineFlags)) {
+				if (randIndex <= blueprintCatalog[i].frequency) {
+					bp = i;
+					break;
+				} else {
+					randIndex -= blueprintCatalog[i].frequency;
+				}
 			}
 		}
-	}
-	
-	// if no suitable sites, abort
-	if (!totalFreq) {
-		return false;
-	}
-	
-	// choose the gate
-	randIndex = rand_range(0, totalFreq - 1);
-	doorX = gateCandidates[randIndex][0];
-	doorY = gateCandidates[randIndex][1];
-	
-	// Now map out the interior into interior[][].
-	// Start at the gate location and do a depth-first floodfill to grab all adjoining tiles with the same or lower choke value,
-	// ignoring any tiles that are already part of a machine.
-	zeroOutGrid(interior);
-	addTileToMachineInteriorAndIterate(interior, doorX, doorY);
+		
+		// now count up the gates of appropriate choke size and remember where they are
+		totalFreq = 0;
+		for(i=0; i<DCOLS; i++) {
+			for(j=0; j<DROWS && totalFreq < 50; j++) {
+				if ((pmap[i][j].flags & IS_GATE_SITE)
+					&& !(pmap[i][j].flags & IS_IN_MACHINE)
+					&& chokeMap[i][j] >= blueprintCatalog[bp].roomSize[0]
+					&& chokeMap[i][j] <= blueprintCatalog[bp].roomSize[1]) {
+					gateCandidates[totalFreq][0] = i;
+					gateCandidates[totalFreq][1] = j;
+					totalFreq++;
+				}
+			}
+		}
+		
+		// if no suitable sites, abort
+		if (!totalFreq) {
+			return false;
+		}
+		
+		// choose the gate
+		randIndex = rand_range(0, totalFreq - 1);
+		doorX = gateCandidates[randIndex][0];
+		doorY = gateCandidates[randIndex][1];
+		
+		// Now map out the interior into interior[][].
+		// Start at the gate location and do a depth-first floodfill to grab all adjoining tiles with the same or lower choke value,
+		// ignoring any tiles that are already part of a machine.
+		// If we get false from this, start over. If we've tried too many times already, abort.
+		zeroOutGrid(interior);
+	} while (!addTileToMachineInteriorAndIterate(interior, doorX, doorY));
 	
 	// This is the point of no return. Back up the level so it can be restored if we have to abort this machine after this point.
 	copyMap(pmap, levelBackup);
+	
+	// If requested, clear and expand the room as far as possible until either it's convex or it bumps into surrounding rooms
+	if (blueprintCatalog[bp].flags & BF_OPEN_INTERIOR) {
+		do {
+			madeChange = false;
+			for(i=1; i<DCOLS-1; i++) {
+				for(j=1; j < DROWS-1; j++) {
+					if (cellHasTerrainFlag(i, j, T_PATHING_BLOCKER)) {
+						// Count up the number of interior open neighbors out of eight:
+						for (nbcount = dir = 0; dir < 8; dir++) {
+							newX = i + nbDirs[dir][0];
+							newY = j + nbDirs[dir][1];
+							if (interior[newX][newY]
+								&& !cellHasTerrainFlag(newX, newY, T_PATHING_BLOCKER)) {
+								nbcount++;
+							}
+						}
+						if (nbcount >= 4) {
+							// Make sure zero exterior open neighbors out of eight:
+							for (nbcount = dir = 0; dir < 8; dir++) {
+								newX = i + nbDirs[dir][0];
+								newY = j + nbDirs[dir][1];
+								if (!interior[newX][newY]
+									&& !cellHasTerrainFlag(newX, newY, T_OBSTRUCTS_PASSABILITY)) {
+									nbcount++;
+									break;
+								}
+							}
+							if (!nbcount) {
+								// Eliminate this obstruction; welcome its location into the room.
+								madeChange = true;
+								interior[i][j] = true;
+								for (layer = 0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
+									if (tileCatalog[pmap[i][j].layers[layer]].flags & T_PATHING_BLOCKER) {
+										pmap[i][j].layers[layer] = (layer == DUNGEON ? FLOOR : NOTHING);
+									}
+								}
+								for (dir = 0; dir < 8; dir++) {
+									newX = i + nbDirs[dir][0];
+									newY = j + nbDirs[dir][1];
+									if (pmap[newX][newY].layers[DUNGEON] == GRANITE) {
+										pmap[newX][newY].layers[DUNGEON] = TOP_WALL;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		} while (madeChange);
+	}
 	
 	// If requested, cleanse the interior -- no interesting terrain allowed.
 	if (blueprintCatalog[bp].flags & BF_PURGE_INTERIOR) {
@@ -584,7 +657,7 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 		}
 	}
 	
-	// Reinforce surrounding and internal tiles if requested to prevent tunneling in or through.
+	// Reinforce surrounding tiles and interior tiles if requested to prevent tunneling in or through.
 	if (blueprintCatalog[bp].flags & BF_IMPREGNABLE) {
 		for(i=0; i<DCOLS; i++) {
 			for(j=0; j<DROWS; j++) {
@@ -627,7 +700,7 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 	// and figure out the 33rd and 67th percentiles for features that want to be near or far from the gate.
 	distanceMap = allocDynamicGrid();
 	fillDynamicGrid(distanceMap, 0);
-	calculateDistances(distanceMap, doorX, doorY, T_PATHING_BLOCKER, NULL, true);
+	calculateDistances(distanceMap, doorX, doorY, T_PATHING_BLOCKER, NULL, true, true);
 	qualifyingTileCount = 0;
 	for (i=0; i<100; i++) {
 		distances[i] = 0;
@@ -662,25 +735,29 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 	//DEBUG printf("\nDistances calculated: 33rd percentile of distance is %i, and 67th is %i.", distance25, distance75);
 	
 	// Now decide which features will be skipped -- of the features marked MF_ALTERNATIVE, skip all but one, chosen randomly.
-	totalFreq = 0;
+	// Then repeat and do the same with respect to MF_ALTERNATIVE_2, to provide up to two independent sets of alternative features per machine.
+	
 	for (i=0; i<blueprintCatalog[bp].featureCount; i++) {
-		if (blueprintCatalog[bp].feature[i].flags & MF_ALTERNATIVE) {
-			skipFeature[i] = true;
-			totalFreq++;
-		} else {
-			skipFeature[i] = false;
-		}
-
+		skipFeature[i] = false;
 	}
-	if (totalFreq > 0) {
-		randIndex = rand_range(1, totalFreq);
+	for (j = 0; j <= 1; j++) {
+		totalFreq = 0;
 		for (i=0; i<blueprintCatalog[bp].featureCount; i++) {
-			if (blueprintCatalog[bp].feature[i].flags & MF_ALTERNATIVE) {
-				if (randIndex == 1) {
-					skipFeature[i] = false; // This is the alternative that gets built. The rest do not.
-					break;
-				} else {
-					randIndex--;
+			if (blueprintCatalog[bp].feature[i].flags & alternativeFlags[j]) {
+				skipFeature[i] = true;
+				totalFreq++;
+			}
+		}
+		if (totalFreq > 0) {
+			randIndex = rand_range(1, totalFreq);
+			for (i=0; i<blueprintCatalog[bp].featureCount; i++) {
+				if (blueprintCatalog[bp].feature[i].flags & alternativeFlags[j]) {
+					if (randIndex == 1) {
+						skipFeature[i] = false; // This is the alternative that gets built. The rest do not.
+						break;
+					} else {
+						randIndex--;
+					}
 				}
 			}
 		}
@@ -711,265 +788,285 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 			distanceBound[0] = distance75;
 		}
 		
-		// Make a master map of candidate locations for this feature.
-		qualifyingTileCount = 0;
-		for(i=0; i<DCOLS; i++) {
-			for(j=0; j<DROWS; j++) {
-				if (cellIsFeatureCandidate(i, j, doorX, doorY, distanceBound, interior, occupied, distanceMap, feature->flags)) {
-					qualifyingTileCount++;
-					candidates[i][j] = true;
-				} else {
-					candidates[i][j] = false;
-				}
+		if (feature->flags & MF_IN_VIEW_OF_GATE) {
+			zeroOutGrid(viewMap);
+			getFOVMask(viewMap, doorX, doorY, max(DCOLS, DROWS), (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_VISION), 0, false);
+			viewMap[doorX][doorY] = true;
+			
+			if (D_INSPECT_MACHINES) {
+				dumpLevelToScreen();
+				hiliteGrid(viewMap, &omniscienceColor, 75);
+				temporaryMessage("Showing visibility.", true);
 			}
 		}
 		
-		if (D_INSPECT_MACHINES) {
-			dumpLevelToScreen();
-			hiliteGrid(occupied, &red, 75);
-			hiliteGrid(candidates, &green, 75);
-			hiliteGrid(interior, &blue, 75);
-			temporaryMessage("Indicating: Occupied (red); Candidates (green); Interior (blue).", true);
-		}
-		
-		if (feature->flags & MF_EVERYWHERE & ~MF_BUILD_IN_DOORWAY) {
-			// Generate everywhere that qualifies -- instead of randomly picking tiles, keep spawning until we run out of eligible tiles.
-			generateEverywhere = true;
-		} else {
-			// build as many instances as required
-			generateEverywhere = false;
-			instanceCount = rand_range(feature->instanceCountRange[0], feature->instanceCountRange[1]);
-		}
-		
-		// Cache the personal space constant.
-		personalSpace = feature->personalSpace;
-//		if (generateEverywhere && personalSpace == 0) {
-//			personalSpace = 1; // Otherwise we might keep generating it on the same tiles forever.
-//		}
-		
-		for (instance = 0; (generateEverywhere || instance < instanceCount) && qualifyingTileCount > 0;) {
+		do { // If the MF_REPEAT_UNTIL_NO_PROGRESS flag is set, repeat until we fail to build the required number of instances.
 			
-			// Find a location for the feature.
-			if (feature->flags & MF_BUILD_IN_DOORWAY) {
-				// Does the feature want to be in the gate? If so, put it there. (Just an optimization.)
-				featX = doorX;
-				featY = doorY;
-			} else {
-				// Pick our candidate location randomly, and also strike it from
-				// the candidates map so that subsequent instances of this same feature can't choose it.
-				featX = -1;
-				randIndex = rand_range(1, qualifyingTileCount);
-				for(i=0; i<DCOLS && featX < 0; i++) {
-					for(j=0; j<DROWS && featX < 0; j++) {
-						if (candidates[i][j]) {
-							if (randIndex == 1) {
-								featX = i;
-								featY = j;
-								// Don't waste time trying the same place again whether or not this attempt succeeds.
-								candidates[featX][featY] = false;
-								qualifyingTileCount--;
-								i = DCOLS;	// break out of the loops
-								j = DROWS;
-							} else {
-								randIndex--;
-							}
-						}
-					}
-				}
-			}
-			
-			DFSucceeded = terrainSucceeded = true;
-			
-			// Try to build the DF first, if any, since we don't want it to be disrupted by subsequently placed terrain.
-			if (feature->featureDF) {
-				DFSucceeded = spawnDungeonFeature(featX, featY, &dungeonFeatureCatalog[feature->featureDF], false,
-												  !(feature->flags & MF_PERMIT_BLOCKING));
-			}
-			
-			// Now try to place the terrain tile, if any.
-			if (DFSucceeded && feature->terrain) {
-				// Must we check for blocking?
-				if (!(feature->flags & MF_PERMIT_BLOCKING)
-					&& ((tileCatalog[feature->terrain].flags & T_PATHING_BLOCKER) || (feature->flags & MF_TREAT_AS_BLOCKING))) {
-					// Yes, check for blocking.
-					
-					zeroOutGrid(blockingMap);
-					blockingMap[featX][featY] = true;
-					terrainSucceeded = levelIsConnectedWithBlockingMap(blockingMap);
-				}
-				if (terrainSucceeded) {
-					pmap[featX][featY].layers[feature->layer] = feature->terrain;
-				}
-			}
-			
-			// OK, if placement was successful, clear some personal space around the feature so subsequent features can't be generated too close.
-			// Personal space of 0 means nothing gets cleared, 1 means that only the tile itself gets cleared, and 2 means the 3x3 grid centered on it.
-			
-			if (DFSucceeded && terrainSucceeded) {
-				for (i = featX - personalSpace + 1;
-					 i <= featX + personalSpace - 1;
-					 i++) {
-					for (j = featY - personalSpace + 1;
-						 j <= featY + personalSpace - 1;
-						 j++) {
-						if (coordinatesAreInMap(i, j)) {
-							if (candidates[i][j]) {
-#ifdef BROGUE_ASSERTS
-								assert(!occupied[i][j] || (i == doorX && j == doorY)); // Candidates[][] should never be true where occupied[][] is true.
-#endif
-								candidates[i][j] = false;
-								qualifyingTileCount--;
-							}
-							occupied[i][j] = true;
-						}
-					}
-				}
-				instance++; // we've placed an instance
-				//DEBUG printf("\nPlaced instance #%i of feature %i at (%i, %i).", instance, feat, featX, featY);
-			}
-			
-			if (DFSucceeded && terrainSucceeded) { // Proceed only if the terrain stuff for this instance succeeded.
-				
-				// Mark the feature location as part of the machine, in case it is not already inside of it.
-				pmap[featX][featY].flags |= IS_IN_MACHINE;
-				pmap[featX][featY].machineNumber = machineNumber;
-				
-				// Generate an item as necessary.
-				if ((feature->flags & MF_GENERATE_ITEM)
-					|| (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY))) {
-					// Are we adopting an item instead of generating one?
-					if (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY)) {
-						theItem = adoptiveItem;
-						adoptiveItem = NULL; // can be adopted only once
+			// Make a master map of candidate locations for this feature.
+			qualifyingTileCount = 0;
+			for(i=0; i<DCOLS; i++) {
+				for(j=0; j<DROWS; j++) {
+					if (cellIsFeatureCandidate(i, j, doorX, doorY, distanceBound, interior, occupied, viewMap, distanceMap, feature->flags)) {
+						qualifyingTileCount++;
+						candidates[i][j] = true;
 					} else {
-						// Have to create an item ourselves.
-						theItem = generateItem(feature->itemCategory, feature->itemKind);
-						failsafe = 1000;
-						while ((feature->itemValueMinimum > 0 && itemValue(theItem) < feature->itemValueMinimum) // must be at least as expensive as requested
-							   || ((feature->flags & MF_REQUIRE_GOOD_RUNIC) && (!(theItem->flags & ITEM_RUNIC) || (theItem->flags & ITEM_CURSED))) // runic and uncursed if requested
-							   || ((feature->flags & MF_NO_THROWING_WEAPONS) && theItem->category == WEAPON && theItem->quantity > 1)) { // no throwing weapons if prohibited
-							deleteItem(theItem);
-							theItem = generateItem(feature->itemCategory, feature->itemKind);
-							if (failsafe <= 0) {
-								break;
+						candidates[i][j] = false;
+					}
+				}
+			}
+			
+			if (D_INSPECT_MACHINES) {
+				dumpLevelToScreen();
+				hiliteGrid(occupied, &red, 75);
+				hiliteGrid(candidates, &green, 75);
+				hiliteGrid(interior, &blue, 75);
+				temporaryMessage("Indicating: Occupied (red); Candidates (green); Interior (blue).", true);
+			}
+			
+			if (feature->flags & MF_EVERYWHERE & ~MF_BUILD_IN_DOORWAY) {
+				// Generate everywhere that qualifies -- instead of randomly picking tiles, keep spawning until we run out of eligible tiles.
+				generateEverywhere = true;
+			} else {
+				// build as many instances as required
+				generateEverywhere = false;
+				instanceCount = rand_range(feature->instanceCountRange[0], feature->instanceCountRange[1]);
+			}
+			
+			// Cache the personal space constant.
+			personalSpace = feature->personalSpace;
+			//		if (generateEverywhere && personalSpace == 0) {
+			//			personalSpace = 1; // Otherwise we might keep generating it on the same tiles forever.
+			//		}
+			
+			for (instance = 0; (generateEverywhere || instance < instanceCount) && qualifyingTileCount > 0;) {
+				
+				// Find a location for the feature.
+				if (feature->flags & MF_BUILD_IN_DOORWAY) {
+					// Does the feature want to be in the gate? If so, put it there. (Just an optimization.)
+					featX = doorX;
+					featY = doorY;
+				} else {
+					// Pick our candidate location randomly, and also strike it from
+					// the candidates map so that subsequent instances of this same feature can't choose it.
+					featX = -1;
+					randIndex = rand_range(1, qualifyingTileCount);
+					for(i=0; i<DCOLS && featX < 0; i++) {
+						for(j=0; j<DROWS && featX < 0; j++) {
+							if (candidates[i][j]) {
+								if (randIndex == 1) {
+									featX = i;
+									featY = j;
+									// Don't waste time trying the same place again whether or not this attempt succeeds.
+									candidates[featX][featY] = false;
+									qualifyingTileCount--;
+									i = DCOLS;	// break out of the loops
+									j = DROWS;
+								} else {
+									randIndex--;
+								}
 							}
-							failsafe--;
 						}
-						spawnedItems[itemCount] = theItem; // Keep a list of generated items so that we can delete them all if construction fails.
-						if (parentSpawnedItems) {
-							parentSpawnedItems[itemCount] = theItem;
+					}
+				}
+				
+				DFSucceeded = terrainSucceeded = true;
+				
+				// Try to build the DF first, if any, since we don't want it to be disrupted by subsequently placed terrain.
+				if (feature->featureDF) {
+					DFSucceeded = spawnDungeonFeature(featX, featY, &dungeonFeatureCatalog[feature->featureDF], false,
+													  !(feature->flags & MF_PERMIT_BLOCKING));
+				}
+				
+				// Now try to place the terrain tile, if any.
+				if (DFSucceeded && feature->terrain) {
+					// Must we check for blocking?
+					if (!(feature->flags & MF_PERMIT_BLOCKING)
+						&& ((tileCatalog[feature->terrain].flags & T_PATHING_BLOCKER) || (feature->flags & MF_TREAT_AS_BLOCKING))) {
+						// Yes, check for blocking.
+						
+						zeroOutGrid(blockingMap);
+						blockingMap[featX][featY] = true;
+						terrainSucceeded = levelIsConnectedWithBlockingMap(blockingMap);
+					}
+					if (terrainSucceeded) {
+						pmap[featX][featY].layers[feature->layer] = feature->terrain;
+					}
+				}
+				
+				// OK, if placement was successful, clear some personal space around the feature so subsequent features can't be generated too close.
+				// Personal space of 0 means nothing gets cleared, 1 means that only the tile itself gets cleared, and 2 means the 3x3 grid centered on it.
+				
+				if (DFSucceeded && terrainSucceeded) {
+					for (i = featX - personalSpace + 1;
+						 i <= featX + personalSpace - 1;
+						 i++) {
+						for (j = featY - personalSpace + 1;
+							 j <= featY + personalSpace - 1;
+							 j++) {
+							if (coordinatesAreInMap(i, j)) {
+								if (candidates[i][j]) {
+#ifdef BROGUE_ASSERTS
+									assert(!occupied[i][j] || (i == doorX && j == doorY)); // Candidates[][] should never be true where occupied[][] is true.
+#endif
+									candidates[i][j] = false;
+									qualifyingTileCount--;
+								}
+								occupied[i][j] = true;
+							}
 						}
-						itemCount++;
-						theItem->keyX = featX;
-						theItem->keyY = featY;
-						theItem->keyZ = rogue.depthLevel;
-						theItem->flags |= feature->itemFlags;
+					}
+					instance++; // we've placed an instance
+					//DEBUG printf("\nPlaced instance #%i of feature %i at (%i, %i).", instance, feat, featX, featY);
+				}
+				
+				if (DFSucceeded && terrainSucceeded) { // Proceed only if the terrain stuff for this instance succeeded.
+					
+					// Mark the feature location as part of the machine, in case it is not already inside of it.
+					pmap[featX][featY].flags |= IS_IN_MACHINE;
+					pmap[featX][featY].machineNumber = machineNumber;
+					
+					// Mark the feature location as impregnable if requested.
+					if (feature->flags & MF_IMPREGNABLE) {
+						pmap[featX][featY].flags |= IMPREGNABLE;
 					}
 					
-					if (feature->flags & MF_OUTSOURCE_ITEM) {
-						// Put this item up for adoption.
-						// Try to create a sub-machine that will accept our item.
-						// If we fail 10 times, abort the entire machine (including any sub-machines already built).
-						// Also, if we build a sub-machine, and it succeeds, but this (its parent machine) fails,
-						// we pass the monsters and items that it spawned back to the parent,
-						// so that if the parent fails, they can all be freed.
-						for (i=10; i > 0; i--) {
-							// First make sure our adopted item, if any, is not on the floor or in the pack already.
-							// Otherwise, a previous attempt to place it may have put it on the floor in a different
-							// machine, only to have that machine fail and be deleted, leaving the item remaining on
-							// the floor where placed.
-							if (theItem) {
-								removeItemFromChain(theItem, floorItems);
-								removeItemFromChain(theItem, packItems);
-								theItem->nextItem = NULL;
+					// Generate an item as necessary.
+					if ((feature->flags & MF_GENERATE_ITEM)
+						|| (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY))) {
+						// Are we adopting an item instead of generating one?
+						if (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY)) {
+							theItem = adoptiveItem;
+							adoptiveItem = NULL; // can be adopted only once
+						} else {
+							// Have to create an item ourselves.
+							theItem = generateItem(feature->itemCategory, feature->itemKind);
+							failsafe = 1000;
+							while ((feature->itemValueMinimum > 0 && itemValue(theItem) < feature->itemValueMinimum) // must be at least as expensive as requested
+								   || ((feature->flags & MF_REQUIRE_GOOD_RUNIC) && (!(theItem->flags & ITEM_RUNIC) || (theItem->flags & ITEM_CURSED))) // runic and uncursed if requested
+								   || ((feature->flags & MF_NO_THROWING_WEAPONS) && theItem->category == WEAPON && theItem->quantity > 1)) { // no throwing weapons if prohibited
+								deleteItem(theItem);
+								theItem = generateItem(feature->itemCategory, feature->itemKind);
+								if (failsafe <= 0) {
+									break;
+								}
+								failsafe--;
+							}
+							spawnedItems[itemCount] = theItem; // Keep a list of generated items so that we can delete them all if construction fails.
+							if (parentSpawnedItems) {
+								parentSpawnedItems[itemCount] = theItem;
+							}
+							itemCount++;
+							theItem->keyX = featX;
+							theItem->keyY = featY;
+							theItem->keyZ = rogue.depthLevel;
+							theItem->flags |= feature->itemFlags;
+						}
+						
+						if (feature->flags & MF_OUTSOURCE_ITEM) {
+							// Put this item up for adoption.
+							// Try to create a sub-machine that will accept our item.
+							// If we fail 10 times, abort the entire machine (including any sub-machines already built).
+							// Also, if we build a sub-machine, and it succeeds, but this (its parent machine) fails,
+							// we pass the monsters and items that it spawned back to the parent,
+							// so that if the parent fails, they can all be freed.
+							for (i=10; i > 0; i--) {
+								// First make sure our adopted item, if any, is not on the floor or in the pack already.
+								// Otherwise, a previous attempt to place it may have put it on the floor in a different
+								// machine, only to have that machine fail and be deleted, leaving the item remaining on
+								// the floor where placed.
+								if (theItem) {
+									removeItemFromChain(theItem, floorItems);
+									removeItemFromChain(theItem, packItems);
+									theItem->nextItem = NULL;
+								}
+								
+								// Now put the item up for adoption.
+								if (buildAMachine(theItem, spawnedItemsSub, spawnedMonstersSub, BF_ADOPT_ITEM_MANDATORY)) {
+									// Success! Now we have to add that machine's items and monsters to our own list, so they
+									// all get deleted if this machine or its parent fails.
+									for (j=0; j<50 && spawnedItemsSub[j]; j++) {
+										spawnedItems[itemCount++] = spawnedItemsSub[j];
+									}
+									for (j=0; j<50 && spawnedMonstersSub[j]; j++) {
+										spawnedMonsters[monsterCount++] = spawnedMonstersSub[j];
+									}
+									break;
+								}
+								
 							}
 							
-							// Now put the item up for adoption.
-							if (buildAMachine(theItem, spawnedItemsSub, spawnedMonstersSub, BF_ADOPT_ITEM_MANDATORY)) {
-								// Success! Now we have to add that machine's items and monsters to our own list, so they
-								// all get deleted if this machine or its parent fails.
-								for (j=0; j<50 && spawnedItemsSub[j]; j++) {
-									spawnedItems[itemCount++] = spawnedItemsSub[j];
-								}
-								for (j=0; j<50 && spawnedMonstersSub[j]; j++) {
-									spawnedMonsters[monsterCount++] = spawnedMonstersSub[j];
-								}
-								break;
+							if (!i) {
+								DEBUG printf("\nDepth %i: Failed to place blueprint %i because it requires an adoptive machine and we couldn't place one.", rogue.depthLevel, bp);
+								// failure! abort!
+								copyMap(levelBackup, pmap);
+								abortItemsAndMonsters(spawnedItems, spawnedMonsters);
+								freeDynamicGrid(distanceMap);
+								return false;
 							}
-
+							theItem = NULL;
+						} else if (!(feature->flags & MF_MONSTER_TAKE_ITEM)) {
+							// Place the item at the feature location.
+							placeItem(theItem, featX, featY);
+						}
+					}
+					
+					// Generate a horde as necessary.
+					if (feature->flags & (MF_GENERATE_HORDE | MF_GENERATE_MONSTER)) {
+						if (feature->flags & MF_GENERATE_HORDE) {
+							monst = spawnHorde(0,
+											   featX,
+											   featY,
+											   ((HORDE_IS_SUMMONED | HORDE_LEADER_CAPTIVE) & ~(feature->hordeFlags)),
+											   feature->hordeFlags);
 						}
 						
-						if (!i) {
-							DEBUG printf("\nDepth %i: Failed to place blueprint %i because it requires an adoptive machine and we couldn't place one.", rogue.depthLevel, bp);
-							// failure! abort!
-							copyMap(levelBackup, pmap);
-							abortItemsAndMonsters(spawnedItems, spawnedMonsters);
-							freeDynamicGrid(distanceMap);
-							return false;
+						if (feature->flags & MF_GENERATE_MONSTER) {
+							monst = generateMonster(feature->monsterID, true);
+							monst->xLoc = featX;
+							monst->yLoc = featY;
 						}
-						theItem = NULL;
-					} else if (!(feature->flags & MF_MONSTER_TAKE_ITEM)) {
-						// Place the item at the feature location.
-						placeItem(theItem, featX, featY);
+						
+						if (monst) {
+							monst->bookkeepingFlags |= MONST_JUST_SUMMONED;
+							
+							// Give our item to the monster leader if appropriate.
+							if (theItem && (feature->flags & MF_MONSTER_TAKE_ITEM)) {
+								torchBearer = monst;
+								torch = theItem;
+							}
+						}
+						
+						for (monst = monsters->nextCreature; monst; monst = monst->nextCreature) {
+							if (monst->bookkeepingFlags & MONST_JUST_SUMMONED) {
+								monst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
+								spawnedMonsters[monsterCount] = monst;
+								if (parentSpawnedMonsters) {
+									parentSpawnedMonsters[monsterCount] = monst;
+								}
+								monsterCount++;
+								if (feature->flags & MF_MONSTER_SLEEPING) {
+									monst->creatureState = MONSTER_SLEEPING;
+								}
+								if (feature->flags & MF_MONSTERS_DORMANT) {
+									toggleMonsterDormancy(monst);
+									if (!(feature->flags & MF_MONSTER_SLEEPING)) {
+										monst->creatureState = MONSTER_TRACKING_SCENT;
+									}
+								}
+							}
+						}
 					}
 				}
+				theItem = NULL;
 				
-				// Generate a horde as necessary.
-				if (feature->flags & (MF_GENERATE_HORDE | MF_GENERATE_MONSTER)) {
-					if (feature->flags & MF_GENERATE_HORDE) {
-						monst = spawnHorde(0,
-										   featX,
-										   featY,
-										   ((HORDE_IS_SUMMONED | HORDE_LEADER_CAPTIVE) & ~(feature->hordeFlags)),
-										   feature->hordeFlags);
-					}
-					
-					if (feature->flags & MF_GENERATE_MONSTER) {
-						monst = generateMonster(feature->monsterID, true);
-						monst->xLoc = featX;
-						monst->yLoc = featY;
-					}
-					
-					if (monst) {
-						monst->bookkeepingFlags |= MONST_JUST_SUMMONED;
-						
-						// Give our item to the monster leader if appropriate.
-						if (theItem && (feature->flags & MF_MONSTER_TAKE_ITEM)) {
-							torchBearer = monst;
-							torch = theItem;
-						}
-					}
-					
-					for (monst = monsters->nextCreature; monst; monst = monst->nextCreature) {
-						if (monst->bookkeepingFlags & MONST_JUST_SUMMONED) {
-							monst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
-							spawnedMonsters[monsterCount] = monst;
-							if (parentSpawnedMonsters) {
-								parentSpawnedMonsters[monsterCount] = monst;
-							}
-							monsterCount++;
-							if (feature->flags & MF_MONSTER_SLEEPING) {
-								monst->creatureState = MONSTER_SLEEPING;
-							}
-							if (feature->flags & MF_MONSTERS_DORMANT) {
-								toggleMonsterDormancy(monst);
-								if (!(feature->flags & MF_MONSTER_SLEEPING)) {
-									monst->creatureState = MONSTER_TRACKING_SCENT;
-								}
-							}
-						}
-					}
-				}
+				// finished with this instance!
 			}
-			theItem = NULL;
-			
-			// finished with this instance!
-		}
+		} while ((feature->flags & MF_REPEAT_UNTIL_NO_PROGRESS) && instance >= feature->minimumInstanceCount);
 		
 		//DEBUG printf("\nFinished feature %i. Here's the candidates map:", feat);
 		//DEBUG logBuffer(candidates);
 		
-		if (instance < feature->minimumInstanceCount) {
+		if (instance < feature->minimumInstanceCount && !(feature->flags & MF_REPEAT_UNTIL_NO_PROGRESS)) {
 			// failure! abort!
 			
 			DEBUG printf("\nDepth %i: Failed to place blueprint %i because of feature %i; needed %i instances but got only %i.",
@@ -1025,12 +1122,59 @@ void addMachines() {
 	}
 }
 
+// Knock down the boundaries between similar lakes where possible.
+void cleanUpLakeBoundaries() {
+	short i, j, x, y, layer;
+	boolean reverse, madeChange;
+	
+	reverse = true;
+	
+	do {
+		madeChange = false;
+		reverse = !reverse;
+		
+		for (i = (reverse ? DCOLS - 2 : 1);
+			 (reverse ? i > 0 : i < DCOLS - 1);
+			 (reverse ? i-- : i++)) {
+			
+			for (j = (reverse ? DROWS - 2 : 1);
+				 (reverse ? j > 0 : j < DROWS - 1);
+				 (reverse ? j-- : j++)) {
+				
+				//assert(i >= 1 && i <= DCOLS - 2 && j >= 1 && j <= DROWS - 2);
+				
+				if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)
+					&& !(pmap[i][j].flags & IMPREGNABLE)) {
+					
+					x = y = 0;
+					if ((terrainFlags(i - 1, j) & T_LAKE_PATHING_BLOCKER)
+						&& (terrainFlags(i - 1, j) & T_LAKE_PATHING_BLOCKER) == (terrainFlags(i + 1, j) & T_LAKE_PATHING_BLOCKER)) {
+						x = i + 1;
+						y = j;
+					} else if ((terrainFlags(i, j - 1) & T_LAKE_PATHING_BLOCKER)
+							   && (terrainFlags(i, j - 1) & T_LAKE_PATHING_BLOCKER) == (terrainFlags(i, j + 1) & T_LAKE_PATHING_BLOCKER)) {
+						x = i;
+						y = j + 1;
+					}
+					if (x) {
+						for (layer = 0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
+							madeChange = true;
+							pmap[i][j].layers[layer] = pmap[x][y].layers[layer];
+							//pmap[i][j].layers[DUNGEON] = CRYSTAL_WALL;
+						}
+					}
+				}
+			}
+		}
+	} while (madeChange);
+}
+
 void digDungeon() {
 	short i, j, k, l;
 	short x1, x2, y1, y2;
 	short roomWidth, roomHeight, roomWidth2, roomHeight2, roomX, roomY, roomX2, roomY2;
 	short randIndex, doorCandidateX, doorCandidateY;
-	short direction;
+	short dir;
 	short numLoops;
 	short lakeMaxWidth, lakeMaxHeight;
 	short surfaceEffectOrigin[2];
@@ -1132,7 +1276,7 @@ void digDungeon() {
 	
 	for(k=0; k<600 && numberOfRooms <= thisLevelProfile->maxNumberOfRooms; k++) {
 		
-		direction = rand_range(0,3); // Are we going to try to branch up, down, left, or right? Pick randomly.
+		dir = rand_range(0,3); // Are we going to try to branch up, down, left, or right? Pick randomly.
 		
 		// Is it a corridor? Harder to place corridors, since you need space for a room at the end,
 		// so the last 225 attempts are hard-wired not to be corridors so that they can fill in any
@@ -1146,20 +1290,20 @@ void digDungeon() {
 		}
 		
 		// Now choose a random wall cell of the given direction
-		randIndex = rand_range(0, numberOfWalls[direction]);
-		doorCandidateX = listOfWallsX[direction][randIndex];
-		doorCandidateY = listOfWallsY[direction][randIndex];
+		randIndex = rand_range(0, numberOfWalls[dir]);
+		doorCandidateX = listOfWallsX[dir][randIndex];
+		doorCandidateY = listOfWallsY[dir][randIndex];
 		
-		builtRoom = attemptRoom(doorCandidateX, doorCandidateY, direction, isCorridor, isCross, (isCorridor ? 10 : 5));
+		builtRoom = attemptRoom(doorCandidateX, doorCandidateY, dir, isCorridor, isCross, (isCorridor ? 10 : 5));
 		// note: if it is a corridor, this call will also build a
 		// non-corridor room at the end of the corridor, or it will fail.
 		
 		roomWasPlaced = (builtRoom != 0);
 		
 		if (builtRoom) {
-			fromRoom = roomContainingCell(doorCandidateX + nbDirs[oppositeDirection(direction)][0],
-										  doorCandidateY + nbDirs[oppositeDirection(direction)][1]);
-			connectRooms(fromRoom, builtRoom, doorCandidateX, doorCandidateY, direction);
+			fromRoom = roomContainingCell(doorCandidateX + nbDirs[oppositeDirection(dir)][0],
+										  doorCandidateY + nbDirs[oppositeDirection(dir)][1]);
+			connectRooms(fromRoom, builtRoom, doorCandidateX, doorCandidateY, dir);
 		}
 	}
 	//DEBUG printf("%i non-corridor rooms placed.", numberOfRooms);
@@ -1168,25 +1312,25 @@ void digDungeon() {
 	numLoops = 0;
 	for (k=0; k<500 && numLoops <= thisLevelProfile->maxNumberOfLoops; k++) {
 		
-		direction = rand_range(0,3); // Are we going to try to loop up, down, left, or right? Pick randomly.
+		dir = rand_range(0,3); // Are we going to try to loop up, down, left, or right? Pick randomly.
 		
 		// Now choose a random wall cell of the given direction
-		randIndex = rand_range(0, numberOfWalls[direction]);
-		doorCandidateX = listOfWallsX[direction][randIndex];
-		doorCandidateY = listOfWallsY[direction][randIndex];
+		randIndex = rand_range(0, numberOfWalls[dir]);
+		doorCandidateX = listOfWallsX[dir][randIndex];
+		doorCandidateY = listOfWallsY[dir][randIndex];
 		
-		x1 = doorCandidateX + nbDirs[direction][0];
-		x2 = doorCandidateX + nbDirs[oppositeDirection(direction)][0];
-		y1 = doorCandidateY + nbDirs[direction][1];
-		y2 = doorCandidateY + nbDirs[oppositeDirection(direction)][1];
+		x1 = doorCandidateX + nbDirs[dir][0];
+		x2 = doorCandidateX + nbDirs[oppositeDirection(dir)][0];
+		y1 = doorCandidateY + nbDirs[dir][1];
+		y2 = doorCandidateY + nbDirs[oppositeDirection(dir)][1];
 		
 		if (coordinatesAreInMap(x1, y1) && coordinatesAreInMap(x2, y2)
 			&& pmap[x1][y1].layers[DUNGEON] == FLOOR && pmap[x2][y2].layers[DUNGEON] == FLOOR &&
 			distanceBetweenRooms(roomContainingCell(x1, y1), roomContainingCell(x2, y2)) > 2) {
 			pmap[doorCandidateX][doorCandidateY].layers[DUNGEON] = (rand_percent(thisLevelProfile->doorChance) ? DOOR : FLOOR);
 			pmap[doorCandidateX][doorCandidateY].flags |= DOORWAY;
-			removeWallFromList(direction, doorCandidateX, doorCandidateY);
-			connectRooms(roomContainingCell(x2, y2), roomContainingCell(x1, y1), doorCandidateX, doorCandidateY, direction);
+			removeWallFromList(dir, doorCandidateX, doorCandidateY);
+			connectRooms(roomContainingCell(x2, y2), roomContainingCell(x1, y1), doorCandidateX, doorCandidateY, dir);
 			numLoops++;
 		}
 	}
@@ -1307,8 +1451,15 @@ void digDungeon() {
 		}
 	} while (diagonalCornerRemoved == true);
 	
-	// Now add some bridges
+	// Now add some bridges.
 	while (buildABridge());
+	
+	// Now add some machines.
+	analyzeMap(true);
+	addMachines();
+	
+	// Now knock down the boundaries between similar lakes where possible.
+	cleanUpLakeBoundaries();
 	
 	// Now remove orphaned doors and upgrade some doors to secret doors
 	for (i=1; i<DCOLS-1; i++) {
@@ -1339,9 +1490,9 @@ void digDungeon() {
 		for (j=0; j<DROWS; j++) {
 			if (pmap[i][j].layers[DUNGEON] == GRANITE) {
 				foundExposure = false;
-				for (direction = 0; direction < 8 && !foundExposure; direction++) {
-					x1 = i + nbDirs[direction][0];
-					y1 = j + nbDirs[direction][1];
+				for (dir = 0; dir < 8 && !foundExposure; dir++) {
+					x1 = i + nbDirs[dir][0];
+					y1 = j + nbDirs[dir][1];
 					if (coordinatesAreInMap(x1, y1)
 						&& (!cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_VISION) || !cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_PASSABILITY))) {
 						pmap[i][j].layers[DUNGEON] = TOP_WALL;
@@ -1350,9 +1501,9 @@ void digDungeon() {
 				}
 			} else if (pmap[i][j].layers[DUNGEON] == TOP_WALL || pmap[i][j].layers[DUNGEON] == PERM_WALL) {
 				foundExposure = false;
-				for (direction = 0; direction < 8 && !foundExposure; direction++) {
-					x1 = i + nbDirs[direction][0];
-					y1 = j + nbDirs[direction][1];
+				for (dir = 0; dir < 8 && !foundExposure; dir++) {
+					x1 = i + nbDirs[dir][0];
+					y1 = j + nbDirs[dir][1];
 					if (coordinatesAreInMap(x1, y1)
 						&& (!cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_VISION) || !cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_PASSABILITY))) {
 						foundExposure = true;
@@ -1364,8 +1515,6 @@ void digDungeon() {
 			}
 		}
 	}
-	analyzeMap(true);
-	addMachines();
 }
 
 // Scans the map in random order looking for a good place to build a bridge.
@@ -2613,7 +2762,7 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 				if (refresh) {
 					refreshDungeonCell(i, j);
 					if (player.xLoc == i && player.yLoc == j && !player.status.levitating) {
-						message(tileFlavor(player.xLoc, player.yLoc), false, false);
+						flavorMessage(tileFlavor(player.xLoc, player.yLoc));
 					}
 					if (pmap[i][j].flags & (HAS_MONSTER)) {
 						monst = monsterAtLoc(i, j);
@@ -2686,7 +2835,7 @@ void spawnMapDF(short x, short y, enum tileType propagationTerrain, boolean requ
 
 // returns whether the feature was successfully generated (false if we aborted because of blocking)
 boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refreshCell, boolean abortIfBlocking) {
-	short i, j, newLoc[2];
+	short i, j, newLoc[2], layer;
 	char blockingMap[DCOLS][DROWS];
 	// blocking keeps track of whether to abort if it turns out that the DF would obstruct the level
 	boolean blocking =
@@ -2698,38 +2847,56 @@ boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refr
 	creature *monst;
 	zeroOutGrid(blockingMap);
 	
-	if (feat->layer == GAS) {
-		pmap[x][y].volume += feat->startProbability;
-		pmap[x][y].layers[GAS] = feat->tile;
-		succeeded = true;
+	if (feat->tile) {
+		if (feat->layer == GAS) {
+			pmap[x][y].volume += feat->startProbability;
+			pmap[x][y].layers[GAS] = feat->tile;
+			succeeded = true;
+		} else {
+			spawnMapDF(x, y,
+					   feat->propagationTerrain,
+					   false,
+					   feat->startProbability,
+					   feat->probabilityDecrement,
+					   blockingMap);
+			if (!blocking || levelIsConnectedWithBlockingMap(blockingMap)) {
+				
+				if (feat->flags & DFF_EVACUATE_CREATURES_FIRST) { // first, evacuate creatures if necessary, so that they do not re-trigger the tile.
+					for (i=0; i<DCOLS; i++) {
+						for (j=0; j<DROWS; j++) {
+							if (blockingMap[i][j]
+								&& (pmap[i][j].flags & (HAS_MONSTER | HAS_PLAYER))) {
+								
+								monst = monsterAtLoc(i, j);
+								getQualifyingLocNear(newLoc, i, j, true, blockingMap, forbiddenFlagsForMonster(monst), 0, false);
+								monst->xLoc = newLoc[0];
+								monst->yLoc = newLoc[1];
+								pmap[i][j].flags &= ~(HAS_MONSTER | HAS_PLAYER);
+								pmap[newLoc[0]][newLoc[1]].flags |= (monst == &player ? HAS_PLAYER : HAS_MONSTER);
+							}
+						}
+					}
+				}
+				fillSpawnMap(feat->layer, feat->tile, blockingMap, refreshCell, refreshCell || feat->flashRadius); // this can tweak the spawn map too
+				succeeded = true;
+			}		
+		}
 	} else {
-		spawnMapDF(x, y,
-				   feat->propagationTerrain,
-				   false,
-				   feat->startProbability,
-				   feat->probabilityDecrement,
-				   blockingMap);
-		if (!blocking || levelIsConnectedWithBlockingMap(blockingMap)) {
-			
-			if (feat->flags & DFF_EVACUATE_CREATURES_FIRST) { // first, evacuate creatures if necessary, so that they do not re-trigger the tile.
-				for (i=0; i<DCOLS; i++) {
-					for (j=0; j<DROWS; j++) {
-						if (blockingMap[i][j]
-							&& (pmap[i][j].flags & (HAS_MONSTER | HAS_PLAYER))) {
-							
-							monst = monsterAtLoc(i, j);
-							getQualifyingLocNear(newLoc, i, j, true, blockingMap, forbiddenFlagsForMonster(monst), 0, false);
-							monst->xLoc = newLoc[0];
-							monst->yLoc = newLoc[1];
-							pmap[i][j].flags &= ~(HAS_MONSTER | HAS_PLAYER);
-							pmap[newLoc[0]][newLoc[1]].flags |= (monst == &player ? HAS_PLAYER : HAS_MONSTER);
+		succeeded = true;
+	}
+	
+	if (succeeded && (feat->flags & DFF_CLEAR_OTHER_TERRAIN)) {
+		for (i=0; i<DCOLS; i++) {
+			for (j=0; j<DROWS; j++) {
+				if (blockingMap[i][j]) {
+					for (layer = 0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
+						if (layer != feat->layer && layer != GAS) {
+							pmap[i][j].layers[layer] = (layer == DUNGEON ? FLOOR : NOTHING);
 						}
 					}
 				}
 			}
-			fillSpawnMap(feat->layer, feat->tile, blockingMap, refreshCell, refreshCell || feat->flashRadius); // this can tweak the spawn map too
-			succeeded = true;
-		}		
+		}
 	}
 	
 	if (succeeded && refreshCell && feat->flashColor && feat->flashRadius) {
@@ -2745,7 +2912,7 @@ boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refr
 	}
 	if (succeeded && feat->description[0] && !feat->messageDisplayed && playerCanSee(x, y)) {
 		feat->messageDisplayed = true;
-		message(feat->description, true, false);
+		message(feat->description, false);
 	}
 	if (feat->subsequentDF && succeeded) {
 		if (feat->flags & DFF_SUBSEQ_EVERYWHERE) {
@@ -2760,17 +2927,17 @@ boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refr
 			spawnDungeonFeature(x, y, &dungeonFeatureCatalog[feat->subsequentDF], refreshCell, abortIfBlocking);
 		}
 	}
-	if (tileCatalog[feat->tile].flags & (T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_AUTO_DESCENT)) {
+	if (feat->tile && (tileCatalog[feat->tile].flags & (T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_AUTO_DESCENT))) {
 		updateMapToShore();
 	}
 	
 	// awaken dormant creatures?
 	if (feat->flags & DFF_ACTIVATE_DORMANT_MONSTER) {
 		for (monst = dormantMonsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
-			if (monst->xLoc == x && monst->yLoc == y) {
+			if (monst->xLoc == x && monst->yLoc == y || blockingMap[monst->xLoc][monst->yLoc]) {
 				// found it!
 				toggleMonsterDormancy(monst);
-				break;
+				monst = dormantMonsters;
 			}
 		}
 	}
@@ -2795,7 +2962,7 @@ void restoreMonster(creature *monst, short **mapToStairs, short **mapToPit) {
 		if (theMap) {
 			turnCount = ((theMap[monst->xLoc][monst->yLoc] * monst->movementSpeed / 100) - monst->status.entersLevelIn);
 			for (i=0; i < turnCount; i++) {
-				if ((dir = nextStep(theMap, monst->xLoc, monst->yLoc)) != -1) {
+				if ((dir = nextStep(theMap, monst->xLoc, monst->yLoc, true)) != -1) {
 					monst->xLoc += nbDirs[dir][0];
 					monst->yLoc += nbDirs[dir][1];	
 				}
@@ -2817,6 +2984,10 @@ void restoreMonster(creature *monst, short **mapToStairs, short **mapToPit) {
 	}
 	pmap[*x][*y].flags |= HAS_MONSTER;
 	monst->bookkeepingFlags &= ~(MONST_PREPLACED | MONST_APPROACHING_DOWNSTAIRS | MONST_APPROACHING_UPSTAIRS | MONST_APPROACHING_PIT);
+	
+	if ((monst->bookkeepingFlags & MONST_SUBMERGED) && !cellHasTerrainFlag(*x, *y, T_ALLOWS_SUBMERGING)) {
+		monst->bookkeepingFlags &= ~MONST_SUBMERGED;
+	}
 	
 	if (monst->bookkeepingFlags & MONST_FOLLOWER) {
 		// is the leader on the same level?
@@ -2863,7 +3034,7 @@ void initializeLevel(short stairDirection) {
 	short n = rogue.depthLevel - 1;
 	
 	getQualifyingLocNear(downLoc, levels[n].downStairsLoc[0], levels[n].downStairsLoc[1], false, 0,
-						 (T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING), // | IS_BRIDGE),
+						 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING), // | IS_BRIDGE),
 						 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
 	if (rogue.depthLevel < 100) {
 		pmap[downLoc[0]][downLoc[1]].layers[DUNGEON] = DOWN_STAIRS;
@@ -2936,12 +3107,13 @@ void initializeLevel(short stairDirection) {
 	fillDynamicGrid(mapToStairs, 0);
 	mapToPit = allocDynamicGrid();
 	fillDynamicGrid(mapToPit, 0);
-	calculateDistances(mapToStairs, player.xLoc, player.yLoc, T_PATHING_BLOCKER, NULL, true);
+	calculateDistances(mapToStairs, player.xLoc, player.yLoc, T_PATHING_BLOCKER, NULL, true, true);
 	calculateDistances(mapToPit,
 					   levels[rogue.depthLevel - 1].playerExitedVia[0],
 					   levels[rogue.depthLevel - 1].playerExitedVia[1],
 					   T_PATHING_BLOCKER,
 					   NULL,
+					   true,
 					   true);
 	for (monst = monsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
 		restoreMonster(monst, mapToStairs, mapToPit);

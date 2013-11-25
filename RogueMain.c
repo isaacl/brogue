@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 12/26/08.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -41,13 +41,16 @@ void rogueMain() {
 	startLevel(rogue.depthLevel, 1); // descending into level 1
 	
 	while(!rogue.gameHasEnded) {
-	
-		rogue.RNG = RNG_COSMETIC; // dancing terrain colors can't influence recordings
-		rogue.playbackBetweenTurns = true;
-		nextBrogueEvent(&theEvent, true, false);
-		rogue.RNG = RNG_SUBSTANTIVE;
-		
-		executeEvent(&theEvent);
+		if (rogue.playbackMode) {
+			rogue.RNG = RNG_COSMETIC; // dancing terrain colors can't influence recordings
+			rogue.playbackBetweenTurns = true;
+			nextBrogueEvent(&theEvent, true, false);
+			rogue.RNG = RNG_SUBSTANTIVE;
+			
+			executeEvent(&theEvent);
+		} else {
+			inputLoop();
+		}
 	}
 	
 	freeEverything();
@@ -100,7 +103,7 @@ boolean openFile(char *prompt, char *defaultName, char *suffix) {
 			retval = true;
 		} else {
 			confirmMessages();
-			message("File not found.", true, false);
+			message("File not found.", false);
 		}
 	} else {
 		confirmMessages();
@@ -109,13 +112,13 @@ boolean openFile(char *prompt, char *defaultName, char *suffix) {
 }
 
 void welcome() {
-	message("Hello and welcome, adventurer, to the Dungeons of Doom!", true, false);
-	messageWithColor("Press <?> for help at any time.", &flavorTextColor, false);
-	message("The doors to the dungeon slam shut behind you.", false, false);
+	message("Hello and welcome, adventurer, to the Dungeons of Doom!", false);
+	messageWithColor("The mouse can be used for navigation. Press <?> for help at any time.", &backgroundMessageColor, false);
+	flavorMessage("The doors to the dungeon slam shut behind you.");
 }
 
 void initializeRogue() {
-	short i, j, ll[3];
+	short i, j;
 	item *theItem;
 	uchar k;
 	boolean playingback, playbackFF;
@@ -172,7 +175,7 @@ void initializeRogue() {
 	//	levels[0].upStairsLoc[0] = rand_range(1, DCOLS - 2);
 	//	levels[0].upStairsLoc[1] = rand_range(1, DROWS - 2);
 	
-	levels[0].upStairsLoc[0] = (DCOLS - 1) / 2;
+	levels[0].upStairsLoc[0] = (DCOLS - 1) / 2 - 1;
 	levels[0].upStairsLoc[1] = DROWS - 2;
 	
 	// reset enchant and gain strength frequencies
@@ -204,36 +207,12 @@ void initializeRogue() {
 		}
 	}
 	
-	// decide which are the three lucky levels
-	ll[0] = rand_range(5, 13);
-	ll[1] = rand_range(5, 12);
-	if (ll[1] >= ll[0]) {
-		ll[1]++;
-	}
-	ll[2] = rand_range(5, 11);
-	if (ll[2] >= ll[0]) {
-		ll[2]++;
-	}
-	if (ll[2] >= ll[1]) {
-		ll[2]++;
-	}
-	
-	rogue.luckyLevels[2] = max(ll[0], max(ll[1], ll[2]));
-	rogue.luckyLevels[0] = min(ll[0], min(ll[1], ll[2]));
-	for (i=0; i<3; i++) {
-		if (ll[i] != rogue.luckyLevels[0] && ll[i] != rogue.luckyLevels[2]) {
-			rogue.luckyLevels[1] = ll[i];
-			break;
-		}
-	}
-	
 	rogue.rewardRoomsGenerated = 0;
 	
 	rogue.gameHasEnded = false;
 	rogue.highScoreSaved = false;
 	rogue.cautiousMode = false;
 	rogue.milliseconds = 0;
-	brogueCursorX = brogueCursorY = 0;
 	
 	// clear screen and display buffer
 	for (i=0; i<COLS; i++) {
@@ -259,6 +238,9 @@ void initializeRogue() {
 		}
 	}
 	restoreRNG;
+	
+	zeroOutGrid(displayDetail);
+	zeroOutGrid(isInterface);
 	
 #ifndef LIBTCOD
 #ifdef USE_UNICODE
@@ -305,10 +287,11 @@ void initializeRogue() {
 	memset(rooms, '\0', sizeof(room));
 	rooms->nextRoom = NULL;
 	
-	scentMap		= allocDynamicGrid();
-	safetyMap		= allocDynamicGrid();
-	allySafetyMap	= allocDynamicGrid();
-	chokeMap		= allocDynamicGrid();
+	scentMap			= allocDynamicGrid();
+	safetyMap			= allocDynamicGrid();
+	allySafetyMap		= allocDynamicGrid();
+	chokeMap			= allocDynamicGrid();
+	playerPathingMap	= allocDynamicGrid();
 	
 	rogue.mapToSafeTerrain = allocDynamicGrid();
 	
@@ -317,6 +300,7 @@ void initializeRogue() {
 	fillDynamicGrid(safetyMap, 0);
 	fillDynamicGrid(allySafetyMap, 0);
 	fillDynamicGrid(chokeMap, 0);
+	fillDynamicGrid(playerPathingMap, 0);
 	fillDynamicGrid(rogue.mapToSafeTerrain, 0);
 	
 	// initialize the player
@@ -329,6 +313,7 @@ void initializeRogue() {
 	player.carriedItem = NULL;
 	player.status.nutrition = player.maxStatus.nutrition = STOMACH_SIZE;
 	player.currentHP = player.info.maxHP;
+	rogue.previousHealthPercent = 100;
 	player.creatureState = MONSTER_ALLY;
 	player.ticksUntilTurn = 0;
 	
@@ -358,8 +343,7 @@ void initializeRogue() {
 	rogue.monsterSpawnFuse = rand_range(125, 175);
 	rogue.ticksTillUpdateEnvironment = 100;
 	rogue.mapToShore = NULL;
-	rogue.goodItemsGenerated = 0;
-	rogue.lastTravelLoc[0] = rogue.lastTravelLoc[1] = 0;
+	rogue.lastTravelLoc[0] = rogue.lastTravelLoc[1] = -1;
 	rogue.xpxpThisTurn = 0;
 	
 	rogue.minersLight = lightCatalog[MINERS_LIGHT];
@@ -484,18 +468,18 @@ void initializeRogue() {
 		theItem->enchant1 = 100;
 		theItem->enchant2 = W_SLAYING;
 		theItem->vorpalEnemy = MK_REVENANT;
-		theItem->charges = 10000;
 		theItem->flags &= ~(ITEM_CURSED);
 		theItem->flags |= (ITEM_PROTECTED | ITEM_RUNIC | ITEM_RUNIC_HINTED);
 		theItem->damage.lowerBound = theItem->damage.upperBound = 3;
+		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(ARMOR, SCALE_MAIL);
-		theItem->enchant1 = 30;
-		theItem->enchant2 = A_ABSORPTION;
+		theItem = generateItem(ARMOR, LEATHER_ARMOR);
+		theItem->enchant1 = 50;
+		theItem->enchant2 = A_REFLECTION;
 		theItem->flags &= ~(ITEM_CURSED | ITEM_RUNIC_HINTED);
 		theItem->flags |= (ITEM_PROTECTED | ITEM_RUNIC);
-		theItem->charges = 300;
+		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
 		theItem = generateItem(RING, RING_AWARENESS);
@@ -504,7 +488,7 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_INCINERATION);
+		theItem = generateItem(SCROLL, SCROLL_SHATTERING);
 		theItem->quantity = 5;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
@@ -535,8 +519,6 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	short **mapToPit;
 	boolean connectingStairsDiscovered;
 	
-	rogue.lastTravelLoc[0] = rogue.lastTravelLoc[1] = 0;
-	
 	rogue.howManyDepthChanges++;
 	
 	if (stairDirection == 0) { // fallen
@@ -562,7 +544,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 		fillDynamicGrid(mapToStairs, 0);
 		for (flying = 0; flying <= 1; flying++) {
 			fillDynamicGrid(mapToStairs, 0);
-			calculateDistances(mapToStairs, px, py, (flying ? T_OBSTRUCTS_PASSABILITY : T_PATHING_BLOCKER), NULL, true);
+			calculateDistances(mapToStairs, px, py, (flying ? T_OBSTRUCTS_PASSABILITY : T_PATHING_BLOCKER), NULL, true, true);
 			for (monst = monsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
 				x = monst->xLoc;
 				y = monst->yLoc;
@@ -573,7 +555,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 										  || cellHasTerrainFlag(x, y, T_PATHING_BLOCKER)
 										  || cellHasTerrainFlag(px, py, T_AUTO_DESCENT)))
 					&& !(monst->bookkeepingFlags & MONST_CAPTIVE)
-					&& !(monst->info.flags & MONST_WILL_NOT_USE_STAIRS)
+					&& !(monst->info.flags & (MONST_WILL_NOT_USE_STAIRS | MONST_RESTRICTED_TO_LIQUID))
 					&& !(cellHasTerrainFlag(x, y, T_OBSTRUCTS_PASSABILITY))
 					&& !monst->status.entranced
 					&& !monst->status.paralyzed
@@ -741,9 +723,9 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 		mapToPit = allocDynamicGrid();
 		fillDynamicGrid(mapToStairs, 0);
 		fillDynamicGrid(mapToPit, 0);
-		calculateDistances(mapToStairs, player.xLoc, player.yLoc, T_PATHING_BLOCKER, NULL, true);
+		calculateDistances(mapToStairs, player.xLoc, player.yLoc, T_PATHING_BLOCKER, NULL, true, true);
 		calculateDistances(mapToPit, levels[rogue.depthLevel-1].playerExitedVia[0],
-						   levels[rogue.depthLevel-1].playerExitedVia[0], T_PATHING_BLOCKER, NULL, true);
+						   levels[rogue.depthLevel-1].playerExitedVia[0], T_PATHING_BLOCKER, NULL, true, true);
 		for (monst = monsters->nextCreature; monst != NULL; monst = monst->nextCreature) {
 			restoreMonster(monst, mapToStairs, mapToPit);
 		}
@@ -760,7 +742,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	if (stairDirection == 0) { // fell into the level
 		
 		getQualifyingLocNear(loc, player.xLoc, player.yLoc, true, 0,
-							 (T_OBSTRUCTS_PASSABILITY | T_LAVA_INSTA_DEATH | T_AUTO_DESCENT | T_IS_DF_TRAP),
+							 (T_PATHING_BLOCKER),
 							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), false);
 		player.xLoc = loc[0];
 		player.yLoc = loc[1];
@@ -834,6 +816,7 @@ void freeEverything() {
 	freeDynamicGrid(scentMap);
 	freeDynamicGrid(safetyMap);
 	freeDynamicGrid(allySafetyMap);
+	freeDynamicGrid(playerPathingMap);
 	freeDynamicGrid(chokeMap);
 	if (rogue.mapToShore) {
 		freeDynamicGrid(rogue.mapToShore);
@@ -877,11 +860,11 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 	
 	playback = rogue.playbackMode;
 	rogue.playbackMode = false;
-	messageWithColor("You die...", &badCombatMessageColor, true);
+	messageWithColor("You die...", &badMessageColor, true);
 	rogue.playbackMode = playback;
 	
 	if (D_IMMORTAL) {
-		message("...but then you get better.", true, false);
+		message("...but then you get better.", false);
 		player.currentHP = player.info.maxHP;
 		if (player.status.nutrition < 10) {
 			player.status.nutrition = STOMACH_SIZE;
@@ -942,7 +925,7 @@ void victory() {
 	flushBufferToFile();
 	
 	deleteMessages();
-	message("You are bathed in sunlight as you throw open the heavy doors.", true, false);
+	message("You are bathed in sunlight as you throw open the heavy doors.", false);
 	
 	copyDisplayBuffer(dbuf, displayBuffer);
 	funkyFade(dbuf, &white, 0, 100, mapToWindowX(player.xLoc), mapToWindowY(player.yLoc), false);
@@ -1017,22 +1000,22 @@ void victory() {
 
 void enableEasyMode() {
 	if (rogue.easyMode) {
-		message("Alas, all hope of salvation is lost. You shed scalding tears at your plight.", true, false);
+		message("Alas, all hope of salvation is lost. You shed scalding tears at your plight.", false);
 		return;
 	}
-	message("A dark presence surrounds you, whispering promises of stolen power.", true, false);
-	if (confirm("Succumb to demonic temptation? (y/n)", false)) {
+	message("A dark presence surrounds you, whispering promises of stolen power.", false);
+	if (confirm("Succumb to demonic temptation? (y/n)", false, -1, -1)) {
 		recordKeystroke(EASY_MODE_KEY, false, true);
-		message("An ancient and terrible evil burrows into your willing flesh!", true, true);
+		message("An ancient and terrible evil burrows into your willing flesh!", true);
 		player.info.displayChar = '&';
 		rogue.easyMode = true;
 		refreshDungeonCell(player.xLoc, player.yLoc);
 		refreshSideBar(NULL);
-		message("Wracked by spasms, your body contorts into an ALL-POWERFUL AMPERSAND!!!", true, false);
-		message("You have a feeling that you will take 20% as much damage from now on.", true, false);
-		message("But great power comes at a great price -- specifically, a 90% income tax rate.", true, false);
+		message("Wracked by spasms, your body contorts into an ALL-POWERFUL AMPERSAND!!!", false);
+		message("You have a feeling that you will take 20% as much damage from now on.", false);
+		message("But great power comes at a great price -- specifically, a 90% income tax rate.", false);
 	} else {
-		message("The evil dissipates, hissing, from the air around you.", true, false);
+		message("The evil dissipates, hissing, from the air around you.", false);
 	}
 }
 
