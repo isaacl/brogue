@@ -2,7 +2,7 @@
  *  Dijkstra.c
  *  Brogue
  *
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -242,7 +242,8 @@ void calculateDistances(short **distanceMap,
 						short destinationX, short destinationY,
 						unsigned long blockingTerrainFlags,
 						creature *traveler,
-						boolean canUseSecretDoors) {
+						boolean canUseSecretDoors,
+						boolean eightWays) {
 	static pdsMap map;
 
 	short i, j;
@@ -252,10 +253,10 @@ void calculateDistances(short **distanceMap,
 			char cost;
 			if (canUseSecretDoors && pmap[i][j].layers[DUNGEON] == SECRET_DOOR) {
 				cost = 1;
-			} else if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)) {
+			} else if (cellHasTerrainFlag(i, j, T_OBSTRUCTS_PASSABILITY)
+					   || (traveler && traveler == &player && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED)))) {
 				cost = PDS_OBSTRUCTION;
-			} else if ((traveler && traveler == &player && !(pmap[i][j].flags & (DISCOVERED | MAGIC_MAPPED)))
-					   || ((traveler && monsterAvoids(traveler, i, j)) || cellHasTerrainFlag(i, j, blockingTerrainFlags))) {
+			} else if ((traveler && monsterAvoids(traveler, i, j)) || cellHasTerrainFlag(i, j, blockingTerrainFlags)) {
 				cost = PDS_FORBIDDEN;
 			} else {
 				cost = 1;
@@ -265,14 +266,14 @@ void calculateDistances(short **distanceMap,
 		}
 	}
 	
-	pdsClear(&map, 30000, true);
+	pdsClear(&map, 30000, eightWays);
 	pdsSetDistance(&map, destinationX, destinationY, 0);
 	pdsBatchOutput(&map, distanceMap);
 }
 
 short pathingDistance(short x1, short y1, short x2, short y2, unsigned long blockingTerrainFlags) {
 	short retval, **distanceMap = allocDynamicGrid();
-	calculateDistances(distanceMap, x2, y2, blockingTerrainFlags, NULL, true);
+	calculateDistances(distanceMap, x2, y2, blockingTerrainFlags, NULL, true, true);
 	retval = distanceMap[x1][y1];
 	freeDynamicGrid(distanceMap);
 	return retval;

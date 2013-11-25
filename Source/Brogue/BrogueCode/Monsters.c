@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/13/09.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -227,7 +227,7 @@ creature *cloneMonster(creature *monst, boolean announce) {
 	if (announce && canSeeMonster(newMonst)) {
 		monsterName(monstName, newMonst, false);
 		sprintf(buf, "another %s appears!", monstName);
-		message(buf, true, false);
+		message(buf, false);
 	}
 	
 	if (monst == &player) { // player managed to clone himself
@@ -444,7 +444,7 @@ creature *spawnHorde(short hordeID, short x, short y, unsigned long forbiddenFla
 	}
 	
 	if (hordeCatalog[hordeID].spawnsIn == DEEP_WATER && pmap[x][y].layers[LIQUID] != DEEP_WATER) {
-		message("Waterborne monsters spawned on land!", true, true);
+		message("Waterborne monsters spawned on land!", true);
 	}
 	
 	theHorde = &hordeCatalog[hordeID];
@@ -539,7 +539,7 @@ boolean summonMinions(creature *summoner) {
 		} else {
 			sprintf(buf, "%s incants darkly!", monstName);
 		}
-		message(buf, true, false);
+		message(buf, false);
 	}
 	
 	if (atLeastOneMinion
@@ -634,7 +634,7 @@ void splitMonster(creature *monst) {
 	
 	if (canSeeMonster(monst)) {
 		sprintf(buf, "%s splits in two!", monstName);
-		message(buf, true, false);
+		message(buf, false);
 	}
 }
 
@@ -1055,6 +1055,7 @@ short awarenessDistance(creature *observer, creature *target) {
 		 && tmap[target->xLoc][target->yLoc].light[1] < 0
 		 && tmap[target->xLoc][target->yLoc].light[2] < 0)
 		|| (target == &player && playerInDarkness())) {
+		
 		// super-darkness
 		bonus += 5;
 	}
@@ -1395,13 +1396,13 @@ void moveTowardLeader(creature *monst) {
 	if (!monst->leader->mapToMe) {
 		monst->leader->mapToMe = allocDynamicGrid();
 		fillDynamicGrid(monst->leader->mapToMe, 100);
-		calculateDistances(monst->leader->mapToMe, monst->leader->xLoc, monst->leader->yLoc, 0, monst, true);
+		calculateDistances(monst->leader->mapToMe, monst->leader->xLoc, monst->leader->yLoc, 0, monst, true, false);
 	}
 	
 	// is the leader map out of date?
 	if (monst->leader->mapToMe[monst->leader->xLoc][monst->leader->yLoc] > 3) {
 		// it is. recalculate the map.
-		calculateDistances(monst->leader->mapToMe, monst->leader->xLoc, monst->leader->yLoc, 0, monst, true);
+		calculateDistances(monst->leader->mapToMe, monst->leader->xLoc, monst->leader->yLoc, 0, monst, true, false);
 	}
 	
 	// blink to the leader?
@@ -1413,15 +1414,17 @@ void moveTowardLeader(creature *monst) {
 	}
 	
 	// follow the map.
-	dir = nextStep(monst->leader->mapToMe, monst->xLoc, monst->yLoc);
+	dir = nextStep(monst->leader->mapToMe, monst->xLoc, monst->yLoc, true);
 	targetLoc[0] = monst->xLoc + nbDirs[dir][0];
 	targetLoc[1] = monst->yLoc + nbDirs[dir][1];
 	if (!moveMonsterPassivelyTowards(monst, targetLoc, (monst->creatureState != MONSTER_ALLY))) {
 		// monster is blocking the way
 		dir = randValidDirectionFrom(monst, monst->xLoc, monst->yLoc, true);
-		targetLoc[0] = monst->xLoc + nbDirs[dir][0];
-		targetLoc[1] = monst->yLoc + nbDirs[dir][1];
-		moveMonsterPassivelyTowards(monst, targetLoc, (monst->creatureState != MONSTER_ALLY));
+		if (dir != -1) {
+			targetLoc[0] = monst->xLoc + nbDirs[dir][0];
+			targetLoc[1] = monst->yLoc + nbDirs[dir][1];
+			moveMonsterPassivelyTowards(monst, targetLoc, (monst->creatureState != MONSTER_ALLY));
+		}
 	}
 }
 
@@ -1440,7 +1443,7 @@ void perimeterCoords(short returnCoords[2], short n) {
 		returnCoords[0] = 5;
 		returnCoords[1] = (n - 31) - 4;		
 	} else {
-		message("ERROR! Bad perimeter coordinate request!", true, true);
+		message("ERROR! Bad perimeter coordinate request!", true);
 		returnCoords[0] = returnCoords[1] = 0; // garbage in, garbage out
 	}
 }
@@ -1584,7 +1587,7 @@ boolean monstUseMagic(creature *monst) {
 					monsterName(monstName, monst, true);
 					if (canSeeMonster(monst) || canSeeMonster(target)) {
 						sprintf(buf, "%s breathes fire!", monstName);
-						message(buf, true, false);
+						message(buf, false);
 					}
 					zap(originLoc, targetLoc, BOLT_FIRE, 18, false);
 					if (player.currentHP <= 0) {
@@ -1730,7 +1733,7 @@ boolean monstUseMagic(creature *monst) {
 	if (!monst->status.confused
 		&& (monst->info.abilityFlags & MA_CAST_HEAL)
 		&& !(monst->bookkeepingFlags & (MONST_SUBMERGED | MONST_CAPTIVE))
-		&& rand_percent(50)) {
+		&& rand_percent((monst->creatureState == MONSTER_ALLY ? 20 : 50))) {
 		CYCLE_MONSTERS_AND_PLAYERS(target) {
 			if (target != monst
 				&& (100 * target->currentHP / target->info.maxHP < weakestAllyHealthFraction)
@@ -1752,7 +1755,7 @@ boolean monstUseMagic(creature *monst) {
 				combatMessage(buf, 0);
 			}
 			
-			zap(originLoc, targetLoc, BOLT_HEALING, 5, false);
+			zap(originLoc, targetLoc, BOLT_HEALING, (monst->creatureState == MONSTER_ALLY ? 2 : 5), false);
 			return true;
 		}
 	}
@@ -1895,7 +1898,7 @@ void moveAlly(creature *monst) {
 			return;
 		}
 		
-		dir = nextStep(rogue.mapToSafeTerrain, x, y);
+		dir = nextStep(rogue.mapToSafeTerrain, x, y, true);
 		if (dir != -1) {
 			targetLoc[0] = x + nbDirs[dir][0];
 			targetLoc[1] = y + nbDirs[dir][1];
@@ -1952,7 +1955,7 @@ void moveAlly(creature *monst) {
 			updateAllySafetyMap();
 		}
 		
-		dir = nextStep(allySafetyMap, monst->xLoc, monst->yLoc);
+		dir = nextStep(allySafetyMap, monst->xLoc, monst->yLoc, true);
 		
 		if (dir != -1) {
 			targetLoc[0] = x + nbDirs[dir][0];
@@ -2026,7 +2029,7 @@ void moveAlly(creature *monst) {
 			if (canSeeMonster(monst)) {
 				monsterName(monstName, monst, true);
 				sprintf(buf, "%s begins %s the fallen %s.", monstName, monsterText[monst->info.monsterID].absorbing, monst->targetCorpseName);
-				messageWithColor(buf, &goodCombatMessageColor, false);
+				messageWithColor(buf, &goodMessageColor, false);
 			}
 			monst->corpseAbsorptionCounter = 20;
 			monst->bookkeepingFlags |= MONST_ABSORBING;
@@ -2036,9 +2039,11 @@ void moveAlly(creature *monst) {
 		monst->bookkeepingFlags &= ~MONST_GIVEN_UP_ON_SCENT;
 		if (rand_percent(30)) {
 			dir = randValidDirectionFrom(monst, x, y, true);
-			targetLoc[0] = x + nbDirs[dir][0];
-			targetLoc[1] = y + nbDirs[dir][1];
-			moveMonsterPassivelyTowards(monst, targetLoc, false);
+			if (dir != -1) {
+				targetLoc[0] = x + nbDirs[dir][0];
+				targetLoc[1] = y + nbDirs[dir][1];
+				moveMonsterPassivelyTowards(monst, targetLoc, false);
+			}
 		}
 	} else {
 		if ((monst->info.abilityFlags & MA_CAST_BLINK)
@@ -2080,7 +2085,7 @@ void monstersTurn(creature *monst) {
 				} else {
 					monst->info.abilityFlags |= monst->absorptionFlags;
 				}
-				monst->absorbsAllowed -= 2000;
+				monst->absorbsAllowed -= XPXP_NEEDED_FOR_ABSORB;
 				monst->bookkeepingFlags &= ~MONST_ABSORBING;
 				
 				if (monst->info.flags & MONST_FIERY) {
@@ -2095,11 +2100,11 @@ void monstersTurn(creature *monst) {
 				if (canSeeMonster(monst)) {
 					monsterName(buf2, monst, true);
 					sprintf(buf, "%s finished %s the %s.", buf2, monsterText[monst->info.monsterID].absorbing, monst->targetCorpseName);
-					messageWithColor(buf, &goodCombatMessageColor, false);
+					messageWithColor(buf, &goodMessageColor, false);
 					sprintf(buf, "%s now %s!", buf2,
 							(monst->absorbBehavior ? monsterBehaviorFlagDescriptions[unflag(monst->absorptionFlags)] :
 							 monsterAbilityFlagDescriptions[unflag(monst->absorptionFlags)]));
-					messageWithColor(buf, &goodCombatMessageColor, false);
+					messageWithColor(buf, &goodMessageColor, false);
 				}
 				monst->absorptionFlags = 0;
 			}
@@ -2262,13 +2267,13 @@ void monstersTurn(creature *monst) {
 			if (!rogue.updatedSafetyMapThisTurn) {
 				updateSafetyMap();
 			}
-			dir = nextStep(safetyMap, monst->xLoc, monst->yLoc);
+			dir = nextStep(safetyMap, monst->xLoc, monst->yLoc, true);
 		} else {
 			if (!monst->safetyMap) {
 				monst->safetyMap = allocDynamicGrid();
 				copyDynamicGrid(monst->safetyMap, safetyMap);
 			}
-			dir = nextStep(monst->safetyMap, monst->xLoc, monst->yLoc);
+			dir = nextStep(monst->safetyMap, monst->xLoc, monst->yLoc, true);
 		}
 		if (dir != -1) {
 			targetLoc[0] = x + nbDirs[dir][0];
@@ -2302,7 +2307,7 @@ void monstersTurn(creature *monst) {
 				return;
 			}
 			
-			dir = nextStep(rogue.mapToSafeTerrain, x, y);
+			dir = nextStep(rogue.mapToSafeTerrain, x, y, true);
 			if (dir != -1) {
 				targetLoc[0] = x + nbDirs[dir][0];
 				targetLoc[1] = y + nbDirs[dir][1];
@@ -2428,12 +2433,16 @@ boolean moveMonster(creature *monst, short dx, short dy) {
 	if (!monst->status.entranced) {
 		if (monst->status.confused) {
 			confusedDirection = randValidDirectionFrom(monst, x, y, false);
-			dx = nbDirs[confusedDirection][0];
-			dy = nbDirs[confusedDirection][1];
+			if (confusedDirection != -1) {
+				dx = nbDirs[confusedDirection][0];
+				dy = nbDirs[confusedDirection][1];
+			}
 		} else if ((monst->info.flags & MONST_FLITS) && !(monst->bookkeepingFlags & MONST_SEIZING) && rand_percent(33)) {
 			confusedDirection = randValidDirectionFrom(monst, x, y, true);
-			dx = nbDirs[confusedDirection][0];
-			dy = nbDirs[confusedDirection][1];	
+			if (confusedDirection != -1) {
+				dx = nbDirs[confusedDirection][0];
+				dy = nbDirs[confusedDirection][1];
+			}
 		}
 	}
 	
@@ -2735,7 +2744,7 @@ void monsterDetails(char buf[], creature *monst) {
 		sprintf(newText, "%s deals no direct damage.\n     ", monstName);
 	} else {
 		i = strlen(buf);
-		i = encodeMessageColor(buf, i, &badCombatMessageColor);
+		i = encodeMessageColor(buf, i, &badMessageColor);
 		combatMath = (player.currentHP + monst->info.damage.upperBound - 1) / monst->info.damage.upperBound;
 		sprintf(newText, "%s has a %i%% chance to hit you, typically hits for %i%% of your maximum HP, and at worst, could defeat you in %i hit%s.\n     ",
 				monstName,
@@ -2749,12 +2758,12 @@ void monsterDetails(char buf[], creature *monst) {
 	
 	if (monst->creatureState == MONSTER_ALLY) {
 		i = strlen(buf);
-		i = encodeMessageColor(buf, i, &goodCombatMessageColor);
+		i = encodeMessageColor(buf, i, &goodMessageColor);
 		
 		sprintf(newText, "%s is your ally.", monstName);
 	} else if (monst->bookkeepingFlags & MONST_CAPTIVE) {
 		i = strlen(buf);
-		i = encodeMessageColor(buf, i, &goodCombatMessageColor);
+		i = encodeMessageColor(buf, i, &goodMessageColor);
 		
 		sprintf(newText, "%s is being held captive.", monstName);
 	} else {
@@ -2774,7 +2783,7 @@ void monsterDetails(char buf[], creature *monst) {
 			sprintf(newText, "You deal no direct damage.");
 		} else {
 			i = strlen(buf);
-			i = encodeMessageColor(buf, i, &goodCombatMessageColor);
+			i = encodeMessageColor(buf, i, &goodMessageColor);
 			
 			combatMath = (monst->currentHP + playerKnownMaxDamage - 1) / playerKnownMaxDamage;
 			if (rogue.weapon && !(rogue.weapon->flags & ITEM_IDENTIFIED)) {

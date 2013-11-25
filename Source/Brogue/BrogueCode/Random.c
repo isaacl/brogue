@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 12/26/08.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *

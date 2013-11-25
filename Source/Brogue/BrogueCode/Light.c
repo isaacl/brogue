@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 1/21/09.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -73,7 +73,7 @@ void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight) 
 	
 	// the miner's light does not dispel IS_IN_SHADOW,
 	// so the player can be in shadow despite casting his own light.
-	dispelShadows = !isMinersLight && colorComponents[0] + colorComponents[1] + colorComponents[2] > 0;
+	dispelShadows = !isMinersLight && (colorComponents[0] + colorComponents[1] + colorComponents[2]) > 0;
 	
 	fadeToPercent = theLight->radialFadeToPercent;
 	
@@ -92,8 +92,8 @@ void paintLight(lightSource *theLight, short x, short y, boolean isMinersLight) 
 			if (grid[i][j]) {
 				lightMultiplier = 100 - (100 - fadeToPercent) * (sqrt((i-x) * (i-x) + (j-y) * (j-y)) / (radius));
 				for (k=0; k<3; k++) {
-						thisComponent = colorComponents[k] * lightMultiplier / 100;
-						tmap[i][j].light[k] += thisComponent;
+					thisComponent = colorComponents[k] * lightMultiplier / 100;
+					tmap[i][j].light[k] += thisComponent;
 				}
 				if (dispelShadows) {
 					pmap[i][j].flags &= ~IS_IN_SHADOW;
@@ -145,6 +145,25 @@ void updateMinersLightRadius() {
 	rogue.minersLight.lightRadius.upperBound = rogue.minersLight.lightRadius.lowerBound = lightRadius;
 }
 
+void updateDisplayDetail() {
+	short i, j;
+	
+	for (i = 0; i < DCOLS; i++) {
+		for (j = 0; j < DROWS; j++) {
+			if (tmap[i][j].light[0] < -10
+				&& tmap[i][j].light[1] < -10
+				&& tmap[i][j].light[0] < -10) {
+				
+				displayDetail[i][j] = DV_DARK;
+			} else if (pmap[i][j].flags & IS_IN_SHADOW) {
+				displayDetail[i][j] = DV_UNLIT;
+			} else {
+				displayDetail[i][j] = DV_LIT;
+			}
+		}
+	}
+}
+
 void updateLighting() {
 	short i, j, k;
 	enum dungeonLayers layer;
@@ -184,6 +203,8 @@ void updateLighting() {
 			paintLight(&lightCatalog[BURNING_CREATURE_LIGHT], monst->xLoc, monst->yLoc, false);
 		}
 	}
+	
+	updateDisplayDetail();
 	
 	// Miner's light:
 	paintLight(&rogue.minersLight, player.xLoc, player.yLoc, true);
