@@ -24,6 +24,7 @@
 		58831148109E46C800FF029E /* Brogue Icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58831147109E46C800FF029E /* Brogue Icon.icns */; };
 		58A17EDB1235ACA100647687 /* Recordings.c in Sources */ = {isa = PBXBuildFile; fileRef = 58A17EDA1235ACA100647687 /* Recordings.c */; };
 		58EE4FF7120E01FB0020458E /* Random.c in Sources */ = {isa = PBXBuildFile; fileRef = 58EE4FF6120E01FB0020458E /* Random.c */; };
+		696F73E814C27D9F00CF8C90 /* MainMenu.c in Sources */ = {isa = PBXBuildFile; fileRef = 696F73E714C27D9F00CF8C90 /* MainMenu.c */; };
 		69A642211476EC76006246FB /* Buttons.c in Sources */ = {isa = PBXBuildFile; fileRef = 69A642201476EC76006246FB /* Buttons.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
@@ -57,6 +58,7 @@
 		58A17EDA1235ACA100647687 /* Recordings.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Recordings.c; path = BrogueCode/Recordings.c; sourceTree = "<group>"; };
 		58CA453411A8C4F9006D03FC /* PlatformDefines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PlatformDefines.h; path = PlatformCode/PlatformDefines.h; sourceTree = "<group>"; };
 		58EE4FF6120E01FB0020458E /* Random.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Random.c; path = BrogueCode/Random.c; sourceTree = "<group>"; };
+		696F73E714C27D9F00CF8C90 /* MainMenu.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = MainMenu.c; path = BrogueCode/MainMenu.c; sourceTree = "<group>"; };
 		69A642201476EC76006246FB /* Buttons.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Buttons.c; path = BrogueCode/Buttons.c; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Brogue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Brogue.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -132,6 +134,7 @@
 				5852BB42118650A10064384E /* Globals.c */,
 				5852BB43118650A10064384E /* IncludeGlobals.h */,
 				5852BB4A118650A10064384E /* RogueMain.c */,
+				696F73E714C27D9F00CF8C90 /* MainMenu.c */,
 				69A642201476EC76006246FB /* Buttons.c */,
 				58EE4FF6120E01FB0020458E /* Random.c */,
 				58A17EDA1235ACA100647687 /* Recordings.c */,
@@ -249,6 +252,7 @@
 				58EE4FF7120E01FB0020458E /* Random.c in Sources */,
 				58A17EDB1235ACA100647687 /* Recordings.c in Sources */,
 				69A642211476EC76006246FB /* Buttons.c in Sources */,
+				696F73E814C27D9F00CF8C90 /* MainMenu.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -312,7 +316,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.4;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_NAME = Brogue;
-				SDKROOT = macosx10.4;
+				SDKROOT = macosx10.5;
 			};
 			name = Debug;
 		};

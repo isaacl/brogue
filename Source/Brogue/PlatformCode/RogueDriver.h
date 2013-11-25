@@ -29,7 +29,6 @@
 @interface RogueDriver : NSObject {
 	IBOutlet Viewport *theDisplay;
 	IBOutlet NSButton *theButton;
-	IBOutlet NSMenuItem *menuNewGame;
 	IBOutlet NSMenu *fileMenu;
 	IBOutlet NSWindow *theWindow;
 }

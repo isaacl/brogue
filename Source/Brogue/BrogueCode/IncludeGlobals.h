@@ -57,11 +57,10 @@ short messageArchivePosition;
 char messageArchive[MESSAGE_ARCHIVE_LINES][COLS*2];
 
 extern long levelPoints[MAX_EXP_LEVEL];
-extern char currentFilePath[FILENAME_MAX];
+extern char currentFilePath[BROGUE_FILENAME_MAX];
 extern unsigned long randomNumbersGenerated;
 
 extern char displayDetail[DCOLS][DROWS];
-boolean isInterface[DCOLS][DROWS];
 
 #ifdef AUDIT_RNG
 extern FILE *RNGLogFile;
@@ -74,7 +73,7 @@ extern unsigned long positionInPlaybackFile;
 extern unsigned long lengthOfPlaybackFile;
 extern unsigned long recordingLocation;
 extern unsigned long maxLevelChanges;
-extern char annotationPathname[FILENAME_MAX];	// pathname of annotation file
+extern char annotationPathname[BROGUE_FILENAME_MAX];	// pathname of annotation file
 
 // basic colors
 extern color white;
@@ -156,6 +155,7 @@ extern color playerInShadowColor;
 extern color playerInLightColor;
 extern color playerInDarknessColor;
 extern const color buttonHoverColor;
+extern color titleButtonColor;
 
 // other colors
 extern color centipedeColor;
@@ -170,6 +170,9 @@ extern color itemMessageColor;
 extern color backgroundMessageColor;
 
 extern color flavorTextColor;
+
+extern color flameSourceColor;
+extern color flameTitleColor;
 
 extern color *dynamicColors[NUMBER_DYNAMIC_COLORS][3];
 

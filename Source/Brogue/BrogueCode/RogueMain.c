@@ -27,40 +27,8 @@
 #include <time.h>
 
 void rogueMain() {
-	rogueEvent theEvent;
-	
-	randomNumbersGenerated = 0;
-	
-	rogue.playbackMode = false;
-	rogue.playbackFastForward = false;
-	rogue.playbackBetweenTurns = false;
-	
-	strcpy(currentFilePath, LAST_GAME_PATH);
-	
-	blackOutScreen();
-	//if (fileExists(LAST_GAME_PATH) && confirm("There seems to be a game in progress. Resume play?", true)) {
-		
-	//	loadSavedGame();
-	//} else {
-		initializeRogue();
-		startLevel(rogue.depthLevel, 1); // descending into level 1
-	//}
-	
-	while(!rogue.gameHasEnded) {
-		if (rogue.playbackMode) {
-			rogue.RNG = RNG_COSMETIC; // dancing terrain colors can't influence recordings
-			rogue.playbackBetweenTurns = true;
-			nextBrogueEvent(&theEvent, false, true, false);
-			rogue.RNG = RNG_SUBSTANTIVE;
-			
-			executeEvent(&theEvent);
-			//mainInputLoop();
-		} else {
-			mainInputLoop();
-		}
-	}
-	
-	freeEverything();
+	initializeBrogueSaveLocation();
+	mainBrogueJunction();
 }
 
 void executeEvent(rogueEvent *theEvent) {
@@ -73,7 +41,7 @@ void executeEvent(rogueEvent *theEvent) {
 	}
 }
 
-boolean fileExists(char *pathname) {
+boolean fileExists(const char *pathname) {
 	FILE *openedFile;
 	openedFile = fopen(pathname, "rb");
 	if (openedFile) {
@@ -84,81 +52,66 @@ boolean fileExists(char *pathname) {
 	}
 }
 
-//boolean promptAndOpenFile(char *prompt, char *defaultName, char *suffix) {
-//	boolean retval;
-//	char newFilePath[FILENAME_MAX];
-//	char annotationFilePath[FILENAME_MAX];
-//	
-//	retval = false;
-//	
-//	if (getInputTextString(newFilePath, prompt, min(DCOLS-25, FILENAME_MAX - strlen(suffix)),
-//						   defaultName, suffix, TEXT_INPUT_NORMAL)
-//		&& newFilePath[0] != '\0') {
-//		
-//		annotationPathname[0] = '\0';
-//		strcpy(annotationFilePath, newFilePath);
-//		if (strlen(annotationFilePath) + strlen(ANNOTATION_SUFFIX) < FILENAME_MAX) {
-//			strcat(annotationFilePath, ANNOTATION_SUFFIX);
-//			if (fileExists(annotationFilePath)) {
-//				strcpy(annotationPathname, annotationFilePath);
-//			}
-//		}
-//		strcat(newFilePath, suffix);
-//		if (fileExists(newFilePath)) {
-//			strcpy(currentFilePath, newFilePath);
-//			retval = true;
-//		} else {
-//			confirmMessages();
-//			message("File not found.", false);
-//		}
-//	} else {
-//		confirmMessages();
-//	}
-//	return retval;
-//}
+// Player specifies a file; if all goes well, put it into path and return true.
+// Otherwise, return false.
+boolean chooseFile(char *path, char *prompt, char *defaultName, char *suffix) {
+	
+	if (getInputTextString(path, prompt, min(DCOLS-25, BROGUE_FILENAME_MAX - strlen(suffix)), defaultName, suffix, TEXT_INPUT_NORMAL)
+		&& path[0] != '\0') {
+		
+		strcat(path, suffix);
+		return true;
+	} else {
+		return false;
+	}
+}
 
-// Player specifies a file; if all goes well, that's the new currentFilePath and return true.
-// Otherwise, return false and leave currentFilePath untouched.
-// If promptPlayer is false, proceed without prompting as though the player confirmed the default.
-boolean openFile(char *prompt, char *defaultName, char *suffix, boolean promptPlayer) {
-	boolean retval, proceed;
-	char newFilePath[FILENAME_MAX];
-	char annotationFilePath[FILENAME_MAX];
+// If the file exists, copy it into currentFilePath. (Otherwise return false.)
+// Then, strip off the suffix, replace it with ANNOTATION_SUFFIX,
+// and if that file exists, copy that into annotationPathname. Return true.
+boolean openFile(const char *path) {
+	short i;
+	char buf[BROGUE_FILENAME_MAX];
+	boolean retval;
+	
+	if (fileExists(path)) {
+		
+		strcpy(currentFilePath, path);
+		annotationPathname[0] = '\0';
+		
+		// Clip off the suffix.
+		strcpy(buf, path);
+		for (i = strlen(path); buf[i] != '.' && i > 0; i--) continue;
+		if (buf[i] == '.'
+			&& i + strlen(ANNOTATION_SUFFIX) < BROGUE_FILENAME_MAX) {
+			
+			buf[i] = '\0'; // Snip!
+			strcat(buf, ANNOTATION_SUFFIX);
+			strcpy(annotationPathname, buf); // Load the annotations file too.
+		}
+		retval = true;
+	} else {
+		retval = false;
+	}
+	
+	return retval;
+}
+
+// Deprecated!
+boolean selectFile(char *prompt, char *defaultName, char *suffix) {
+	boolean retval;
+	char newFilePath[BROGUE_FILENAME_MAX];
 	
 	retval = false;
-	
-	if (!promptPlayer) {
-		strcpy(newFilePath, defaultName);
-		proceed = true;
-	} else if (getInputTextString(newFilePath, prompt, min(DCOLS-25, FILENAME_MAX - strlen(suffix)),
-								  defaultName, suffix, TEXT_INPUT_NORMAL)
-			   && newFilePath[0] != '\0') {
-		proceed = true;
-	} else {
-		proceed = false;
-	}
 
-	
-	if (proceed) {
-		
-		annotationPathname[0] = '\0';
-		strcpy(annotationFilePath, newFilePath);
-		if (strlen(annotationFilePath) + strlen(ANNOTATION_SUFFIX) < FILENAME_MAX) {
-			strcat(annotationFilePath, ANNOTATION_SUFFIX);
-			if (fileExists(annotationFilePath)) {
-				strcpy(annotationPathname, annotationFilePath);
-			}
-		}
-		strcat(newFilePath, suffix);
-		if (fileExists(newFilePath)) {
-			strcpy(currentFilePath, newFilePath);
+	if (chooseFile(newFilePath, prompt, defaultName, suffix)) {
+		if (openFile(newFilePath)) {
 			retval = true;
 		} else {
 			confirmMessages();
 			message("File not found.", false);
+			retval = false;
 		}
-	} else {
-		confirmMessages();
 	}
 	return retval;
 }
@@ -177,8 +130,8 @@ void initializeRogue() {
 	
 	// generate libtcod font bitmap
 	// add any new unicode characters here to include them
-	/*
-	uchar c[16] = {
+#ifdef GENERATE_FONT_FILES
+	uchar c8[16] = {
 		FLOOR_CHAR,
 		CHASM_CHAR,
 		TRAP_CHAR,
@@ -196,6 +149,30 @@ void initializeRogue() {
 		' ',
 		' ',
 	};
+	uchar c9[16] = {
+		UP_ARROW_CHAR,
+		DOWN_ARROW_CHAR,
+		LEFT_ARROW_CHAR,
+		RIGHT_ARROW_CHAR,
+		UP_TRIANGLE_CHAR,
+		DOWN_TRIANGLE_CHAR,
+		OMEGA_CHAR,
+		THETA_CHAR,
+		LAMDA_CHAR,
+		KOPPA_CHAR,
+		LOZENGE_CHAR,
+		CROSS_PRODUCT_CHAR,
+		' ',
+		' ',
+		' ',
+		' ',
+	};
+	
+	for (i=0; i<COLS; i++) {
+		for(j=0; j<ROWS; j++ ) {
+			plotCharWithColor(' ', i, j, white, white);
+		}
+	}
 	i = j = 0;
 	for (k=0; k<256; k++) {
 		i = k % 16;
@@ -204,13 +181,17 @@ void initializeRogue() {
 			break;
 		}
 		if (j == 8) {
-			plotCharWithColor(c[i], i+1, j+1, white, black);
+			plotCharWithColor(c8[i], i, j+5, white, black);
+		} else if (j == 9) {
+			plotCharWithColor(c9[i], i, j+5, white, black);
 		} else {
-			plotCharWithColor(k, i+1, j+1, white, black);
+			plotCharWithColor(k, i, j+5, white, black);
 		}
 	}
-	waitForAcknowledgment();
-	*/
+	for (;;) {
+		waitForAcknowledgment();
+	}
+#endif
 	
 	playingback = rogue.playbackMode; // the only three animals that need to go on the ark
 	playbackPaused = rogue.playbackPaused;
@@ -219,6 +200,11 @@ void initializeRogue() {
 	rogue.playbackMode = playingback;
 	rogue.playbackPaused = playbackPaused;
 	rogue.playbackFastForward = playbackFF;
+	
+	rogue.gameHasEnded = false;
+	rogue.highScoreSaved = false;
+	rogue.cautiousMode = false;
+	rogue.milliseconds = 0;
 	
 	rogue.RNG = RNG_SUBSTANTIVE;
 	if (!rogue.playbackMode) {
@@ -260,25 +246,6 @@ void initializeRogue() {
 	
 	rogue.rewardRoomsGenerated = 0;
 	
-	rogue.gameHasEnded = false;
-	rogue.highScoreSaved = false;
-	rogue.cautiousMode = false;
-	rogue.milliseconds = 0;
-	
-	// clear screen and display buffer
-	for (i=0; i<COLS; i++) {
-		for (j=0; j<ROWS; j++) {
-			displayBuffer[i][j].character = 0;
-			displayBuffer[i][j].needsUpdate = false;
-			displayBuffer[i][j].opacity = 100;
-			for (k=0; k<3; k++) {
-				displayBuffer[i][j].foreColorComponents[k] = 0;
-				displayBuffer[i][j].backColorComponents[k] = 0;
-			}
-			plotCharWithColor(' ', i, j, black, black);
-		}
-	}
-	
 	// pre-shuffle the random terrain colors
 	assureCosmeticRNG;
 	for (i=0; i<DCOLS; i++) {
@@ -291,25 +258,6 @@ void initializeRogue() {
 	restoreRNG;
 	
 	zeroOutGrid(displayDetail);
-	zeroOutGrid(isInterface);
-	
-#ifndef LIBTCOD
-#ifdef USE_UNICODE
-	if (!rogue.playbackMode) {
-		// preload funky characters so the game doesn't pause the first time they are displayed
-		plotCharWithColor(FLOOR_CHAR, 0, 0, black, black);
-		plotCharWithColor(CHASM_CHAR, 0, 1, black, black);
-		plotCharWithColor(TRAP_CHAR, 0, 2, black, black);
-		plotCharWithColor(FIRE_CHAR, 0, 3, black, black);
-		plotCharWithColor(AMULET_CHAR, 0, 4, black, black);
-		plotCharWithColor(RING_CHAR, 0, 5, black, black);
-		plotCharWithColor(WEAPON_CHAR, 0, 6, black, black);
-		plotCharWithColor(TURRET_CHAR, 0, 7, black, black);
-		plotCharWithColor(TOTEM_CHAR, 0, 8, black, black);
-		pauseBrogue(1);
-	}
-#endif
-#endif
 	
 	for (i=0; i<NUMBER_MONSTER_KINDS; i++) {
 		monsterCatalog[i].monsterID = i;
@@ -527,6 +475,12 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
+		theItem = generateItem(WAND, WAND_PLENTY);
+		theItem->charges = 300;
+		theItem->flags &= ~ITEM_CURSED;
+		identify(theItem);
+		theItem = addItemToPack(theItem);
+		
 		theItem = generateItem(WEAPON, DAGGER);
 		theItem->enchant1 = 100;
 		theItem->enchant2 = W_SLAYING;
@@ -551,17 +505,17 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_TELEPATHY);
+		theItem = generateItem(POTION, POTION_DETECT_MAGIC);
 		theItem->quantity = 3;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_DESCENT);
+		theItem = generateItem(POTION, POTION_FIRE_IMMUNITY);
 		theItem->quantity = 3;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 	}
-	
+	blackOutScreen();
 	welcome();
 }
 
@@ -832,7 +786,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 			player.xLoc = rogue.downLoc[0];
 			player.yLoc = rogue.downLoc[1];
 		}
-		findAlternativeHomeFor(&player, &newX, &newY);
+		findAlternativeHomeFor(&player, &newX, &newY, false);
 		player.xLoc = newX;
 		player.yLoc = newY;
 	}
@@ -847,7 +801,6 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 		&& !cellHasTerrainFlag(player.xLoc, player.yLoc, T_OBSTRUCTS_PASSABILITY)) {
 		rogue.inWater = true;
 	}
-	//}
 	
 	updateMapToShore();
 	
@@ -937,8 +890,6 @@ void freeEverything() {
 }
 
 void gameOver(char *killedBy, boolean useCustomPhrasing) {
-	//short i, j;
-	short highScoreIndex;
 	char buf[COLS];
 	rogueHighScoresEntry theEntry;
 	cellDisplayBuffer dbuf[COLS][ROWS];
@@ -1007,13 +958,13 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 	
 	rogue.playbackMode = playback;
 	
-	if (rogue.playbackMode) {
-		highScoreIndex = false;
-	} else {
-		highScoreIndex = saveHighScore(theEntry);
+	if (!rogue.playbackMode) {
+		if (saveHighScore(theEntry)) {
+			printHighScores(true);
+		}
+		blackOutScreen();
+		saveRecording();
 	}
-	saveRecording();
-	printHighScores(highScoreIndex);
 	
 	rogue.gameHasEnded = true;
 }

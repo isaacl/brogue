@@ -78,11 +78,10 @@ short mouseX, mouseY;
 
 - (IBAction)playBrogue:(id)sender
 {
-	[fileMenu setAutoenablesItems:NO];
-	[menuNewGame setEnabled:NO];
+//	[fileMenu setAutoenablesItems:NO];
 	rogueMain();
-	[menuNewGame setEnabled:YES];
-	[fileMenu setAutoenablesItems:YES];	
+//	[fileMenu setAutoenablesItems:YES];	
+	//exit(0);
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
@@ -92,6 +91,7 @@ short mouseX, mouseY;
 	[self windowDidResize:nil];
 	//NSLog(@"\nAspect ratio is %@", [theWindow aspectRatio]);
 	[self playBrogue:nil];
+	[NSApp terminate:nil];
 }
 
 - (void)windowDidResize:(NSNotification *)aNotification
@@ -145,9 +145,9 @@ short mouseX, mouseY;
 void plotChar(uchar inputChar,
 			  short xLoc, short yLoc,
 			  short foreRed, short foreGreen, short foreBlue,
-			  short backRed, short backGreen, short backBlue)
-{
+			  short backRed, short backGreen, short backBlue) {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+	
 	[theMainDisplay setString:[NSString stringWithCharacters:&inputChar length:1]
 			   withBackground:[NSColor colorWithDeviceRed:((float)backRed/100)
 													green:((float)backGreen/100)
@@ -188,7 +188,13 @@ boolean pauseForMilliseconds(short milliseconds) {
 		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:theDate
 										 inMode:NSDefaultRunLoopMode dequeue:YES];
 		if (([theEvent type] == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask))
-			|| ([theEvent type] == NSLeftMouseUp || [theEvent type] == NSLeftMouseDown)) {
+			|| [theEvent type] == NSLeftMouseUp
+			|| [theEvent type] == NSLeftMouseDown
+			|| [theEvent type] == NSRightMouseUp
+			|| [theEvent type] == NSRightMouseDown
+			|| [theEvent type] == NSMouseMoved
+			|| [theEvent type] == NSLeftMouseDragged
+			|| [theEvent type] == NSRightMouseDragged) {
 			[NSApp postEvent:theEvent atStart:TRUE]; // put the event back on the queue
 			return true;
 		} else if (theEvent != nil) {
@@ -223,6 +229,7 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean col
 		if (theEventType == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)) {
 			returnEvent->eventType = KEYSTROKE;
 			returnEvent->param1 = [[theEvent charactersIgnoringModifiers] characterAtIndex:0];
+			//printf("\nKey pressed: %i", returnEvent->param1);
 			returnEvent->param2 = 0;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
 			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
@@ -271,7 +278,7 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean col
 			returnEvent->param2 = y;
 			returnEvent->controlKey = ([theEvent modifierFlags] & NSControlKeyMask ? 1 : 0);
 			returnEvent->shiftKey = ([theEvent modifierFlags] & NSShiftKeyMask ? 1 : 0);
-			if (theEventType != NSMouseMoved || x != mouseX || y != mouseY) {
+			if (theEventType != NSMouseMoved || x != mouseX || y != mouseY || 1) {
 				mouseX = x;
 				mouseY = y;
 				break;
@@ -431,6 +438,11 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	return true;
 }
 
+void initializeLaunchArguments(enum NGCommands *command, char *path) {
+	*command = NG_NOTHING;
+	path[0] = '\0';
+}
+
 void initializeBrogueSaveLocation() {
 //	char path[PATH_MAX];
 //	CFBundleRef mainBundle = CFBundleGetMainBundle();
@@ -465,17 +477,68 @@ void initializeBrogueSaveLocation() {
     [manager changeCurrentDirectoryPath: supportPath];
 }
 
-//short getFileNames(char *fileNameList) {
-//	short i, j, count;
-//	NSArray *array;
-//	NSFileManager *manager = [NSFileManager defaultManager];
-//	
-//	array = [manager directoryContentsAtPath:[manager currentDirectoryPath]];
-//	count = [array count];
-//	
-//	fileNameList = malloc(count * sizeof(char));
-//	
-//	for (i=0; i < count; i++) {
-//		
-//	}
-//}
+#define ADD_FAKE_PADDING_FILES 0
+
+// Returns a malloc'ed fileEntry array, and puts the file count into *fileCount.
+// Also returns a pointer to the memory that holds the file names, so that it can also
+// be freed afterward.
+fileEntry *listFiles(short *fileCount, char **dynamicMemoryBuffer) {
+	short i, count, thisFileNameLength;
+	unsigned long bufferPosition, bufferSize;
+	unsigned long *offsets;
+	fileEntry *fileList;
+	NSArray *array;
+	NSFileManager *manager = [NSFileManager defaultManager];
+	NSDictionary *fileAttributes;
+	NSDateFormatter *dateFormatter;
+	const char *thisFileName;
+	
+	char tempString[500];
+	
+	bufferPosition = bufferSize = 0;
+	*dynamicMemoryBuffer = NULL;
+	
+	dateFormatter = [[NSDateFormatter alloc] initWithDateFormat:@"%1m/%1d/%y" allowNaturalLanguage:YES];
+	
+	array = [manager directoryContentsAtPath:[manager currentDirectoryPath]];
+	count = [array count];
+
+	fileList = malloc((count + ADD_FAKE_PADDING_FILES) * sizeof(fileEntry));
+	offsets = malloc((count + ADD_FAKE_PADDING_FILES) * sizeof(unsigned long));
+	
+	for (i=0; i < count + ADD_FAKE_PADDING_FILES; i++) {
+		if (i < count) {
+			thisFileName = [[array objectAtIndex:i] cStringUsingEncoding:NSASCIIStringEncoding];
+			fileAttributes = [manager attributesOfItemAtPath:[array objectAtIndex:i] error:nil];
+			strcpy(fileList[i].date,
+				   [[dateFormatter stringFromDate:[fileAttributes fileModificationDate]] cStringUsingEncoding:NSASCIIStringEncoding]);
+		} else {
+			// Debug feature.
+			sprintf(tempString, "Fake padding file %i.broguerec", i - count + 1);
+			thisFileName = &(tempString[0]);
+			strcpy(fileList[i].date, "12/12/12");
+		}
+
+		thisFileNameLength = strlen(thisFileName);
+		
+		if (thisFileNameLength + bufferPosition > bufferSize) {
+			bufferSize += sizeof(char) * 1024;
+			*dynamicMemoryBuffer = (char *) realloc(*dynamicMemoryBuffer, bufferSize);
+		}
+		
+		offsets[i] = bufferPosition; // Have to store these as offsets instead of pointers, as realloc could invalidate pointers.
+		
+		strcpy(&((*dynamicMemoryBuffer)[bufferPosition]), thisFileName);
+		bufferPosition += thisFileNameLength + 1;
+	}
+	
+	// Convert the offsets to pointers.
+	for (i = 0; i < count + ADD_FAKE_PADDING_FILES; i++) {
+		fileList[i].path = &((*dynamicMemoryBuffer)[offsets[i]]);
+	}
+	
+	free(offsets);
+	
+	*fileCount = count + ADD_FAKE_PADDING_FILES;
+	return fileList;
+}
