@@ -382,7 +382,8 @@ void initializeRogue() {
 		theItem = addItemToPack(theItem);
 		
 		theItem = generateItem(STAFF, STAFF_LIGHTNING);
-		theItem->enchant1 = theItem->charges = 10;
+		theItem->enchant1 = 2;
+		theItem->charges = 300;
 		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
@@ -479,9 +480,15 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_DARKNESS);
+		theItem = generateItem(RING, RING_REGENERATION);
+		theItem->enchant1 = 1;
+		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
-		theItem->quantity = 25;
+		theItem = addItemToPack(theItem);
+		
+		theItem = generateItem(POTION, POTION_LEVITATION);
+		identify(theItem);
+		theItem->quantity = 2;
 		theItem = addItemToPack(theItem);
 		
 		theItem = generateItem(WAND, WAND_DOMINATION);

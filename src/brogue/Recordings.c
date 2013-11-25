@@ -280,7 +280,7 @@ void playbackPanic() {
 		
 		
 		
-		printTextBox(OOS_APOLOGY, 0, &white, &black, rbuf);
+		printTextBox(OOS_APOLOGY, 0, 0, 0, &white, &black, rbuf);
 		
 		rogue.playbackMode = false;
 		displayMoreSign();
@@ -395,7 +395,7 @@ void displayAnnotation() {
 		if (!rogue.playbackFastForward) {
 			refreshSideBar(NULL);
 			
-			printTextBox(rogue.nextAnnotation, player.xLoc, &black, &white, rbuf);
+			printTextBox(rogue.nextAnnotation, player.xLoc, 0, 0, &black, &white, rbuf);
 			
 			rogue.playbackMode = false;
 			displayMoreSign();
@@ -416,6 +416,8 @@ void initRecording() {
 	short i;
 	char versionString[16], buf[100];
 	FILE *recordFile;
+	
+	initializeBrogueSaveLocation();
 		
 #ifdef AUDIT_RNG
 		if (fileExists(RNG_LOG)) {
@@ -424,7 +426,7 @@ void initRecording() {
 		RNGLogFile = fopen(RNG_LOG, "a");
 #endif
 		
-		locationInRecordingBuffer	= 0;
+	locationInRecordingBuffer	= 0;
 	positionInPlaybackFile		= 0;
 	recordingLocation			= 0;
 	maxLevelChanges				= 0;

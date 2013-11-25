@@ -17,6 +17,6 @@ end
 chmod +x brogue.desktop
 
 echo "Created brogue.desktop."
-echo "If your desktop and your desktop is in the default location, type:"
+echo "If your desktop is in the default location, type:"
 echo "mv brogue.desktop ~/Desktop"
 
