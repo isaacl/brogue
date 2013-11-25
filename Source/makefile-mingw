@@ -1,0 +1,30 @@
+
+LIBTCODDIR=../../libtcod-1.5.1
+CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -IBrogueCode -IPlatformCode -Wall
+
+%.o : %.cpp
+	g++ $(CFLAGS) -O2 -s -o $@ -c $< 
+%.o : %.c
+	gcc $(CFLAGS) -O2 -s -o $@ -c $< 
+
+OBJS=BrogueCode/Architect.o \
+	BrogueCode/Combat.o \
+	BrogueCode/Dijkstra.o \
+	BrogueCode/Globals.o \
+	BrogueCode/IO.o \
+	BrogueCode/Items.o \
+	BrogueCode/Light.o \
+	BrogueCode/Monsters.o \
+	BrogueCode/Movement.o \
+	BrogueCode/RogueMain.o \
+	PlatformCode/main.o \
+	PlatformCode/platformdependent.o 
+
+all : brogue
+
+BrogueCode/icon.o : BrogueCode/icon.ico BrogueCode/Brogue.rc
+	windres BrogueCode/Brogue.rc BrogueCode/icon.o 
+
+brogue : ${OBJS} BrogueCode/icon.o
+	g++ -o brogue.exe ${OBJS} BrogueCode/icon.o -L. -ltcod-mingw -mwindows
+
