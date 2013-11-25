@@ -31,12 +31,11 @@
 #define USE_UNICODE
 
 // version string -- no more than 16 bytes:
-#define BROGUE_VERSION_STRING "1.6.1"
+#define BROGUE_VERSION_STRING "1.6.2"
 
 // debug macros -- define DEBUGGING as 1 to enable debugging.
 
 #define DEBUGGING						0
-#define DUNGEON_SEED					0 // for debugging, insert desired level sequence ID instead of 0
 
 #define DEBUG							if (DEBUGGING)
 #define MONSTERS_ENABLED				(!DEBUGGING || 1) // Quest room monsters can be generated regardless.
@@ -53,7 +52,7 @@
 // set to false to allow multiple loads from the same saved file:
 #define DELETE_SAVE_FILE_AFTER_LOADING	true
 
-//#define BROGUE_ASSERTS	// introduces several assert()s -- useful to find certain array overruns
+//#define BROGUE_ASSERTS		// introduces several assert()s -- useful to find certain array overruns
 //#define AUDIT_RNG			// VERY slow, but sometimes necessary to debug out-of-sync recording errors
 //#define GENERATE_FONT_FILES	// Displays font in grid upon startup, which can be screen-captured into font files for PC.
 
@@ -93,7 +92,7 @@
 #define DCOLS					(COLS - STAT_BAR_WIDTH - 1)
 #define DROWS					(ROWS - MESSAGE_LINES - 2)	// n lines at the top for messages;
 															// one line at the bottom for flavor text;
-															// one line at the top for the menu bar.
+															// another line at the bottom for the menu bar.
 
 #define STAT_BAR_WIDTH			20			// number of characters in the stats bar to the left of the map
 
@@ -107,10 +106,14 @@
 
 #define AMULET_LEVEL			26			// how deep before the amulet appears
 
-#define DEFENSE_FACTOR			0.986		// each point of armor multiplies enemies' accuracy by this value
+#define DEFENSE_FACTOR			0.986		// Each point of armor multiplies enemy attackers' accuracy by this value.
 											// (displayed armor value is 10% of the real value)
-#define WEAPON_ENCHANT_FACTOR	1.065		// each marginal point of weapon enchantment
-											// multiplies accuracy and damage by this factor
+#define WEAPON_ENCHANT_FACTOR	1.065		// Each marginal point of weapon enchantment
+											// multiplies accuracy and damage by this factor.
+
+#define WEAPON_KILLS_TO_AUTO_ID	20
+#define ARMOR_DELAY_TO_AUTO_ID	1000
+#define RING_DELAY_TO_AUTO_ID	1500
 
 #define INPUT_RECORD_BUFFER		1000		// how many bytes of input data to keep in memory before vomiting it to disk
 #define DEFAULT_PLAYBACK_DELAY	50
@@ -132,8 +135,8 @@
 #define FIRE_CHAR		0x22CF
 #define GRASS_CHAR		'"'
 #define BRIDGE_CHAR		'='
-#define DESCEND_CHAR		'>'
-#define ASCEND_CHAR			'<'
+#define DESCEND_CHAR	'>'
+#define ASCEND_CHAR		'<'
 #define WALL_CHAR		'#'
 #define DOOR_CHAR		'+'
 #define OPEN_DOOR_CHAR	'\''
@@ -357,6 +360,7 @@ enum tileType {
 	STATUE_INERT,
 	STATUE_DORMANT,
 	STATUE_CRACKING,
+	PORTAL,
 	TURRET_DORMANT,
 	WORM_DORMANT,
 	DARK_FLOOR_DORMANT,
@@ -364,6 +368,7 @@ enum tileType {
 	DARK_FLOOR,
 	MACHINE_TRIGGER_FLOOR,
 	ALTAR_INERT,
+	ALTAR_KEYHOLE,
 	ALTAR_CAGE_OPEN,
 	ALTAR_CAGE_CLOSED,
 	ALTAR_SWITCH,
@@ -435,6 +440,7 @@ enum tileType {
 	ACID_SPLATTER,
 	VOMIT,
 	URINE,
+	UNICORN_POOP,
 	WORM_BLOOD,
 	ASH,
 	BURNED_CARPET,
@@ -459,6 +465,7 @@ enum tileType {
 	MANACLE_B,
 	MANACLE_L,
 	MANACLE_R,
+	PORTAL_LIGHT,
 	
 	PLAIN_FIRE,
 	BRIMSTONE_FIRE,
@@ -488,6 +495,10 @@ enum lightType {
 	LICH_LIGHT,
 	FLAMEDANCER_LIGHT,
 	SENTINEL_LIGHT,
+	UNICORN_LIGHT,
+	IFRIT_LIGHT,
+	PHOENIX_LIGHT,
+	PHOENIX_EGG_LIGHT,
 	SPECTRAL_BLADE_LIGHT,
 	SPECTRAL_IMAGE_LIGHT,
 	SPARK_TURRET_LIGHT,
@@ -501,11 +512,13 @@ enum lightType {
 	FUNGUS_LIGHT,
 	FUNGUS_FOREST_LIGHT,
 	ECTOPLASM_LIGHT,
+	UNICORN_POOP_LIGHT,
 	EMBER_LIGHT,
 	FIRE_LIGHT,
 	BRIMSTONE_FIRE_LIGHT,
 	EXPLOSION_LIGHT,
 	INCENDIARY_DART_LIGHT,
+	PORTAL_ACTIVATE_LIGHT,
 	CONFUSION_GAS_LIGHT,
 	DARKNESS_CLOUD_LIGHT,
 	FORCEFIELD_LIGHT,
@@ -530,6 +543,7 @@ enum itemCategory {
 	KEY					= Fl(11),
 	
 	CAN_BE_DETECTED		= (WEAPON | ARMOR | POTION | SCROLL | RING | WAND | STAFF | AMULET),
+	PRENAMED_CATEGORY	= (FOOD | GOLD | AMULET | GEM | KEY),
 	ALL_ITEMS			= (FOOD|POTION|WEAPON|ARMOR|STAFF|WAND|SCROLL|RING|GOLD|AMULET|GEM|KEY),
 	
 };
@@ -537,6 +551,7 @@ enum itemCategory {
 enum keyKind {
 	KEY_DOOR,
 	KEY_CAGE,
+	KEY_PORTAL,
 	NUMBER_KEY_TYPES
 };
 
@@ -767,10 +782,15 @@ enum monsterTypes {
 	MK_SPECTRAL_BLADE,
 	MK_SPECTRAL_IMAGE,
 	
+	MK_UNICORN,
+	MK_IFRIT,
+	MK_PHOENIX,
+	MK_PHOENIX_EGG,
+	
 	NUMBER_MONSTER_KINDS
 };
 
-#define	NUMBER_HORDES				144
+#define	NUMBER_HORDES				149
 
 // flavors
 
@@ -901,6 +921,7 @@ typedef struct levelSpecProfile {
 #define UNEQUIP_KEY			'r'
 #define APPLY_KEY			'a'
 #define THROW_KEY			't'
+#define TRUE_COLORS_KEY		'\\'
 #define DROP_KEY			'd'
 #define CALL_KEY			'c'
 //#define FIGHT_KEY			'f'
@@ -969,6 +990,7 @@ boolean cellHasTerrainFlag(short x, short y, unsigned long flagMask);
 #define windowToMapX(x)						((x) - STAT_BAR_WIDTH - 1)
 #define windowToMapY(y)						((y) - MESSAGE_LINES)
 
+#define playerCanDirectlySee(x, y)			(pmap[x][y].flags & VISIBLE)
 #define playerCanSee(x, y)					(pmap[x][y].flags & ANY_KIND_OF_VISIBLE)
 #define playerCanSeeOrSense(x, y)			((pmap[x][y].flags & ANY_KIND_OF_VISIBLE) \
 											|| (rogue.playbackOmniscience && (pmap[x][y].layers[DUNGEON] != GRANITE)))
@@ -1009,6 +1031,10 @@ boolean cellHasTerrainFlag(short x, short y, unsigned long flagMask);
 #define armorAbsorptionMax(enchant)			(max(1, (int) (enchant)))
 #define armorImageCount(enchant)			((int) (clamp((int) (enchant) / 3, 1, 3)))		//(max((int) (((enchant) + 1) / 2), 1))
 #define reflectionChance(enchant)			(100 - (short) (100 * pow(0.85, (enchant))))
+
+#define turnsForFullRegen(bonus)			((long) (1000 * TURNS_FOR_FULL_REGEN * pow(0.75, (bonus)) + 2000))
+											// This will max out at full regeneration in about two turns.
+											// This is the syd nerf, after Syd broke the game over his knee with a +18 ring of regeneration.
 
 // structs
 
@@ -1121,6 +1147,7 @@ enum itemFlags {
 	ITEM_ATTACKS_PENETRATE	= Fl(16),	// spear, pike
 	ITEM_ATTACKS_ALL_ADJACENT=Fl(17),	// axe, war axe
 	ITEM_CATEGORY_IDS_ON_PICKUP=Fl(18),	// the item type will become known when the item is picked up.
+	ITEM_PLAYER_AVOIDS		= Fl(19),	// explore and travel will try to avoid picking the item up
 };
 
 #define KEY_ID_MAXIMUM	20
@@ -1218,6 +1245,7 @@ enum dungeonFeatureTypes {
 	DF_METHANE_GAS_PUFF,
 	DF_SALAMANDER_FLAME,
 	DF_URINE,
+	DF_UNICORN_POOP,
 	DF_PUDDLE,
 	DF_ASH,
 	DF_ECTOPLASM_DROPLET,
@@ -1242,6 +1270,7 @@ enum dungeonFeatureTypes {
 	DF_ITEM_CAGE_CLOSE,
 	DF_ALTAR_INERT,
 	DF_ALTAR_RETRACT,
+	DF_PORTAL_ACTIVATE,
 	
 	DF_PLAIN_FIRE,
 	DF_GAS_FIRE,
@@ -1450,7 +1479,7 @@ enum terrainFlagCatalog {
 	T_PROMOTES_WITH_KEY				= Fl(5),		// promotes if the key is present on the tile (in your pack, carried by monster, or lying on the ground)
 	T_PROMOTES_WITHOUT_KEY			= Fl(6),		// promotes if the key is NOT present on the tile (in your pack, carried by monster, or lying on the ground)
 	T_SPONTANEOUSLY_IGNITES			= Fl(7),		// monsters avoid unless chasing player or immune to fire
-	T_AUTO_DESCENT					= Fl(8),		// automatically drops the player a depth level and does some damage (2d6)
+	T_AUTO_DESCENT					= Fl(8),		// automatically drops creatures down a depth level and does some damage (2d6)
 	T_PROMOTES_ON_STEP				= Fl(9),		// promotes when a creature, player or item is on the tile (whether or not levitating)
 	T_PROMOTES_ON_ITEM_PICKUP		= Fl(10),		// promotes when an item is lifted from the tile (primarily for altars)
 	T_PROMOTES_ON_PLAYER_ENTRY		= Fl(11),		// promotes when the player enters the tile (whether or not levitating)
@@ -1470,7 +1499,7 @@ enum terrainFlagCatalog {
 	T_CAUSES_NAUSEA					= Fl(25),		// any creature on the tile becomes nauseous
 	T_CAUSES_PARALYSIS				= Fl(26),		// anything caught on this tile is paralyzed
 	T_CAUSES_CONFUSION				= Fl(27),		// causes creatures on this tile to become confused
-	T_IS_DF_TRAP					= Fl(28),		// spews gas of type specified in fireType with volume 1000 when stepped on
+	T_IS_DF_TRAP					= Fl(28),		// spews gas of type specified in fireType when stepped on
 	T_STAND_IN_TILE					= Fl(29),		// earthbound creatures will be said to stand "in" the tile, not on it
 	T_VANISHES_UPON_PROMOTION		= Fl(30),		// vanishes when creating promotion dungeon feature;
 													// can be overwritten anyway depending on priorities and layers of dungeon feature
@@ -1489,7 +1518,8 @@ enum terrainFlagCatalog {
 };
 
 enum statusEffects {
-	STATUS_TELEPATHIC = 0,
+	STATUS_WEAKENED = 0,
+	STATUS_TELEPATHIC,
 	STATUS_HALLUCINATING,
 	STATUS_LEVITATING,
 	STATUS_SLOWED,
@@ -1518,20 +1548,23 @@ enum hordeFlags {
 	HORDE_IS_SUMMONED				= Fl(1),	// minions summoned when any creature is the same species as the leader and casts summon
 	HORDE_LEADER_CAPTIVE			= Fl(2),	// the leader is in chains and the followers are guards
 	HORDE_NO_PERIODIC_SPAWN			= Fl(3),	// can spawn only when the level begins -- not afterwards
+	HORDE_ALLIED_WITH_PLAYER		= Fl(4),
 	
-	HORDE_MACHINE_BOSS				= Fl(4),	// used in machines for a boss challenge
-	HORDE_MACHINE_WATER_MONSTER		= Fl(5),	// used in machines where the room floods with shallow water
-	HORDE_MACHINE_CAPTIVE			= Fl(6),	// powerful captive monsters without any captors
-	HORDE_MACHINE_STATUE			= Fl(7),	// the kinds of monsters that make sense in a statue
-	HORDE_MACHINE_TURRET			= Fl(8),	// turrets, for hiding in walls
-	HORDE_MACHINE_MUD				= Fl(9),	// bog monsters, for hiding in mud
-	HORDE_MACHINE_KENNEL			= Fl(10),	// monsters that can appear in cages in kennels
-	HORDE_VAMPIRE_FODDER			= Fl(11),	// monsters that are prone to capture and farming by vampires
+	HORDE_MACHINE_BOSS				= Fl(5),	// used in machines for a boss challenge
+	HORDE_MACHINE_WATER_MONSTER		= Fl(6),	// used in machines where the room floods with shallow water
+	HORDE_MACHINE_CAPTIVE			= Fl(7),	// powerful captive monsters without any captors
+	HORDE_MACHINE_STATUE			= Fl(8),	// the kinds of monsters that make sense in a statue
+	HORDE_MACHINE_TURRET			= Fl(9),	// turrets, for hiding in walls
+	HORDE_MACHINE_MUD				= Fl(10),	// bog monsters, for hiding in mud
+	HORDE_MACHINE_KENNEL			= Fl(11),	// monsters that can appear in cages in kennels
+	HORDE_VAMPIRE_FODDER			= Fl(12),	// monsters that are prone to capture and farming by vampires
+	HORDE_MACHINE_LEGENDARY_ALLY	= Fl(13),	// legendary allies
 	
 	HORDE_MACHINE_ONLY				= (HORDE_MACHINE_BOSS | HORDE_MACHINE_WATER_MONSTER
 									   | HORDE_MACHINE_CAPTIVE | HORDE_MACHINE_STATUE
 									   | HORDE_MACHINE_TURRET | HORDE_MACHINE_MUD
-									   | HORDE_MACHINE_KENNEL | HORDE_VAMPIRE_FODDER),
+									   | HORDE_MACHINE_KENNEL | HORDE_VAMPIRE_FODDER
+									   | HORDE_MACHINE_LEGENDARY_ALLY),
 };
 
 enum monsterBehaviorFlags {
@@ -1568,7 +1601,7 @@ enum monsterBehaviorFlags {
 									   | MONST_IMMUNE_TO_WATER | MONST_SUBMERGES | MONST_MAINTAINS_DISTANCE),
 	MONST_TURRET					= (MONST_IMMUNE_TO_WEBS | MONST_NEVER_SLEEPS | MONST_IMMOBILE | MONST_INANIMATE |
 									   MONST_ALWAYS_HUNTING | MONST_ATTACKABLE_THRU_WALLS | MONST_WILL_NOT_USE_STAIRS),
-	LEARNABLE_BEHAVIORS				= (MONST_FLIES | MONST_IMMUNE_TO_FIRE | MONST_REFLECT_4),
+	LEARNABLE_BEHAVIORS				= (MONST_INVISIBLE | MONST_FLIES | MONST_IMMUNE_TO_FIRE | MONST_REFLECT_4),
 	MONST_NEVER_VORPAL_ENEMY		= (MONST_INANIMATE | MONST_IMMOBILE | MONST_RESTRICTED_TO_LIQUID),
 };
 
@@ -1596,17 +1629,18 @@ enum monsterAbilityFlags {
 	MA_CLONE_SELF_ON_DEFEND			= Fl(20),	// monster splits in two when struck
 	MA_KAMIKAZE						= Fl(21),	// monster dies instead of attacking
 	MA_TRANSFERENCE					= Fl(22),	// monster recovers 90% of the damage that it inflicts as health
+	MA_CAUSES_WEAKNESS				= Fl(23),	// monster attacks cause weakness status in target
 	
 	MAGIC_ATTACK					= (MA_CAST_HEAL | MA_CAST_HASTE | MA_CAST_PROTECTION | MA_CAST_NEGATION | MA_CAST_SPARK | MA_CAST_FIRE | MA_CAST_SUMMON
 									   | MA_CAST_SLOW | MA_CAST_DISCORD | MA_BREATHES_FIRE | MA_SHOOTS_WEBS | MA_ATTACKS_FROM_DISTANCE),
-	SPECIAL_HIT						= (MA_HIT_HALLUCINATE | MA_HIT_STEAL_FLEE | MA_HIT_DEGRADE_ARMOR | MA_POISONS | MA_TRANSFERENCE),
+	SPECIAL_HIT						= (MA_HIT_HALLUCINATE | MA_HIT_STEAL_FLEE | MA_HIT_DEGRADE_ARMOR | MA_POISONS | MA_TRANSFERENCE | MA_CAUSES_WEAKNESS),
 	LEARNABLE_ABILITIES				= (MA_CAST_HEAL | MA_CAST_HASTE | MA_CAST_PROTECTION | MA_CAST_BLINK | MA_CAST_NEGATION | MA_CAST_SPARK | MA_CAST_FIRE
 									   | MA_CAST_SLOW | MA_CAST_DISCORD | MA_TRANSFERENCE),
 };
 
 enum monsterBookkeepingFlags {
 	MONST_WAS_VISIBLE				= Fl(0),	// monster was visible to player last turn
-	MONST_ADDED_TO_STATS_BAR		= Fl(1),	// monster has been polled for the stats bar
+	// unused						= Fl(1),
 	MONST_PREPLACED					= Fl(2),	// monster dropped onto the level and requires post-processing
 	MONST_APPROACHING_UPSTAIRS		= Fl(3),	// following the player up the stairs
 	MONST_APPROACHING_DOWNSTAIRS	= Fl(4),	// following the player down the stairs
@@ -1699,9 +1733,11 @@ typedef struct creature {
 	creatureType info;
 	short xLoc;
 	short yLoc;
+	short depth;
 	short currentHP;
 	long turnsUntilRegen;
 	short regenPerTurn;					// number of HP to regenerate every single turn
+	short weaknessAmount;				// number of points of weakness that are inflicted by the weakness status
 	enum creatureStates creatureState;	// current behavioral state
 	enum creatureModes creatureMode;	// current behavioral mode (higher-level than state)
 	short destination[2][2];			// the waypoints the monster is walking towards
@@ -1715,8 +1751,11 @@ typedef struct creature {
 	short **mapToMe;					// if a pack leader, this is a periodically updated pathing map to get to the leader
 	short **safetyMap;					// fleeing monsters store their own safety map when out of player FOV to avoid omniscience
 	short ticksUntilTurn;				// how long before the creature gets its next move
+	
+	// Locally cached statistics that may be temporarily modified:
 	short movementSpeed;
 	short attackSpeed;
+	
 	short turnsSpentStationary;			// how many (subjective) turns it's been since the creature moved between tiles
 	short flashStrength;				// monster will flash soon; this indicates the percent strength of flash
 	color flashColor;					// the color that the monster will flash
@@ -1735,6 +1774,7 @@ typedef struct creature {
 enum NGCommands {
 	NG_NOTHING = 0,
 	NG_NEW_GAME,
+	NG_NEW_GAME_WITH_SEED,
 	NG_OPEN_GAME,
 	NG_VIEW_RECORDING,
 	NG_HIGH_SCORES,
@@ -1766,18 +1806,22 @@ typedef struct playerCharacter {
 	boolean staleLoopMap;				// recalculate the loop map at the end of the turn
 	boolean alreadyFell;				// so the player can fall only one depth per turn
 	boolean eligibleToUseStairs;		// so the player uses stairs only when he steps onto them
+	boolean trueColorMode;				// when activated via tab, monsters and items will display their original colors.
 	boolean quit;						// to skip the typical end-game theatrics when the player quits
 	unsigned long seed;					// the master seed for generating the entire dungeon
 	short RNG;							// which RNG are we currently using?
-	long gold;							// how much gold we have
+	unsigned long gold;					// how much gold we have
+	unsigned long goldGenerated;		// how much gold has been generated on the levels, not counting gold held by monsters
 	short experienceLevel;				// what experience level the player is
 	unsigned long experience;			// number of experience points
 	short strength;
 	unsigned short monsterSpawnFuse;	// how much longer till a random monster spawns
+	
 	item *weapon;
 	item *armor;
 	item *ringLeft;
 	item *ringRight;
+	
 	lightSource minersLight;
 	float minersLightRadius;
 	short ticksTillUpdateEnvironment;	// so that some periodic things happen in objective time
@@ -1792,12 +1836,10 @@ typedef struct playerCharacter {
 	short downLoc[2];					// downstairs location this level
 	
 	short cursorLoc[2];					// used for the return key functionality
-	
+	creature *lastTarget;				// to keep track of the last monster the player has thrown at or zapped
 	short rewardRoomsGenerated;			// to meter the number of machines
-	
 	short machineNumber;				// so each machine on a level gets a unique number
-	
-	creature *sidebarMonsterList[COLS];	// to keep track of which monster each line of the sidebar references
+	short sidebarLocationList[COLS][2];	// to keep track of which location each line of the sidebar references
 	
 	// maps
 	short **mapToShore;					// how many steps to get back to shore
@@ -1805,7 +1847,7 @@ typedef struct playerCharacter {
 	short **mapToSafeTerrain;			// so monsters can get to safety
 	
 	// recording info
-	boolean playbackMode;				// whether we're merely viewing a recording instead of playing
+	boolean playbackMode;				// whether we're viewing a recording instead of playing
 	unsigned long currentTurnNumber;	// how many turns have elapsed
 	unsigned long howManyTurns;			// how many turns are in this recording
 	short howManyDepthChanges;			// how many times the player changes depths
@@ -1837,9 +1879,10 @@ typedef struct playerCharacter {
 	// cursor trail:
 	short cursorPathIntensity;
 	
-	// What do you want to do, player -- play, resume, recording, high scores or quit?
+	// What do you want to do, player -- play, play with seed, resume, recording, high scores or quit?
 	enum NGCommands nextGame;
 	char nextGamePath[BROGUE_FILENAME_MAX];
+	unsigned long nextGameSeed;
 } playerCharacter;
 
 // Probably need to ditch this crap:
@@ -1896,7 +1939,7 @@ enum machineFeatureFlags {
 	MF_IN_VIEW_OF_ORIGIN			= Fl(24),	// this feature must be in view of the origin
 	MF_NOT_IN_HALLWAY				= Fl(25),	// the feature location must have a passableArcCount of <= 1
 	MF_NOT_ON_LEVEL_PERIMETER		= Fl(26),	// don't build it in the outermost walls of the level
-	MF_SKELETON_KEY					= Fl(27),	// if a key is generated or adopted, it will open all locks in this machine.
+	MF_SKELETON_KEY					= Fl(27),	// if a key is generated or adopted by this feature, it will open all locks in this machine.
 	MF_KEY_DISPOSABLE				= Fl(28),	// if a key is generated or adopted, it will self-destruct after being used at this current location.
 };
 
@@ -1955,6 +1998,7 @@ enum machineTypes {
 	MT_REWARD_DUNGEON,
 	MT_REWARD_KENNEL,
 	MT_REWARD_VAMPIRE_LAIR,
+	MT_REWARD_ASTRAL_PORTAL,
 	
 	// Key guard machines:
 	MT_KEY_REWARD_LIBRARY,
@@ -2085,7 +2129,7 @@ extern "C" {
 	boolean chooseFile(char *path, char *prompt, char *defaultName, char *suffix);
 	boolean openFile(const char *path);
 	boolean selectFile(char *prompt, char *defaultName, char *suffix);
-	void initializeRogue();
+	void initializeRogue(unsigned long seed);
 	void gameOver(char *killedBy, boolean useCustomPhrasing);
 	void victory();
 	void enableEasyMode();
@@ -2165,14 +2209,16 @@ extern "C" {
 	void pausingTimerStartsNow();
 	boolean pauseForMilliseconds(short milliseconds);
 	void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance);
+	boolean controlKeyIsDown();
+	boolean shiftKeyIsDown();
 	short getHighScoresList(rogueHighScoresEntry returnList[HIGH_SCORES_COUNT]);
 	boolean saveHighScore(rogueHighScoresEntry theEntry);
 	void initializeBrogueSaveLocation();
 	fileEntry *listFiles(short *fileCount, char **dynamicMemoryBuffer);
-	void initializeLaunchArguments(enum NGCommands *command, char *path);
+	void initializeLaunchArguments(enum NGCommands *command, char *path, unsigned long *seed);
 	
 	char nextKeyPress(boolean textInput);
-	void refreshSideBar(creature *focusMonst, boolean focusedMonsterMustGoFirst);
+	void refreshSideBar(short focusX, short focusY, boolean focusedEntityMustGoFirst);
 	void printHelpScreen();
 	void printDiscoveriesScreen();
 	void printHighScores(boolean hiliteMostRecent);
@@ -2181,6 +2227,7 @@ extern "C" {
 	void printSeed();
 	void printProgressBar(short x, short y, const char barLabel[COLS], long amtFilled, long amtMax, color *fillColor, boolean dim);
 	short printMonsterInfo(creature *monst, short y, boolean dim, boolean highlight);
+	short printItemInfo(item *theItem, short y, boolean dim, boolean highlight);
 	void rectangularShading(short x, short y, short width, short height,
 							const color *backColor, short opacity, cellDisplayBuffer dbuf[COLS][ROWS]);
 	short printTextBox(char *textBuf, short x, short y, short width,
@@ -2226,8 +2273,13 @@ extern "C" {
 	short wrapText(char *to, const char *sourceText, short width);
 	short printStringWithWrapping(char *theString, short x, short y, short width, color *foreColor,
 								  color*backColor, cellDisplayBuffer dbuf[COLS][ROWS]);
-	boolean getInputTextString(char *inputText, const char *prompt, short maxLength,
-							   const char *defaultEntry, const char *promptSuffix, short textEntryType);
+	boolean getInputTextString(char *inputText,
+							   const char *prompt,
+							   short maxLength,
+							   const char *defaultEntry,
+							   const char *promptSuffix,
+							   short textEntryType,
+							   boolean useDialogBox);
 	void displayChokeMap();
 	void displayLoops();
 	boolean pauseBrogue(short milliseconds);
@@ -2245,6 +2297,7 @@ extern "C" {
 	short layerWithFlag(short x, short y, unsigned long flag);
 	char *tileFlavor(short x, short y);
 	char *tileText(short x, short y);
+	void describedItemCategory(short theCategory, char *buf);
 	void describeLocation(char buf[DCOLS], short x, short y);
 	void printLocationDescription(short x, short y);
 	void playerRuns(short direction);
@@ -2276,6 +2329,7 @@ extern "C" {
 	short randValidDirectionFrom(creature *monst, short x, short y, boolean respectAvoidancePreferences);
 	boolean exposeTileToFire(short x, short y, boolean alwaysIgnite);
 	boolean cellCanHoldGas(short x, short y);
+	void monstersFall();
 	void updateEnvironment();
 	void updateAllySafetyMap();
 	void updateSafetyMap();
@@ -2358,6 +2412,7 @@ extern "C" {
 	short distanceBetween(short x1, short y1, short x2, short y2);
 	void wakeUp(creature *monst);
 	boolean canSeeMonster(creature *monst);
+	boolean canDirectlySeeMonster(creature *monst);
 	void monsterName(char *buf, creature *monst, boolean includeArticle);
 	float strengthModifier(item *theItem);
 	float netEnchant(item *theItem);
@@ -2379,6 +2434,8 @@ extern "C" {
 	void getImpactLoc(short returnLoc[2], short originLoc[2], short targetLoc[2],
 					  short maxDistance, boolean returnLastEmptySpace);
 	void negate(creature *monst);
+	void refreshMonsterWeaknessPenalties(creature *monst);
+	void weaken(creature *monst, short maxDuration);
 	void slow(creature *monst, short turns);
 	void haste(creature *monst, short turns);
 	void heal(creature *monst, short percent);
@@ -2398,7 +2455,7 @@ extern "C" {
 					   boolean targetCanLeaveMap);
 	short numberOfItemsInPack();
 	char nextAvailableInventoryCharacter();
-	void itemName(item *theItem, char *root, boolean includeDetails, boolean includeArticle, color *suffixColor);
+	void itemName(item *theItem, char *root, boolean includeDetails, boolean includeArticle, color *baseColor);
 	char displayInventory(unsigned short categoryMask,
 						  unsigned long requiredFlags,
 						  unsigned long forbiddenFlags,
@@ -2411,6 +2468,7 @@ extern "C" {
 	item *generateItem(unsigned short theCategory, short theKind);
 	short chooseKind(itemTable *theTable, short numKinds);
 	item *makeItemInto(item *theItem, unsigned short itemCategory, short itemKind);
+	void updateEncumbrance();
 	void strengthCheck(item *theItem);
 	void recalculateEquipmentBonuses();
 	void equipItem(item *theItem, boolean force);
@@ -2420,8 +2478,14 @@ extern "C" {
 	void unequip(item *theItem);
 	void drop(item *theItem);
 	void findAlternativeHomeFor(creature *monst, short *x, short *y, boolean chooseRandomly);
-	boolean getQualifyingLocNear(short loc[2], short x, short y, boolean hallwaysAllowed, char blockingMap[DCOLS][DROWS],
-								 unsigned long forbiddenTerrainFlags, unsigned long forbiddenMapFlags, boolean forbidLiquid);
+	boolean getQualifyingLocNear(short loc[2],
+								 short x, short y,
+								 boolean hallwaysAllowed,
+								 char blockingMap[DCOLS][DROWS],
+								 unsigned long forbiddenTerrainFlags,
+								 unsigned long forbiddenMapFlags,
+								 boolean forbidLiquid,
+								 boolean deterministic);
 	void demoteMonsterFromLeadership(creature *monst);
 	void toggleMonsterDormancy(creature *monst);
 	void monsterDetails(char buf[], creature *monst);
@@ -2451,7 +2515,7 @@ extern "C" {
 	item *itemAtLoc(short x, short y);
 	item *dropItem(item *theItem);
 	itemTable *tableForItemCategory(enum itemCategory theCat);
-	boolean isVowel(char theChar);
+	boolean isVowel(char *theChar);
 	boolean itemIsCarried(item *theItem);
 	void itemDetails(char *buf, item *theItem);
 	void deleteItem(item *theItem);

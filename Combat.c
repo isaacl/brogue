@@ -57,7 +57,7 @@
  */
 
 float strengthModifier(item *theItem) {
-	short difference = rogue.strength - theItem->strengthRequired;
+	short difference = (rogue.strength - player.weaknessAmount) - theItem->strengthRequired;
 	if (difference > 0) {
 		return (float) 0.25 * difference;
 	} else {
@@ -293,9 +293,9 @@ void splitMonster(creature *monst, short x, short y) {
 					pmap[i][j].flags |= HAS_MONSTER;
 					clone->ticksUntilTurn = max(clone->ticksUntilTurn, 101);
 					fadeInMonster(clone);
-					refreshSideBar(NULL, false);
+					refreshSideBar(-1, -1, false);
 					
-					if (canSeeMonster(monst)) {
+					if (canDirectlySeeMonster(monst)) {
 						sprintf(buf, "%s splits in two!", monstName);
 						message(buf, false);
 					}
@@ -415,7 +415,8 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 					} else {
 						removeItemFromChain(theItem, packItems);
 					}
-					theItem->flags |= ITEM_NAMED; // just in case, mostly for debugging situations
+					theItem->flags |= ITEM_NAMED; // Just in case, mostly for debugging situations.
+					theItem->flags &= ~ITEM_PLAYER_AVOIDS; // Explore will seek the item out if it ends up on the floor again.
 					attacker->carriedItem = theItem;
 					attacker->creatureMode = MODE_PERM_FLEEING;
 					attacker->creatureState = MONSTER_FLEEING;
@@ -428,7 +429,7 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 			}
 		}
 	}
-	if (attacker->info.abilityFlags & MA_POISONS && damage > 0) {
+	if ((attacker->info.abilityFlags & MA_POISONS) && damage > 0) {
 		if (defender == &player && !player.status[STATUS_POISONED]) {
 			combatMessage("scalding poison fills your veins", &badMessageColor);
 		}
@@ -437,6 +438,9 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 		}
 		defender->status[STATUS_POISONED] = max(defender->status[STATUS_POISONED], damage);
 		defender->maxStatus[STATUS_POISONED] = defender->info.maxHP;
+	}
+	if ((attacker->info.abilityFlags & MA_CAUSES_WEAKNESS) && damage > 0) {
+		weaken(defender, 200);
 	}
 }
 
@@ -550,7 +554,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 			case W_PARALYSIS:
 				defender->status[STATUS_PARALYZED] = max(defender->status[STATUS_PARALYZED], weaponParalysisDuration(enchant));
 				defender->maxStatus[STATUS_PARALYZED] = defender->status[STATUS_PARALYZED];
-				if (canSeeMonster(defender)) {
+				if (canDirectlySeeMonster(defender)) {
 					sprintf(buf, "%s is frozen in place", monstName);
 					buf[DCOLS] = '\0';
 					combatMessage(buf, messageColorFromVictim(defender));
@@ -567,7 +571,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				for (i = 0; i < (weaponImageCount(enchant)); i++) {
 					getQualifyingLocNear(newLoc, defender->xLoc, defender->yLoc, true, 0,
 										 T_PATHING_BLOCKER & ~(T_LAVA_INSTA_DEATH | T_IS_DEEP_WATER | T_AUTO_DESCENT),
-										 (HAS_PLAYER | HAS_MONSTER), false);
+										 (HAS_PLAYER | HAS_MONSTER), false, false);
 					newMonst = generateMonster(MK_SPECTRAL_IMAGE, true);
 					newMonst->xLoc = newLoc[0];
 					newMonst->yLoc = newLoc[1];
@@ -610,7 +614,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				break;
 			case W_SLOWING:
 				slow(defender, weaponSlowDuration(enchant));
-				if (canSeeMonster(defender)) {
+				if (canDirectlySeeMonster(defender)) {
 					sprintf(buf, "%s slows down", monstName);
 					buf[DCOLS] = '\0';
 					combatMessage(buf, messageColorFromVictim(defender));
@@ -619,7 +623,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 			case W_CONFUSION:
 				defender->status[STATUS_CONFUSED] = max(defender->status[STATUS_CONFUSED], weaponConfusionDuration(enchant));
 				defender->maxStatus[STATUS_CONFUSED] = defender->status[STATUS_CONFUSED];
-				if (canSeeMonster(defender)) {
+				if (canDirectlySeeMonster(defender)) {
 					sprintf(buf, "%s looks very confused", monstName);
 					buf[DCOLS] = '\0';
 					combatMessage(buf, messageColorFromVictim(defender));
@@ -874,7 +878,9 @@ boolean attack(creature *attacker, creature *defender) {
 		if (sneakAttack || defenderWasAsleep || defenderWasParalyzed) {
 			// The defender doesn't hit back this turn because he's still flat-footed.
 			defender->ticksUntilTurn += max(defender->movementSpeed, defender->attackSpeed);
-			defender->creatureState = MONSTER_TRACKING_SCENT; // Wake up!
+			if (defender->creatureState != MONSTER_ALLY) {
+				defender->creatureState = MONSTER_TRACKING_SCENT; // Wake up!
+			}
 			damage *= 3; // Treble damage for sneak attacks!
 		}
 		
@@ -1260,13 +1266,13 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, cons
 		}
 	}
 	
-	refreshSideBar(NULL, false);
+	refreshSideBar(-1, -1, false);
 	return killed;
 }
 
 // Removes the decedent from the screen and from the monster chain; inserts it into the graveyard chain; does NOT free the memory.
 // Use "administrativeDeath" if the monster is being deleted for administrative purposes, as opposed to dying as a result of physical actions.
-// AdministrativeDeath means the monster simply disappears, with no messages, dropped item, DF or other effect.
+// AdministrativeDeath means the monster simply disappears, with no messages, dropped item, DFs or other effect.
 void killCreature(creature *decedent, boolean administrativeDeath) {
 	short x, y;
 	char monstName[DCOLS], buf[DCOLS];
@@ -1274,6 +1280,10 @@ void killCreature(creature *decedent, boolean administrativeDeath) {
 	if (decedent->bookkeepingFlags & MONST_IS_DYING) {
 		// monster has already been killed; let's avoid overkill
 		return;
+	}
+	
+	if (rogue.lastTarget == decedent) {
+		rogue.lastTarget = NULL;
 	}
 	
 	if (decedent->carriedItem) {
@@ -1343,14 +1353,13 @@ void killCreature(creature *decedent, boolean administrativeDeath) {
 				applyInstantTileEffectsToCreature(decedent->carriedMonster);
 				decedent->carriedMonster = NULL;
 			}
-			
 			refreshDungeonCell(x, y);
 		}
 	}
 	decedent->currentHP = 0;
-	if (decedent->bookkeepingFlags & MONST_LEADER) {
-		demoteMonsterFromLeadership(decedent);
-	}
+	//if (decedent->bookkeepingFlags & MONST_LEADER) {
+	demoteMonsterFromLeadership(decedent);
+	//}
 }
 
 // Basically runs a simplified deterministic melee combat simulation against a hypothetical
