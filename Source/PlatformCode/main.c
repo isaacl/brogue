@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 		if (strcmp(argv[i], "--seed") == 0 || strcmp(argv[i], "-s") == 0) {
 			// pick a seed!
 			if (i + 1 < argc) {
-				int seed = atoi(argv[i + 1]);
+				unsigned int seed = atof(argv[i + 1]); // plenty of precision in a double, and simpler than any other option
 				if (seed != 0) {
 					i++;
 					rogue.nextGameSeed = seed;

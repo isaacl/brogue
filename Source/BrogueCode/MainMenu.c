@@ -7,18 +7,18 @@
  *
  *  This file is part of Brogue.
  *
- *  Brogue is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Affero General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or (at your option) any later version.
  *
- *  Brogue is distributed in the hope that it will be useful,
+ *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
+ *  GNU Affero General Public License for more details.
  *
- *  You should have received a copy of the GNU General Public License
- *  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
+ *  You should have received a copy of the GNU Affero General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "Rogue.h"
@@ -58,7 +58,7 @@ void drawMenuFlames(signed short flames[COLS][(ROWS + MENU_FLAME_ROW_PADDING)][3
             }
             
 			if (mask[i][j] == 100) {
-				plotCharWithColor(dchar, i, j, darkGray, *maskColor);
+				plotCharWithColor(dchar, i, j, &darkGray, maskColor);
 			} else {
 				tempColor = black;
 				tempColor.red	= flames[i][j][0] / MENU_FLAME_PRECISION_FACTOR;
@@ -67,7 +67,7 @@ void drawMenuFlames(signed short flames[COLS][(ROWS + MENU_FLAME_ROW_PADDING)][3
 				if (mask[i][j] > 0) {
 					applyColorAverage(&tempColor, maskColor, mask[i][j]);
 				}
-				plotCharWithColor(dchar, i, j, darkGray, tempColor);
+				plotCharWithColor(dchar, i, j, &darkGray, &tempColor);
 			}
 		}
 	}
@@ -180,7 +180,7 @@ void initializeMenuFlames(boolean includeTitle,
 						  signed short flames[COLS][(ROWS + MENU_FLAME_ROW_PADDING)][3],
 						  unsigned char mask[COLS][ROWS]) {
 	short i, j, k, colorSourceCount;
-	const char title[MENU_TITLE_HEIGHT][MENU_TITLE_WIDTH] = {
+	const char title[MENU_TITLE_HEIGHT][MENU_TITLE_WIDTH+1] = {
 		"########   ########       ######         #######   ####     ###  #########",
 		" ##   ###   ##   ###    ##     ###     ##      ##   ##       #    ##     #",
 		" ##    ##   ##    ##   ##       ###   ##        #   ##       #    ##     #",
@@ -201,8 +201,6 @@ void initializeMenuFlames(boolean includeTitle,
 		"                            ##                                            ",
 		"                           ####                                           ",
 	};
-	
-	rogue.gameHasEnded = false;
 	
 	for (i=0; i<COLS; i++) {
 		for (j=0; j<ROWS; j++) {
@@ -594,13 +592,16 @@ void mainBrogueJunction() {
 				displayBuffer[i][j].foreColorComponents[k] = 0;
 				displayBuffer[i][j].backColorComponents[k] = 0;
 			}
-			plotCharWithColor(' ', i, j, black, black);
+			plotCharWithColor(' ', i, j, &black, &black);
 		}
 	}
 	
 	initializeLaunchArguments(&rogue.nextGame, rogue.nextGamePath, &rogue.nextGameSeed);
 	
 	do {
+        rogue.gameHasEnded = false;
+        rogue.playbackFastForward = false;
+        rogue.playbackMode = false;
 		switch (rogue.nextGame) {
 			case NG_NOTHING:
 				// Run the main menu to get a decision out of the player.
