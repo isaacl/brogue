@@ -1243,7 +1243,8 @@ boolean buildAMachine(enum machineTypes bp,
 							theItem = generateItem(feature->itemCategory, feature->itemKind);
 							failsafe = 1000;
 							while ((feature->itemValueMinimum > 0 && (unsigned short) itemValue(theItem) < feature->itemValueMinimum) // must be at least as expensive as requested
-								   || ((feature->flags & MF_REQUIRE_GOOD_RUNIC) && (!(theItem->flags & ITEM_RUNIC) || (theItem->flags & ITEM_CURSED))) // runic and uncursed if requested
+                                   || (theItem->flags & ITEM_CURSED)
+								   || ((feature->flags & MF_REQUIRE_GOOD_RUNIC) && (!(theItem->flags & ITEM_RUNIC))) // runic if requested
 								   || ((feature->flags & MF_NO_THROWING_WEAPONS) && theItem->category == WEAPON && theItem->quantity > 1)) { // no throwing weapons if prohibited
 								deleteItem(theItem);
 								theItem = generateItem(feature->itemCategory, feature->itemKind);
@@ -1342,7 +1343,7 @@ boolean buildAMachine(enum machineTypes bp,
 						}
 						
 						if (feature->flags & MF_GENERATE_MONSTER) {
-							monst = generateMonster(feature->monsterID, true);
+							monst = generateMonster(feature->monsterID, true, true);
 							if (monst) {
 								monst->xLoc = featX;
 								monst->yLoc = featY;
@@ -1435,7 +1436,7 @@ boolean buildAMachine(enum machineTypes bp,
         for(i=0; i<DCOLS; i++) {
             for(j=0; j<DROWS; j++) {
                 if (pmap[i][j].machineNumber == machineNumber
-                    && !cellHasTMFlag(i, j, TM_IS_WIRED)) {
+                    && !cellHasTMFlag(i, j, (TM_IS_WIRED | TM_IS_CIRCUIT_BREAKER))) {
                     
                     pmap[i][j].flags &= ~IS_IN_MACHINE;
                     pmap[i][j].machineNumber = 0;
@@ -1560,15 +1561,17 @@ void runAutogenerators() {
 
 // Knock down the boundaries between similar lakes where possible.
 void cleanUpLakeBoundaries() {
-	short i, j, x, y, layer;
+	short i, j, x, y, failsafe, layer;
 	boolean reverse, madeChange;
     unsigned long subjectFlags;
 	
 	reverse = true;
 	
+    failsafe = 100;
 	do {
 		madeChange = false;
 		reverse = !reverse;
+        failsafe--;
 		
 		for (i = (reverse ? DCOLS - 2 : 1);
 			 (reverse ? i > 0 : i < DCOLS - 1);
@@ -1611,7 +1614,7 @@ void cleanUpLakeBoundaries() {
 				}
 			}
 		}
-	} while (madeChange);
+	} while (madeChange && failsafe > 0);
 }
 
 void removeDiagonalOpenings() {
@@ -2424,7 +2427,8 @@ void finishDoors() {
     const short secretDoorChance = clamp((rogue.depthLevel - 1) * 67 / 25, 0, 67);
 	for (i=1; i<DCOLS-1; i++) {
 		for (j=1; j<DROWS-1; j++) {
-			if (pmap[i][j].layers[DUNGEON] == DOOR) {
+			if (pmap[i][j].layers[DUNGEON] == DOOR
+                && pmap[i][j].machineNumber == 0) {
 				if ((!cellHasTerrainFlag(i+1, j, T_OBSTRUCTS_PASSABILITY) || !cellHasTerrainFlag(i-1, j, T_OBSTRUCTS_PASSABILITY))
 					&& (!cellHasTerrainFlag(i, j+1, T_OBSTRUCTS_PASSABILITY) || !cellHasTerrainFlag(i, j-1, T_OBSTRUCTS_PASSABILITY))) {
 					// If there's passable terrain to the left or right, and there's passable terrain
@@ -2535,7 +2539,7 @@ boolean buildABridge() {
 				if (k < DROWS
 					&& (k - j > 3)
 					&& foundExposure
-					&& !cellHasTerrainFlag(i, k, T_OBSTRUCTS_PASSABILITY | T_CAN_BE_BRIDGED)
+					&& !cellHasTerrainFlag(i, k, T_PATHING_BLOCKER | T_CAN_BE_BRIDGED)
 					&& !pmap[i][k].machineNumber // Cannot end in a machine.
 					&& 100 * pathingDistance(i, j, i, k, T_PATHING_BLOCKER) / (k - j) > bridgeRatioY) {
 					
@@ -2620,11 +2624,6 @@ void digDungeon() {
 		temporaryMessage("Diagonal openings removed.", true);
 	}
 	
-	if (D_INSPECT_LEVELGEN) {
-		dumpLevelToScreen();
-		temporaryMessage("Bridges added.", true);
-	}
-	
 	// Now add some treasure machines.
 	addMachines();
 	
@@ -2636,8 +2635,18 @@ void digDungeon() {
 	// Now knock down the boundaries between similar lakes where possible.
 	cleanUpLakeBoundaries();
 	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		temporaryMessage("Lake boundaries cleaned up.", true);
+	}
+	
 	// Now add some bridges.
 	while (buildABridge());
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		temporaryMessage("Bridges added.", true);
+	}
     
 	// Now remove orphaned doors and upgrade some doors to secret doors
     finishDoors();

@@ -2,9 +2,12 @@
 # not supported.  Keys that produce characters but are not listed below
 # are mapped by the character they produce.
 #
-# Key remapping is not supported in curses mode.
+# Key remapping is also supported in curses mode, although some key names
+# are different and others are the same.
 
 
+# libtcod-mode keys:
+#
 # NONE
 # ESCAPE BACKSPACE TAB ENTER
 # SHIFT CONTROL ALT CAPSLOCK LWIN RWIN APPS NUMLOCK SCROLLLOCK 

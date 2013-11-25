@@ -262,7 +262,7 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 
 // not needed in libtcod
 void initializeBrogueSaveLocation() {
-    
+	
 }
 
 // start of file listing

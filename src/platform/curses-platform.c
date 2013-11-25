@@ -16,7 +16,7 @@ static void gameLoop() {
 	if (!Term.start()) {
 		return;
 	}
-	Term.title("Brogue 1.7");
+	Term.title("Brogue " BROGUE_VERSION_STRING);
 	Term.resize(COLS, ROWS);
 
 	rogueMain();
@@ -83,6 +83,29 @@ static void curses_plotChar(uchar ch,
 	Term.put(xLoc, yLoc, ch, &fore, &back);
 }
 
+
+struct mapsymbol {
+	int in_c, out_c;
+	struct mapsymbol *next;
+};
+
+static struct mapsymbol *keymap = NULL;
+
+static int rewriteKey(int key, boolean text) {
+	if (text) return key;
+
+	struct mapsymbol *s = keymap;
+	while (s != NULL) {
+		if (s->in_c == key) {
+			return s->out_c;
+		}
+
+		s = s->next;
+	}
+	return key;
+}
+
+
 #define PAUSE_BETWEEN_EVENT_POLLING		34//17
 
 static uint32_t getTime() {
@@ -139,6 +162,8 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInpu
 				if (returnEvent->eventType != KEYSTROKE) return;
 			}
 		} else if (key != TERM_NONE) {
+			key = rewriteKey(key, textInput);
+
 			returnEvent->eventType = KEYSTROKE;
 			returnEvent->controlKey = 0; //(key.rctrl || key.lctrl);
 			returnEvent->shiftKey = 0; //key.shift;
@@ -175,6 +200,15 @@ static void curses_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInpu
 }
 
 static void curses_remap(const char *input_name, const char *output_name) {
+	struct mapsymbol *sym = malloc(sizeof(*sym));
+	
+	if (sym == NULL) return; // out of memory?  seriously?
+	
+	sym->in_c = Term.keycodeByName(input_name);
+	sym->out_c = Term.keycodeByName(output_name);
+	
+	sym->next = keymap;
+	keymap = sym;
 }
 
 static boolean modifier_held(int modifier) {

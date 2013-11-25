@@ -18,6 +18,10 @@ acceptable target for a desktop shortcut (see make-link-for-desktop.sh for
 an easy way to make one.)  It will pass command line arguments along
 to bin/brogue.  The following switches are accepted:
 
+-h                         print a help message
+-V                         print the version
+--scores                   dump scores to output and exit immediately
+
 -n                         start a new game, skipping the menu
 -s seed                    start a new game with the specified numerical seed
 -o filename[.broguesave]   open a recording (extension may be omitted)
@@ -26,7 +30,6 @@ to bin/brogue.  The following switches are accepted:
 
 --size N                   starts the game with font size N (1 to 13)
 --no-menu                  never display the menu (automatically pick new game)
---scores                   dump scores to output and exit immediately
 --noteye-hack              ignore SDL-specific application state checks
 
 --
@@ -71,18 +74,4 @@ To produce a distributable tar file, make tar.  To clean (as you must after
 changing headers or before switching targets -- sorry about that), make clean.
 
 make both is the default.
-
---
-
-libtcod-1.5.1 describes at least two distinct versions.  One was released
-Feb 16, 2012.  This is the version that Brogue expects.  The later version,
-from Aug 29, 2012, is also called 1.5.1, and only that version is now
-available from the libtcod website.  The Brogue source has been modified to
-be compatible with the newer version, but there is a bug in it that keeps
-font resizing from functioning properly.
-
-The upshot is that if you fetch 1.5.1 and build it yourself (making sure
-that the new libtcod.so is in bin), everything should work fine, except
-for font resizing in SDL mode.
-
 
