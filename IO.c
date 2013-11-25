@@ -400,9 +400,9 @@ void getCellAppearance(short x, short y, uchar *returnChar, color *returnForeCol
 		}
 	}
 	//DEBUG cellBackColor.red = max(0,((tmap[x][y].scent - rogue.scentTurnNumber) * 2) + 100);
-	/*DEBUG if (pmap[x][y].flags & CAUGHT_FIRE_THIS_TURN) {
-		cellBackColor.red = 100;
-	}*/
+	DEBUG if (pmap[x][y].flags & PLAYER_STEPPED_HERE) {
+		cellBackColor.red += 20;
+	}
 	
 	bakeTerrainColors(&cellForeColor, &cellBackColor, x, y);
 	
@@ -1296,6 +1296,13 @@ void waitForAcknowledgment() {
 	} while (key != ACKNOWLEDGE_KEY && key != ESCAPE_KEY);
 }
 
+void waitForKeystrokeOrMouseClick() {
+	rogueEvent theEvent;
+	do {
+		nextBrogueEvent(&theEvent, false, false);
+	} while (theEvent.eventType != KEYSTROKE && theEvent.eventType != MOUSE_UP);
+}
+
 boolean confirm(char *prompt, boolean alsoDuringPlayback) {
 	char keystroke;
 	
@@ -1615,8 +1622,9 @@ short printStringWithWrapping(char *theString, short x, short y, short width, co
 	for (i=0; printString[i] != '\0'; i++) {
 		if (printString[i] == '\n') {
 			px = x;
-			if (py++ >= ROWS) {
-				py--;
+			if (py < ROWS - 1) {
+				py++;
+			} else {
 				break;
 			}
 		} else if (dbuf) {
@@ -2107,243 +2115,32 @@ short printMonsterInfo(creature *monst, short y, boolean dim) {
 	return y;
 }
 
-void monsterDetails(char buf[], creature *monst) {
-	char monstName[COLS], newText[10*COLS];
-	short i, j, combatMath, combatMath2, playerKnownAverageDamage, playerKnownMaxDamage, commaCount, realArmorValue;
-	boolean anyFlags;
-	
-	buf[0] = '\0';
-	commaCount = 0;
-	
-	monsterName(monstName, monst, true);
-	
-	sprintf(newText, "%s\n\n", monsterText[monst->info.monsterID].flavorText);
-	upperCase(newText);
-	strcat(buf, newText);
-	
-	if (!rogue.armor || (rogue.armor->flags & ITEM_IDENTIFIED)) {
-		combatMath2 = hitProbability(monst, &player);
-	} else {
-		realArmorValue = player.info.defense;
-		player.info.defense = (armorTable[rogue.armor->kind].range.upperBound + armorTable[rogue.armor->kind].range.lowerBound) / 2;
-		combatMath2 = hitProbability(monst, &player);
-		player.info.defense = realArmorValue;
-	}
-	
-	if (monst->info.damage.upperBound == 0) {
-		sprintf(newText, "%s deals no direct damage.\n\n", monstName);
-	} else {
-		combatMath = (player.currentHP + monst->info.damage.upperBound - 1) / monst->info.damage.upperBound;
-		sprintf(newText, "%s has a %i%% chance to hit you, typically hits for %i%% of your maximum HP, and at worst, could defeat you in %i hit%s.\n\n",
-				monstName,
-				combatMath2,
-				100 * (monst->info.damage.lowerBound + monst->info.damage.upperBound) / 2 / player.info.maxHP,
-				combatMath,
-				(combatMath > 1 ? "s" : ""));
-	}
-	upperCase(newText);
-	strcat(buf, newText);
-	
-	if (monst->creatureState == MONSTER_ALLY) {
-		sprintf(newText, "%s is your ally.", monstName);
-	} else if (monst->bookkeepingFlags & MONST_CAPTIVE) {
-		sprintf(newText, "%s is being held captive.", monstName);
-	} else {
-		
-		if (!rogue.weapon || (rogue.weapon->flags & ITEM_IDENTIFIED)) {
-			playerKnownAverageDamage = (player.info.damage.upperBound + player.info.damage.lowerBound) / 2;
-			playerKnownMaxDamage = player.info.damage.upperBound;
-		} else {
-			playerKnownAverageDamage = (rogue.weapon->damage.upperBound + rogue.weapon->damage.lowerBound) / 2;
-			playerKnownMaxDamage = rogue.weapon->damage.upperBound;
-		}
-		
-		if (playerKnownMaxDamage == 0) {
-			sprintf(newText, "You deal no direct damage.");
-		} else {
-			combatMath = (monst->currentHP + playerKnownMaxDamage - 1) / playerKnownMaxDamage;
-			if (rogue.weapon && !(rogue.weapon->flags & ITEM_IDENTIFIED)) {
-				realArmorValue = rogue.weapon->enchant1;
-				rogue.weapon->enchant1 = 0;
-				combatMath2 = hitProbability(&player, monst);
-				rogue.weapon->enchant1 = realArmorValue;
-			} else {
-				combatMath2 = hitProbability(&player, monst);
-			}
-			sprintf(newText, "You have a %i%% chance to hit %s, typically hit for %i%% of its maximum HP, and at best, could defeat it in %i hit%s.",
-					combatMath2,
-					monstName,
-					100 * playerKnownAverageDamage / monst->info.maxHP,
-					combatMath,
-					(combatMath > 1 ? "s" : ""));
-		}
-	}
-		
-	upperCase(newText);
-	strcat(buf, newText);
-	
-	anyFlags = false;
-	sprintf(newText, "%s ", monstName);
-	upperCase(newText);
-	
-	if (monst->attackSpeed < 100) {
-		strcat(newText, "attacks quickly");
-		anyFlags = true;
-	} else if (monst->attackSpeed > 100) {
-		strcat(newText, "attacks slowly");
-		anyFlags = true;
-	}
-	
-	if (monst->movementSpeed < 100) {
-		if (anyFlags) {
-			strcat(newText, "& ");
-			commaCount++;
-		}
-		strcat(newText, "moves quickly");
-		anyFlags = true;
-	} else if (monst->movementSpeed > 100) {
-		if (anyFlags) {
-			strcat(newText, "& ");
-			commaCount++;
-		}
-		strcat(newText, "moves slowly");
-		anyFlags = true;
-	}
-	
-	if (monst->info.turnsBetweenRegen == 0) {
-		if (anyFlags) {
-			strcat(newText, "& ");
-			commaCount++;
-		}
-		strcat(newText, "does not regenerate");
-		anyFlags = true;
-	} else if (monst->info.turnsBetweenRegen < 5000) {
-		if (anyFlags) {
-			strcat(newText, "& ");
-			commaCount++;
-		}
-		strcat(newText, "regenerates quickly");
-		anyFlags = true;
-	}
-	
-	// ability flags
-	for (i=0; i<32; i++) {
-		if ((monst->info.abilityFlags & (1 << i))
-			&& monsterAbilityFlagDescriptions[i][0]) {
-			if (anyFlags) {
-				strcat(newText, "& ");
-				commaCount++;
-			}
-			strcat(newText, monsterAbilityFlagDescriptions[i]);
-			anyFlags = true;
-		}
-	}
-	
-	// behavior flags
-	for (i=0; i<32; i++) {
-		if ((monst->info.flags & (1 << i))
-			&& monsterBehaviorFlagDescriptions[i][0]) {
-			if (anyFlags) {
-				strcat(newText, "& ");
-				commaCount++;
-			}
-			strcat(newText, monsterBehaviorFlagDescriptions[i]);
-			anyFlags = true;
-		}
-	}
-	
-	// bookkeeping flags
-	for (i=0; i<32; i++) {
-		if ((monst->bookkeepingFlags & (1 << i))
-			&& monsterBookkeepingFlagDescriptions[i][0]) {
-			if (anyFlags) {
-				strcat(newText, "& ");
-				commaCount++;
-			}
-			strcat(newText, monsterBookkeepingFlagDescriptions[i]);
-			anyFlags = true;
-		}
-	}
-	
-	if (anyFlags) {
-		strcat(newText, ".");
-		strcat(buf, "\n\n");
-		j = strlen(buf);
-		for (i=0; newText[i] != '\0'; i++) {
-			if (newText[i] == '&') {
-				if (!--commaCount) {
-					buf[j] = '\0';
-					strcat(buf, " and");
-					j += 4;
-				} else {
-					buf[j++] = ',';
-				}
-			} else {
-				buf[j++] = newText[i];
-			}
-		}
-		buf[j] = '\0';
-	}
-}
+#define MIN_DEFAULT_INFO_PANEL_WIDTH	38
 
-#define MIN_MONSTER_DETAILS_WIDTH	38
-
-//void printMonsterDetails(creature *monst, cellDisplayBuffer rbuf[COLS][ROWS]) {
-//	cellDisplayBuffer dbuf[COLS][ROWS];
-//	char textBuf[COLS * 100];
-//	short x, y, width, maxY, i, j, dist;
-//	
-//	if (monst->xLoc < DCOLS / 2 - 1) {
-//		x = monst->xLoc + 10 + STAT_BAR_WIDTH;
-//		width = (DCOLS - monst->xLoc) - 20;
-//	} else {
-//		x = STAT_BAR_WIDTH + 10;
-//		width = monst->xLoc - 20;
-//	}
-//	y = MESSAGE_LINES + 2;
-//	
-//	if (width < MIN_MONSTER_DETAILS_WIDTH) {
-//		x -= (MIN_MONSTER_DETAILS_WIDTH - width) / 2;
-//		width = MIN_MONSTER_DETAILS_WIDTH;
-//	}
-//	
-//	clearDisplayBuffer(dbuf);
-//	monsterDetails(textBuf, monst);
-//	maxY = printStringWithWrapping(textBuf, x, y, width, &white, &black, dbuf);
-//	
-//	for (i=0; i<COLS; i++) {
-//		for (j=0; j<ROWS; j++) {
-//			
-//			if (i >= x && i <= x + width && j >= y && j <= maxY) {
-//				dbuf[i][j].opacity = 85;
-//			} else {
-//				dist = 0;
-//				dist += max(0, max(x - i, i - (x + width)));
-//				dist += max(0, max(y - j, j - maxY));
-//				dbuf[i][j].opacity = 85 / dist;
-//			}
-//		}
-//	}
-//	
-//	overlayDisplayBuffer(dbuf, rbuf);
-//}
-
-void printTextBox(char *textBuf, short x, color *foreColor, color *backColor, cellDisplayBuffer rbuf[COLS][ROWS]) {
+// y and width are optional and will be automatically calculated if width <= 0.
+void printTextBox(char *textBuf, short x, short y, short width,
+				  color *foreColor, color *backColor, cellDisplayBuffer rbuf[COLS][ROWS]) {
 	cellDisplayBuffer dbuf[COLS][ROWS];
-	short x2, y2, width, maxY, i, j, dist;
+	short x2, y2, maxY, i, j, dist;
 	
-	if (x < DCOLS / 2 - 1) {
-		x2 = x + 10 + STAT_BAR_WIDTH;
-		width = (DCOLS - x) - 20;
+	if (width <= 0) {
+		// autocalculate y and width
+		if (x < DCOLS / 2 - 1) {
+			x2 = x + 10 + STAT_BAR_WIDTH;
+			width = (DCOLS - x) - 20;
+		} else {
+			x2 = STAT_BAR_WIDTH + 10;
+			width = x - 20;
+		}
+		y2 = MESSAGE_LINES + 2;
+		
+		if (width < MIN_DEFAULT_INFO_PANEL_WIDTH) {
+			x2 -= (MIN_DEFAULT_INFO_PANEL_WIDTH - width) / 2;
+			width = MIN_DEFAULT_INFO_PANEL_WIDTH;
+		}
 	} else {
-		x2 = STAT_BAR_WIDTH + 10;
-		width = x - 20;
-	}
-	y2 = MESSAGE_LINES + 2;
-	
-	if (width < MIN_MONSTER_DETAILS_WIDTH) {
-		x2 -= (MIN_MONSTER_DETAILS_WIDTH - width) / 2;
-		width = MIN_MONSTER_DETAILS_WIDTH;
+		y2 = y;
+		x2 = x;
 	}
 	
 	clearDisplayBuffer(dbuf);
@@ -2354,12 +2151,12 @@ void printTextBox(char *textBuf, short x, color *foreColor, color *backColor, ce
 			storeColorComponents(dbuf[i][j].backColorComponents, backColor);
 			
 			if (i >= x2 && i <= x2 + width && j >= y2 && j <= maxY) {
-				dbuf[i][j].opacity = 85;
+				dbuf[i][j].opacity = 90;
 			} else {
 				dist = 0;
 				dist += max(0, max(x2 - i, i - (x2 + width)));
 				dist += max(0, max(y2 - j, j - maxY));
-				dbuf[i][j].opacity = 85 / max(1, dist);
+				dbuf[i][j].opacity = 80 / max(1, dist);
 			}
 		}
 	}
@@ -2371,5 +2168,12 @@ void printMonsterDetails(creature *monst, cellDisplayBuffer rbuf[COLS][ROWS]) {
 	char textBuf[COLS * 100];
 	
 	monsterDetails(textBuf, monst);
-	printTextBox(textBuf, monst->xLoc, &white, &black, rbuf);
+	printTextBox(textBuf, monst->xLoc, 0, 0, &white, &black, rbuf);
+}
+
+void printItemDetails(item *theItem, cellDisplayBuffer rbuf[COLS][ROWS]) {
+	char textBuf[COLS * 100];
+	
+	itemDetails(textBuf, theItem);
+	printTextBox(textBuf, theItem->xLoc, 0, 0, &white, &black, rbuf);
 }
