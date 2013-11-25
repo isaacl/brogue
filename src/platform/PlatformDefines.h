@@ -24,4 +24,5 @@
 // Any platform-dependent defines that must be accessible in the game code
 // should go in here.
 
-#define PLAY_AGAIN_STRING	"Choose 'New Game' from the File menu (or press command-N) to play again."
+#define BROGUE_LIBTCOD
+#define PLAY_AGAIN_STRING	"Press space to play again."

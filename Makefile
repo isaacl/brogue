@@ -1,7 +1,7 @@
 
 LIBTCODDIR=src/libtcod-1.5.1
 CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -Isrc/brogue -Isrc/platform -Wall
-RELEASENAME=brogue-1.4.3
+RELEASENAME=brogue-1.5
 
 %.o : %.cpp
 	g++ $(CFLAGS) -g -o $@ -c $< 
@@ -35,6 +35,7 @@ tar : bin/brogue
 	$(wildcard *.sh) \
 	$(wildcard *.rtf) \
 	$(wildcard *.txt) \
+	brogue \
 	bin/brogue \
 	$(wildcard bin/*.png) \
 	$(wildcard bin/*.so) \
