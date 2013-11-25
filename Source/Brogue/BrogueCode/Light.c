@@ -54,13 +54,22 @@ void logLights() {
 void paintLight(lightSource *theLight) {
 	short i, j, k, x, y;
 	short colorComponents[3], randComponent, lightMultiplier, thisComponent;
-	short radius, fadeToPercent;
+	short fadeToPercent;
+	float radius;
 	char grid[DCOLS][DROWS];
+	boolean dispelShadows;
+	
+	radius = randClump(theLight->lightRadius);
+	radius /= 100;
 	
 	randComponent = rand_range(0, theLight->lightColor->rand);
 	colorComponents[0] = randComponent + theLight->lightColor->red + rand_range(0, theLight->lightColor->redRand);
 	colorComponents[1] = randComponent + theLight->lightColor->green + rand_range(0, theLight->lightColor->greenRand);
 	colorComponents[2] = randComponent + theLight->lightColor->blue + rand_range(0, theLight->lightColor->blueRand);
+	
+	// the miner's light does not dispel IS_IN_SHADOW,
+	// so the player can be in shadow despite casting his own light.
+	dispelShadows = theLight != rogue.minersLight && colorComponents[0] + colorComponents[1] + colorComponents[2] > 0;
 	
 	if (theLight->followsCreature != NULL) {
 		x = theLight->followsCreature->xLoc;
@@ -69,8 +78,6 @@ void paintLight(lightSource *theLight) {
 		x = theLight->xLoc;
 		y = theLight->yLoc;
 	}
-	
-	radius = randClump(theLight->lightRadius);
 	
 	fadeToPercent = theLight->radialFadeToPercent;
 	
@@ -94,7 +101,9 @@ void paintLight(lightSource *theLight) {
 						tmap[i][j].light[k] += min(thisComponent, (theLight->maxIntensity - tmap[i][j].light[k]));
 					}
 				}
-				pmap[i][j].flags &= ~IS_IN_SHADOW;
+				if (dispelShadows) {
+					pmap[i][j].flags &= ~IS_IN_SHADOW;
+				}
 			}
 		}
 	}
@@ -103,9 +112,7 @@ void paintLight(lightSource *theLight) {
 	tmap[x][y].light[1] += colorComponents[1];
 	tmap[x][y].light[2] += colorComponents[2];
 	
-	// the miner's light does not dispel IS_IN_SHADOW from the cell that it occupies,
-	// so the player can be in shadow despite casting his own light.
-	if (theLight != rogue.minersLight) {
+	if (dispelShadows) {
 		pmap[x][y].flags &= ~IS_IN_SHADOW;
 	}
 }
@@ -159,6 +166,7 @@ void updateLighting() {
 lightSource *newLight(lightSource *modelLight, short x, short y, creature *followsCreature) {
 	lightSource *theLight;
 	theLight = (lightSource *) malloc(sizeof(lightSource));
+	memset(theLight, '\0', sizeof(lightSource));
 	
 	*theLight = *modelLight; // clone the model into the source
 	

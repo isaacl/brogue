@@ -22,6 +22,8 @@
 		5852BB62118650D90064384E /* Viewport.m in Sources */ = {isa = PBXBuildFile; fileRef = 5852BB5F118650D90064384E /* Viewport.m */; };
 		5852BB9C118652BA0064384E /* Dijkstra.c in Sources */ = {isa = PBXBuildFile; fileRef = 5852BB9B118652BA0064384E /* Dijkstra.c */; };
 		58831148109E46C800FF029E /* Brogue Icon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58831147109E46C800FF029E /* Brogue Icon.icns */; };
+		58A17EDB1235ACA100647687 /* Recordings.c in Sources */ = {isa = PBXBuildFile; fileRef = 58A17EDA1235ACA100647687 /* Recordings.c */; };
+		58EE4FF7120E01FB0020458E /* Random.c in Sources */ = {isa = PBXBuildFile; fileRef = 58EE4FF6120E01FB0020458E /* Random.c */; };
 		8D11072B0486CEB800E47090 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 089C165CFE840E0CC02AAC07 /* InfoPlist.strings */; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
 /* End PBXBuildFile section */
@@ -51,7 +53,9 @@
 		5852BB5F118650D90064384E /* Viewport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = Viewport.m; path = PlatformCode/Viewport.m; sourceTree = "<group>"; };
 		5852BB9B118652BA0064384E /* Dijkstra.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Dijkstra.c; path = BrogueCode/Dijkstra.c; sourceTree = "<group>"; };
 		58831147109E46C800FF029E /* Brogue Icon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = "Brogue Icon.icns"; sourceTree = "<group>"; };
+		58A17EDA1235ACA100647687 /* Recordings.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Recordings.c; path = BrogueCode/Recordings.c; sourceTree = "<group>"; };
 		58CA453411A8C4F9006D03FC /* PlatformDefines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PlatformDefines.h; path = PlatformCode/PlatformDefines.h; sourceTree = "<group>"; };
+		58EE4FF6120E01FB0020458E /* Random.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Random.c; path = BrogueCode/Random.c; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		8D1107320486CEB800E47090 /* Brogue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Brogue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -126,6 +130,8 @@
 				5852BB42118650A10064384E /* Globals.c */,
 				5852BB43118650A10064384E /* IncludeGlobals.h */,
 				5852BB4A118650A10064384E /* RogueMain.c */,
+				58EE4FF6120E01FB0020458E /* Random.c */,
+				58A17EDA1235ACA100647687 /* Recordings.c */,
 				5852BB40118650A10064384E /* Architect.c */,
 				5852BB41118650A10064384E /* Combat.c */,
 				5852BB9B118652BA0064384E /* Dijkstra.c */,
@@ -186,7 +192,14 @@
 			isa = PBXProject;
 			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Brogue" */;
 			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
 			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
 			mainGroup = 29B97314FDCFA39411CA2CEA /* RogueCocoa */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -227,6 +240,8 @@
 				5852BB61118650D90064384E /* RogueDriver.m in Sources */,
 				5852BB62118650D90064384E /* Viewport.m in Sources */,
 				5852BB9C118652BA0064384E /* Dijkstra.c in Sources */,
+				58EE4FF7120E01FB0020458E /* Random.c in Sources */,
+				58A17EDB1235ACA100647687 /* Recordings.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -263,11 +278,13 @@
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = RogueCocoa_Prefix.pch;
+				GCC_TREAT_IMPLICIT_FUNCTION_DECLARATIONS_AS_ERRORS = YES;
 				GCC_VERSION = 4.0;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				GCC_WARN_ABOUT_MISSING_FIELD_INITIALIZERS = NO;
 				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
 				GCC_WARN_ABOUT_MISSING_PROTOTYPES = NO;
+				GCC_WARN_ABOUT_POINTER_SIGNEDNESS = YES;
 				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
 				GCC_WARN_EFFECTIVE_CPLUSPLUS_VIOLATIONS = YES;
 				GCC_WARN_FOUR_CHARACTER_CONSTANTS = YES;
@@ -277,13 +294,16 @@
 				GCC_WARN_PROTOTYPE_CONVERSION = NO;
 				GCC_WARN_SHADOW = NO;
 				GCC_WARN_SIGN_COMPARE = NO;
-				GCC_WARN_UNUSED_FUNCTION = NO;
-				GCC_WARN_UNUSED_PARAMETER = NO;
+				GCC_WARN_UNINITIALIZED_AUTOS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_LABEL = YES;
+				GCC_WARN_UNUSED_PARAMETER = YES;
 				GCC_WARN_UNUSED_VALUE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = "$(HOME)/Applications";
 				MACOSX_DEPLOYMENT_TARGET = 10.4;
-				ONLY_ACTIVE_ARCH = YES;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_NAME = Brogue;
 			};
 			name = Debug;
@@ -292,7 +312,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ARCHS = (
+					i386,
+					ppc,
+				);
 				GCC_MODEL_TUNING = G5;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = RogueCocoa_Prefix.pch;

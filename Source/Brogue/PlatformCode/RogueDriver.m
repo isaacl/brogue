@@ -183,8 +183,8 @@ boolean pauseForMilliseconds(short milliseconds) {
 	do {
 		theEvent = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:theDate
 										 inMode:NSDefaultRunLoopMode dequeue:YES];
-		if ([theEvent type] == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask)
-			|| [theEvent type] == NSLeftMouseUp || [theEvent type] == NSLeftMouseDown) {
+		if (([theEvent type] == NSKeyDown && !([theEvent modifierFlags] & NSCommandKeyMask))
+			|| ([theEvent type] == NSLeftMouseUp || [theEvent type] == NSLeftMouseDown)) {
 			[NSApp postEvent:theEvent atStart:TRUE]; // put the event back on the queue
 			return true;
 		} else if (theEvent != nil) {
@@ -405,21 +405,4 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	[[NSUserDefaults standardUserDefaults] synchronize];
 	
 	return true;
-}
-
-// Get a random int between lowerBound and upperBound, inclusive, with uniform probability distribution
-int rand_range(int lowerBound, int upperBound) {
-	if (upperBound <= lowerBound) {
-		return lowerBound;
-	}
-	return ((random() % (upperBound - lowerBound + 1)) + lowerBound);
-}
-
-// seeds with the time if called with a parameter of 0; returns the seed regardless
-long seedRandomGenerator(long seed) {
-	if (seed == 0) {
-		seed = time(NULL);
-	}
-	srandom(seed);
-	return seed;
 }

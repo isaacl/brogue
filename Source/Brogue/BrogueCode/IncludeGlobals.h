@@ -26,7 +26,8 @@ extern pcell pmap[DCOLS][DROWS];						// grids with info about the map
 extern cellDisplayBuffer displayBuffer[COLS][ROWS];
 extern short terrainRandomValues[DCOLS][DROWS][8];
 extern char buffer[DCOLS][DROWS];						// used in cave generation
-short **safetyMap;										// used to help monsters flee
+extern short **safetyMap;										// used to help monsters flee
+extern short **allySafetyMap;
 
 extern short listOfWallsX[4][DROWS*DCOLS];
 extern short listOfWallsY[4][DROWS*DCOLS];
@@ -50,6 +51,21 @@ extern boolean messageConfirmed[3];
 extern char combatText[COLS];
 extern long levelPoints[MAX_EXP_LEVEL];
 extern short brogueCursorX, brogueCursorY;
+extern char currentFilePath[FILENAME_MAX];
+extern unsigned long randomNumbersGenerated;
+
+#ifdef AUDIT_RNG
+extern FILE *RNGLogFile;
+#endif
+
+extern unsigned char inputRecordBuffer[INPUT_RECORD_BUFFER + 10];
+extern unsigned short locationInRecordingBuffer;
+
+extern unsigned long positionInPlaybackFile;
+extern unsigned long lengthOfPlaybackFile;
+extern unsigned long recordingLocation;
+extern unsigned long maxLevelChanges;
+extern char annotationPathname[FILENAME_MAX];	// pathname of annotation file
 
 // basic colors
 extern color white;
@@ -62,11 +78,13 @@ extern color black;
 extern color yellow;
 extern color teal;
 extern color purple;
+extern color darkPurple;
 extern color brown;
 extern color green;
 extern color darkGreen;
 extern color orange;
 extern color darkOrange;
+extern color darkBlue;
 extern color pink;
 extern color tanColor;
 extern color sunlight;
@@ -100,7 +118,6 @@ extern color minersLightColor;
 extern color minersLightStartColor;
 extern color minersLightEndColor;
 extern color torchLightColor;
-extern color magicLightColor;
 extern color deepWaterLightColor;
 extern color redFlashColor;
 
@@ -123,6 +140,8 @@ extern color centipedeColor;
 extern color confusionGasColor;
 extern color lightningColor;
 
+extern color *dynamicColors[NUMBER_DYNAMIC_COLORS][3];
+
 extern floorTileType tileCatalog[NUMBER_TILETYPES];
 
 extern dungeonFeature dungeonFeatureCatalog[NUMBER_DUNGEON_FEATURES];
@@ -134,7 +153,7 @@ extern monsterWords monsterText[NUMBER_MONSTER_KINDS];
 extern hordeType hordeCatalog[NUMBER_HORDES];
 extern levelProfile levelProfileCatalog[NUMBER_LEVEL_PROFILES];
 
-color *boltColors[NUMBER_BOLT_KINDS];
+extern color *boltColors[NUMBER_BOLT_KINDS];
 
 // ITEMS
 extern char itemTitles[NUMBER_SCROLL_KINDS][30];
@@ -143,6 +162,12 @@ extern char itemColors[NUMBER_ITEM_COLORS][30];
 extern char itemWoods[NUMBER_ITEM_WOODS][30];
 extern char itemMetals[NUMBER_ITEM_METALS][30];
 extern char itemGems[NUMBER_ITEM_GEMS][30];
+
+extern char itemColorsRef[NUMBER_ITEM_COLORS][30];
+extern char itemWoodsRef[NUMBER_ITEM_WOODS][30];
+extern char itemMetalsRef[NUMBER_ITEM_METALS][30];
+extern char itemGemsRef[NUMBER_ITEM_GEMS][30];
+
 extern itemTable foodTable[NUMBER_FOOD_KINDS];
 extern itemTable weaponTable[NUMBER_WEAPON_KINDS];
 extern itemTable armorTable[NUMBER_ARMOR_KINDS];
