@@ -1254,7 +1254,7 @@ boolean openPathBetween(short x1, short y1, short x2, short y2) {
 creature *monsterAtLoc(short x, short y) {
 	creature *monst;
 	if (!(pmap[x][y].flags & (HAS_MONSTER | HAS_PLAYER))) {
-		return NULL; // really just optimization
+		return NULL;
 	}
 	if (player.xLoc == x && player.yLoc == y) {
 		return &player;
@@ -2408,5 +2408,231 @@ void demoteMonsterFromLeadership(creature *monst) {
 				follower->leader = NULL;
 			}
 		}
+	}
+}
+
+void monsterDetails(char buf[], creature *monst) {
+	char monstName[COLS], theItemName[COLS], newText[10*COLS];
+	short i, j, combatMath, combatMath2, playerKnownAverageDamage, playerKnownMaxDamage, commaCount, realArmorValue;
+	boolean anyFlags, printedDominationText = false;
+	item *theItem;
+	
+	buf[0] = '\0';
+	commaCount = 0;
+	
+	monsterName(monstName, monst, true);
+	
+	sprintf(newText, "     %s\n     ", monsterText[monst->info.monsterID].flavorText);
+	upperCase(newText);
+	strcat(buf, newText);
+	
+	if (!rogue.armor || (rogue.armor->flags & ITEM_IDENTIFIED)) {
+		combatMath2 = hitProbability(monst, &player);
+	} else {
+		realArmorValue = player.info.defense;
+		player.info.defense = (armorTable[rogue.armor->kind].range.upperBound + armorTable[rogue.armor->kind].range.lowerBound) / 2;
+		combatMath2 = hitProbability(monst, &player);
+		player.info.defense = realArmorValue;
+	}
+	
+	if (monst->info.damage.upperBound == 0) {
+		sprintf(newText, "%s deals no direct damage.\n     ", monstName);
+	} else {
+		combatMath = (player.currentHP + monst->info.damage.upperBound - 1) / monst->info.damage.upperBound;
+		sprintf(newText, "%s has a %i%% chance to hit you, typically hits for %i%% of your maximum HP, and at worst, could defeat you in %i hit%s.\n     ",
+				monstName,
+				combatMath2,
+				100 * (monst->info.damage.lowerBound + monst->info.damage.upperBound) / 2 / player.info.maxHP,
+				combatMath,
+				(combatMath > 1 ? "s" : ""));
+	}
+	upperCase(newText);
+	strcat(buf, newText);
+	
+	if (monst->creatureState == MONSTER_ALLY) {
+		sprintf(newText, "%s is your ally.", monstName);
+	} else if (monst->bookkeepingFlags & MONST_CAPTIVE) {
+		sprintf(newText, "%s is being held captive.", monstName);
+	} else {
+		
+		if (!rogue.weapon || (rogue.weapon->flags & ITEM_IDENTIFIED)) {
+			playerKnownAverageDamage = (player.info.damage.upperBound + player.info.damage.lowerBound) / 2;
+			playerKnownMaxDamage = player.info.damage.upperBound;
+		} else {
+			playerKnownAverageDamage = (rogue.weapon->damage.upperBound + rogue.weapon->damage.lowerBound) / 2;
+			playerKnownMaxDamage = rogue.weapon->damage.upperBound;
+		}
+		
+		if (playerKnownMaxDamage == 0) {
+			sprintf(newText, "You deal no direct damage.");
+		} else {
+			combatMath = (monst->currentHP + playerKnownMaxDamage - 1) / playerKnownMaxDamage;
+			if (rogue.weapon && !(rogue.weapon->flags & ITEM_IDENTIFIED)) {
+				realArmorValue = rogue.weapon->enchant1;
+				rogue.weapon->enchant1 = 0;
+				combatMath2 = hitProbability(&player, monst);
+				rogue.weapon->enchant1 = realArmorValue;
+			} else {
+				combatMath2 = hitProbability(&player, monst);
+			}
+			sprintf(newText, "You have a %i%% chance to hit %s, typically hit for %i%% of its maximum HP, and at best, could defeat it in %i hit%s.",
+					combatMath2,
+					monstName,
+					100 * playerKnownAverageDamage / monst->info.maxHP,
+					combatMath,
+					(combatMath > 1 ? "s" : ""));
+		}
+	}
+	upperCase(newText);
+	strcat(buf, newText);
+	
+	anyFlags = false;
+	for (theItem = packItems->nextItem; theItem != NULL; theItem = theItem->nextItem) {
+		itemName(theItem, theItemName, false, false);
+		
+		if (theItem->category == STAFF
+			&& (theItem->flags & (ITEM_MAX_CHARGES_KNOWN | ITEM_IDENTIFIED))
+			&& (staffTable[theItem->kind].identified)) {
+			switch (theItem->kind) {
+				case STAFF_FIRE:
+				case STAFF_LIGHTNING:
+					sprintf(newText, "\n     Your %s (%c) will hit %s for between %i%% and %i%% of its maximum HP.",
+							theItemName,
+							theItem->inventoryLetter,
+							monstName,
+							100 * staffDamageLow(theItem->enchant1) / monst->info.maxHP,
+							100 * staffDamageHigh(theItem->enchant1) / monst->info.maxHP);
+					strcat(buf, newText);
+					anyFlags = true;
+					break;
+				case STAFF_POISON:
+					sprintf(newText, "\n     Your %s (%c) will poison %s for %i%% of its maximum HP.",
+							theItemName,
+							theItem->inventoryLetter,
+							monstName,
+							100 * staffPoison(theItem->enchant1) / monst->info.maxHP);
+					strcat(buf, newText);
+					anyFlags = true;
+					break;
+				default:
+					break;
+			}
+		} else if (theItem->category == WAND
+				   && theItem->kind == WAND_DOMINATION
+				   && wandTable[WAND_DOMINATION].identified
+				   && !printedDominationText) {
+			printedDominationText = true;
+			sprintf(newText, "\n     A wand of domination will have a %i%% chance of success at %s's current health level.",
+					wandDominate(monst),
+					monstName);
+			strcat(buf, newText);
+			anyFlags = true;
+		}
+	}
+	if (anyFlags) {
+		strcat(buf, "\n     ");
+	}
+	
+	anyFlags = false;
+	sprintf(newText, "%s ", monstName);
+	upperCase(newText);
+	
+	if (monst->attackSpeed < 100) {
+		strcat(newText, "attacks quickly");
+		anyFlags = true;
+	} else if (monst->attackSpeed > 100) {
+		strcat(newText, "attacks slowly");
+		anyFlags = true;
+	}
+	
+	if (monst->movementSpeed < 100) {
+		if (anyFlags) {
+			strcat(newText, "& ");
+			commaCount++;
+		}
+		strcat(newText, "moves quickly");
+		anyFlags = true;
+	} else if (monst->movementSpeed > 100) {
+		if (anyFlags) {
+			strcat(newText, "& ");
+			commaCount++;
+		}
+		strcat(newText, "moves slowly");
+		anyFlags = true;
+	}
+	
+	if (monst->info.turnsBetweenRegen == 0) {
+		if (anyFlags) {
+			strcat(newText, "& ");
+			commaCount++;
+		}
+		strcat(newText, "does not regenerate");
+		anyFlags = true;
+	} else if (monst->info.turnsBetweenRegen < 5000) {
+		if (anyFlags) {
+			strcat(newText, "& ");
+			commaCount++;
+		}
+		strcat(newText, "regenerates quickly");
+		anyFlags = true;
+	}
+	
+	// ability flags
+	for (i=0; i<32; i++) {
+		if ((monst->info.abilityFlags & (1 << i))
+			&& monsterAbilityFlagDescriptions[i][0]) {
+			if (anyFlags) {
+				strcat(newText, "& ");
+				commaCount++;
+			}
+			strcat(newText, monsterAbilityFlagDescriptions[i]);
+			anyFlags = true;
+		}
+	}
+	
+	// behavior flags
+	for (i=0; i<32; i++) {
+		if ((monst->info.flags & (1 << i))
+			&& monsterBehaviorFlagDescriptions[i][0]) {
+			if (anyFlags) {
+				strcat(newText, "& ");
+				commaCount++;
+			}
+			strcat(newText, monsterBehaviorFlagDescriptions[i]);
+			anyFlags = true;
+		}
+	}
+	
+	// bookkeeping flags
+	for (i=0; i<32; i++) {
+		if ((monst->bookkeepingFlags & (1 << i))
+			&& monsterBookkeepingFlagDescriptions[i][0]) {
+			if (anyFlags) {
+				strcat(newText, "& ");
+				commaCount++;
+			}
+			strcat(newText, monsterBookkeepingFlagDescriptions[i]);
+			anyFlags = true;
+		}
+	}
+	
+	if (anyFlags) {
+		strcat(newText, ".");
+		//strcat(buf, "\n\n");
+		j = strlen(buf);
+		for (i=0; newText[i] != '\0'; i++) {
+			if (newText[i] == '&') {
+				if (!--commaCount) {
+					buf[j] = '\0';
+					strcat(buf, " and");
+					j += 4;
+				} else {
+					buf[j++] = ',';
+				}
+			} else {
+				buf[j++] = newText[i];
+			}
+		}
+		buf[j] = '\0';
 	}
 }

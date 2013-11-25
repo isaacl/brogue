@@ -82,6 +82,7 @@
 
 #define LOS_SLOPE_GRANULARITY	32768		// how finely we divide up the squares when calculating slope;
 											// higher numbers mean fewer artifacts but more memory and processing
+#define MAX_BOLT_LENGTH			DCOLS*10
 
 #define VISIBILITY_THRESHOLD	50			// how bright cumulative light has to be before the cell is marked visible
 
@@ -438,7 +439,7 @@ enum weaponEnchants {
 	W_MERCY,
 	NUMBER_GOOD_WEAPON_ENCHANT_KINDS = W_MERCY,
 	W_PLENTY,
-	NUMBER_WEAPON_ENCHANT_KINDS
+	NUMBER_WEAPON_RUNIC_KINDS
 };
 
 enum armorKind {
@@ -760,6 +761,24 @@ typedef struct levelSpecProfile {
 
 #define CYCLE_MONSTERS_AND_PLAYERS(x)	for ((x) = &player; (x) != NULL; (x) = ((x) == &player ? monsters->nextCreature : (x)->nextCreature))
 
+// game data formulae:
+
+#define staffDamageLow(enchant)				(3 * (2 + (enchant)) / 4)
+#define staffDamageHigh(enchant)			(4 + 5 * (enchant) / 2)
+#define staffDamage(enchant)				(randClumpedRange(staffDamageLow(enchant), staffDamageHigh(enchant), 1 + (enchant) / 3))
+#define staffPoison(enchant)				((int) (5 * pow(1.53, (double) (enchant) - 2)))
+#define staffBlinkDistance(enchant)			((enchant) * 2 + 2)
+#define staffHasteDuration(enchant)			(2 + (enchant) * 4)
+#define staffBladeCount(enchant)			((int) ((enchant) * 3 / 2))
+#define staffDiscordDuration(enchant)		((enchant) * 4)
+
+#define wandDominate(monst)					(((monst)->currentHP * 5 < (monst)->info.maxHP) ? 100 : \
+											100 * ((monst)->info.maxHP - (monst)->currentHP) / (monst)->info.maxHP)
+
+#define weaponPoisonDuration(enchant)		(max(5, ((int) 10 * pow(1.53, (enchant) - 2))))
+#define weaponParalysisDuration(enchant)	(max(2, 2 + (enchant)))
+#define weaponConfusionDuration(enchant)	(max(3, 2 * (enchant)))
+
 // structs
 
 enum dungeonLayers {
@@ -896,6 +915,7 @@ typedef struct itemTable {
 	randomRange range;
 	boolean identified;
 	boolean called;
+	char description[1500];
 } itemTable;
 
 enum dungeonFeatureTypes {
@@ -1541,6 +1561,7 @@ extern "C" {
 	void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance);
 	short getHighScoresList(rogueHighScoresEntry returnList[20]);
 	boolean saveHighScore(rogueHighScoresEntry theEntry);
+	void initializeBrogueSaveLocation();
 	char nextKeyPress();
 	void refreshSideBar(creature *focusMonst);
 	void printHelpScreen();
@@ -1551,12 +1572,15 @@ extern "C" {
 	void printSeed();
 	void printProgressBar(short x, short y, char barLabel[COLS], long amtFilled, long amtMax, color *fillColor, boolean dim);
 	short printMonsterInfo(creature *monst, short y, boolean dim);
-	void printTextBox(char *textBuf, short x, color *foreColor, color *backColor, cellDisplayBuffer rbuf[COLS][ROWS]);
+	void printTextBox(char *textBuf, short x, short y, short width,
+					  color *foreColor, color *backColor, cellDisplayBuffer rbuf[COLS][ROWS]);
 	void printMonsterDetails(creature *monst, cellDisplayBuffer rbuf[COLS][ROWS]);
+	void printItemDetails(item *theItem, cellDisplayBuffer rbuf[COLS][ROWS]);
 	void funkyFade(cellDisplayBuffer displayBuf[COLS][ROWS], color *colorStart, color *colorEnd, short stepCount, short x, short y, boolean invert);
 	void displayCenteredAlert(char *message);
 	void flashTemporaryAlert(char *message, int time);
 	void waitForAcknowledgment();
+	void waitForKeystrokeOrMouseClick();
 	boolean confirm(char *prompt, boolean alsoDuringPlayback);
 	void refreshDungeonCell(short x, short y);
 	void applyColorMultiplier(color *baseColor, color *multiplierColor);
@@ -1672,6 +1696,7 @@ extern "C" {
 	void clearStatus(creature *monst);
 	void monsterShoots(creature *attacker, short targetLoc[2], uchar projChar, color *projColor);
 	void shootWeb(creature *breather, short targetLoc[2], short kindOfWeb);
+	short runicWeaponChance(item *theItem, boolean customEnchantLevel, float enchantLevel);
 	void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed);
 	void teleport(creature *monst);
 	void chooseNewWanderDestination(creature *monst);
@@ -1682,6 +1707,7 @@ extern "C" {
 	void wakeUp(creature *monst);
 	boolean canSeeMonster(creature *monst);
 	void monsterName(char *buf, creature *monst, boolean includeArticle);
+	float strengthModifier(item *theItem);
 	float netEnchant(item *theItem);
 	short hitProbability(creature *attacker, creature *defender);
 	boolean attackHit(creature *attacker, creature *defender);
@@ -1731,6 +1757,7 @@ extern "C" {
 	boolean getQualifyingLocNear(short loc[2], short x, short y, short maxRadius,
 								 unsigned long forbiddenTerrainFlags, unsigned long forbiddenMapFlags, boolean forbidLiquid);
 	void demoteMonsterFromLeadership(creature *monst);
+	void monsterDetails(char buf[], creature *monst);
 	void makeMonsterDropItem(creature *monst);
 	void throwCommand();
 	void apply(item *theItem);
@@ -1751,6 +1778,7 @@ extern "C" {
 	item *itemAtLoc(short x, short y);
 	item *dropItem(item *theItem);
 	boolean isVowel(char theChar);
+	void itemDetails(char *buf, item *theItem);
 	void deleteItem(item *theItem);
 	void shuffleFlavors();
 	void combatMessage(char *theMsg);

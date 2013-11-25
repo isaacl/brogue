@@ -176,6 +176,9 @@ extern itemTable potionTable[NUMBER_POTION_KINDS];
 extern itemTable wandTable[NUMBER_WAND_KINDS];
 extern itemTable staffTable[NUMBER_STAFF_KINDS];
 extern itemTable ringTable[NUMBER_RING_KINDS];
+extern const char weaponRunicNames[NUMBER_WEAPON_RUNIC_KINDS][30];
+
+extern const char armorRunicNames[NUMBER_ARMOR_ENCHANT_KINDS][30];
 
 extern short goodItems[NUMBER_GOOD_ITEMS][2];
 

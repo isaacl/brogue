@@ -21,6 +21,9 @@
 //  along with Brogue.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include <limits.h>
+#include <unistd.h>
+#include "CoreFoundation/CoreFoundation.h"
 #import "RogueDriver.h"
 
 #define BROGUE_VERSION	2
@@ -405,4 +408,20 @@ boolean saveHighScore(rogueHighScoresEntry theEntry) {
 	[[NSUserDefaults standardUserDefaults] synchronize];
 	
 	return true;
+}
+
+void initializeBrogueSaveLocation() {
+    char path[PATH_MAX];
+	CFBundleRef mainBundle = CFBundleGetMainBundle();
+    CFURLRef bundleURL = CFBundleCopyBundleURL(mainBundle);
+	CFURLRef saveURL = CFURLCreateCopyDeletingLastPathComponent(NULL, bundleURL);
+	
+    if (!CFURLGetFileSystemRepresentation(saveURL, TRUE, (UInt8 *)path, PATH_MAX)) {
+        // error!
+    }
+	
+    CFRelease(saveURL);
+    CFRelease(bundleURL);
+	
+    chdir(path);
 }

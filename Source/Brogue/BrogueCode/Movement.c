@@ -429,16 +429,19 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 	enum dungeonLayers layer;
 	creature *previousCreature;
 	
+	// I don't remember what this is for
 	if (monst == &player && !player.status.levitating) {
 		pmap[*x][*y].flags |= PLAYER_STEPPED_HERE;
 	}
 	
+	// you will discover the secrets of any tile you stand on
 	if (monst == &player && !(monst->status.levitating) && cellHasTerrainFlag(*x, *y, IS_SECRET)
 		&& playerCanSee(*x, *y)) {
 		
 		discover(*x, *y);
 	}
 	
+	// visual effect for submersion in water
 	if (monst == &player) {
 		if (rogue.inWater) {
 			if (!cellHasTerrainFlag(player.xLoc, player.yLoc, IS_DEEP_WATER) || player.status.levitating
@@ -461,6 +464,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// lava
 	if (!(monst->status.levitating) && !(monst->info.flags & MONST_IMMUNE_TO_FIRE)
 		&& !cellHasTerrainFlag(*x, *y, ENTANGLES)
 		&& !cellHasTerrainFlag(*x, *y, OBSTRUCTS_PASSABILITY)
@@ -488,32 +492,27 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// water puts out fire
 	if (cellHasTerrainFlag(*x, *y, EXTINGUISHES_FIRE) && monst->status.burning && !monst->status.levitating
 		&& !(monst->info.flags & MONST_FIERY)) {
 		extinguishFireOnCreature(monst);
 	}
 	
+	// if you see a monster use a secret door, you discover it
 	if (playerCanSee(*x, *y) && cellHasTerrainFlag(*x, *y, IS_SECRET)
 		&& (cellHasTerrainFlag(*x, *y, OBSTRUCTS_PASSABILITY) || !monst->status.levitating)) {
-		discover(*x, *y); // if you see a monster use a secret door, you discover it
+		discover(*x, *y);
 	}
 	
+	// creatures plunge into chasms and through trap doors
 	if (!(monst->status.levitating)
 		&& cellHasTerrainFlag(*x, *y, TRAP_DESCENT)
 		&& !cellHasTerrainFlag(*x, *y, ENTANGLES | OBSTRUCTS_PASSABILITY)
 		&& !(monst->bookkeepingFlags & MONST_PREPLACED)) {
 		if (monst == &player) {
+			// player falling takes place at the end of the turn
 			if (!rogue.alreadyFell) {
 				rogue.alreadyFell = true;
-//				rogue.disturbed = true;
-//				message(tileFlavor(player.xLoc, player.yLoc), true, true);
-//				rogue.depthLevel++;
-//				startLevel(rogue.depthLevel - 1, 0);
-//				damage = randClumpedRange(6, 12, 2);
-//				message("You are damaged by the fall.", true, false);
-//				if (inflictDamage(NULL, &player, damage, &red)) {
-//					gameOver("Killed by a fall", true);
-//				}
 				return;
 			}
 		} else { // it's a monster
@@ -543,6 +542,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// pressure plates
 	if (!(monst->status.levitating) && cellHasTerrainFlag(*x, *y, IS_DF_TRAP)
 		&& !(pmap[*x][*y].flags & PRESSURE_PLATE_DEPRESSED)) {
 		pmap[*x][*y].flags |= PRESSURE_PLATE_DEPRESSED;
@@ -567,8 +567,9 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 	}
 	
 	if (cellHasTerrainFlag(*x, *y, PROMOTES_ON_STEP)) { // flying creatures activate too
-		// Because this uses no pressure plate, it will trigger every time this function is called while
-		// the monster or player is on the tile. Because this function can be called several times per
+		// Because this uses no pressure plate to keep track of whether it's already depressed,
+		// it will trigger every time this function is called while the monster or player is on the tile.
+		// Because this function can be called several times per
 		// turn, multiple promotions can happen unpredictably if the tile does not promote to a tile without
 		// the PROMOTES_ON_STEP attribute.
 		for (layer = 0; layer < NUMBER_TERRAIN_LAYERS; layer++) {
@@ -578,6 +579,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// spiderwebs
 	if (cellHasTerrainFlag(*x, *y, ENTANGLES) && !monst->status.stuck
 		&& !(monst->info.flags & MONST_IMMUNE_TO_WEBS) && !(monst->bookkeepingFlags & MONST_SUBMERGED)) {
 		monst->status.stuck = monst->maxStatus.stuck = rand_range(3, 7);
@@ -593,6 +595,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// explosions
 	if (cellHasTerrainFlag(*x, *y, CAUSES_EXPLOSIVE_DAMAGE) && !monst->status.explosionImmunity
 		&& !(monst->bookkeepingFlags & MONST_SUBMERGED)) {
 		damage = rand_range(15, 20);
@@ -629,7 +632,10 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
-	if (cellHasTerrainFlag(*x, *y, CAUSES_NAUSEA) && !(monst->info.flags & MONST_INANIMATE) && !(monst->bookkeepingFlags & MONST_SUBMERGED)) {
+	// zombie gas
+	if (cellHasTerrainFlag(*x, *y, CAUSES_NAUSEA)
+		&& !(monst->info.flags & MONST_INANIMATE)
+		&& !(monst->bookkeepingFlags & MONST_SUBMERGED)) {
 		if (monst == &player) {
 			rogue.disturbed = true;
 		}
@@ -646,6 +652,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		monst->status.nauseous = monst->maxStatus.nauseous = max(monst->status.nauseous, 20);
 	}
 	
+	// poisonous lichen
 	if (cellHasTerrainFlag(*x, *y, CAUSES_POISON) && !(monst->info.flags & MONST_INANIMATE) && !monst->status.levitating) {
 		if (monst == &player && !player.status.poisoned) {
 			rogue.disturbed = true;
@@ -662,6 +669,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		monst->status.poisoned = monst->maxStatus.poisoned = max(monst->status.poisoned, 10);
 	}
 	
+	// confusion gas
 	if (cellHasTerrainFlag(*x, *y, CAUSES_CONFUSION) && !(monst->info.flags & MONST_INANIMATE)) {
 		if (monst == &player) {
 			rogue.disturbed = true;
@@ -678,6 +686,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		monst->status.confused = monst->maxStatus.confused = max(monst->status.confused, 25);
 	}
 	
+	// paralysis gas
 	if (cellHasTerrainFlag(*x, *y, CAUSES_PARALYSIS) && !(monst->info.flags & MONST_INANIMATE) && !(monst->bookkeepingFlags & MONST_SUBMERGED)) {
 		if (canSeeMonster(monst) && !monst->status.paralyzed) {
 			flashMonster(monst, &pink, 100);
@@ -691,6 +700,7 @@ void applyInstantTileEffectsToCreature(creature *monst) {
 		}
 	}
 	
+	// fire
 	if (cellHasTerrainFlag(*x, *y, IS_FIRE)) {
 		exposeCreatureToFire(monst);
 	} else if (cellHasTerrainFlag(*x, *y, IS_FLAMMABLE)
@@ -1440,11 +1450,18 @@ boolean explore(short frameDelay) {
 	creature *monst;
 	
 	distanceMap = allocDynamicGrid();
-	
+	// costMap = allocDynamicGrid();
 	
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
+			// prefer to explore near level edges to avoid too much retreading
 			goalValue[i][j] = 0 - abs(i - DCOLS / 2) - abs(j - DROWS / 2);
+			// prefer to explore steps that the player has already tread as they are safe from traps
+			//if ((pmap[i][j].flags & PLAYER_STEPPED_HERE)) {
+//				costMap[i][j] = 1;
+//			} else {
+//				costMap[i][j] = 1;
+//			}
 		}
 	}
 	
@@ -1507,7 +1524,7 @@ boolean explore(short frameDelay) {
 					monst = NULL;
 				}
 				
-				if (!(pmap[i][j].flags & DISCOVERED)) {
+				if (!(pmap[i][j].flags & (DISCOVERED | PLAYER_STEPPED_HERE))) {
 					passMap[i][j] = true;
 					distanceMap[i][j] = goalValue[i][j];
 				} else if ((theItem && !(theItem->flags & ITEM_NAMED) && !monsterAvoids(&player, i, j))) {
@@ -1526,6 +1543,20 @@ boolean explore(short frameDelay) {
 		}
 		
 		dijkstraScan(distanceMap, NULL, passMap, false);
+		
+		// give the advantage to squares the player has already stepped, since they are safe from traps
+		
+//		for (i=0; i<DCOLS; i++) {
+//			for (j=0; j<DROWS; j++) {
+//				if (distanceMap[i][j] < 15000
+//					&& distanceMap[i][j] > -15000) {
+//					distanceMap[i][j] *= 2;
+//				}
+//				if ((pmap[i][j].flags & PLAYER_STEPPED_HERE)) {
+//					distanceMap[i][j] -= 1;
+//				}
+//			}
+//		}
 		
 		// take a step
 		dir = nextStep(distanceMap, player.xLoc, player.yLoc);
@@ -1559,6 +1590,7 @@ boolean explore(short frameDelay) {
 	//commitDraws();
 	
 	freeDynamicGrid(distanceMap);
+	//freeDynamicGrid(costMap);
 	
 	return madeProgress;
 }
@@ -1566,12 +1598,13 @@ boolean explore(short frameDelay) {
 void examineMode() {
 	short originLoc[2], targetLoc[2], oldTargetLoc[2], oldRNG;
 	creature *monst;
+	item *theItem;
 	cellDisplayBuffer rbuf[COLS][ROWS];
-	boolean canceled, targetConfirmed, tabKey, focusedOnMonster, playingBack;
+	boolean canceled, targetConfirmed, tabKey, focusedOnMonster, focusedOnItem, playingBack;
 	
 	playingBack = rogue.playbackMode;
 	rogue.playbackMode = false;
-	focusedOnMonster = false;
+	focusedOnMonster = focusedOnItem = false;
 	
 	oldRNG = rogue.RNG;
 	rogue.RNG = RNG_COSMETIC;
@@ -1607,6 +1640,16 @@ void examineMode() {
 			}
 		}
 		
+		theItem = itemAtLoc(targetLoc[0], targetLoc[1]);
+		if (theItem != NULL
+			&& (theItem->flags & ITEM_NAMED)
+			&& (!player.status.hallucinating || playingBack)
+			&& ((pmap[targetLoc[0]][targetLoc[1]].flags & (VISIBLE | CLAIRVOYANT_VISIBLE)) || rogue.playbackOmniscience)) {
+
+			focusedOnItem = true;
+			printItemDetails(theItem, rbuf);
+		}
+		
 		moveCursor(&targetConfirmed, &canceled, &tabKey, targetLoc);
 		
 		if (playingBack) {
@@ -1621,6 +1664,11 @@ void examineMode() {
 			if (!player.status.hallucinating || playingBack) {
 				overlayDisplayBuffer(rbuf, 0);
 			}
+		}
+		
+		if (focusedOnItem) {
+			focusedOnItem = false;
+			overlayDisplayBuffer(rbuf, 0);
 		}
 		
 		if (tabKey) {
@@ -1886,7 +1934,7 @@ void promoteTile(short x, short y, enum dungeonLayers layer, boolean useFireDF) 
 		if (tileCatalog[pmap[x][y].layers[layer]].flags & PATHING_BLOCKER) {
 			rogue.staleLoopMap = true;
 		}
-		pmap[x][y].layers[layer] = (layer == DUNGEON ? FLOOR : NOTHING);
+		pmap[x][y].layers[layer] = (layer == DUNGEON ? FLOOR : NOTHING); // even the dungeon layer implicitly has floor underneath it
 		if (layer == GAS) {
 			pmap[x][y].volume = 0;
 		}
@@ -1914,7 +1962,7 @@ boolean exposeTileToFire(short x, short y, boolean alwaysIgnite) {
 		}
 	}
 	
-	if (alwaysIgnite || rand_percent(ignitionChance)) {	// if it ignites
+	if (alwaysIgnite || (ignitionChance && rand_percent(ignitionChance))) {	// if it ignites
 		fireIgnited = true;
 		
 		// flammable layers are consumed
