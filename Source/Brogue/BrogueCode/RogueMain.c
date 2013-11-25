@@ -173,7 +173,7 @@ void initializeRogue() {
 	
 	// initialize the levels list
 	for (i=0; i<101; i++) {
-		levels[i].levelSeed = (unsigned long) rand_range(0, 9999) + 10000 * rand_range(0, 9999);
+		levels[i].levelSeed = (unsigned long) (rand_range(0, 9999) + 10000 * rand_range(0, 9999));
 		levels[i].monsters = NULL;
 		levels[i].items = NULL;
 		levels[i].roomStorage = NULL;
@@ -628,7 +628,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	
 	if (!levels[rogue.depthLevel - 1].visited) { // level has not already been visited
 		// generate new level
-		oldSeed = (unsigned long) rand_range(0, 9999) + 10000 * rand_range(0, 9999);
+		oldSeed = (unsigned long) (rand_range(0, 9999) + 10000 * rand_range(0, 9999));
 		seedRandomGenerator(levels[rogue.depthLevel - 1].levelSeed);
 		thisLevelProfile = &(levelProfileCatalog[rand_range(0, NUMBER_LEVEL_PROFILES - 1)]);
 		digDungeon();

@@ -1496,7 +1496,7 @@ they mean one thing: riches.",
 						strcat(buf, buf2);
 						break;
 					case RING_TRANSFERENCE:
-						sprintf(buf2, "\n\nEach blow you land will %s you by %i%% of the damage you inflict. (If the ring is enchanted, this will %i to %i%%.)",
+						sprintf(buf2, "\n\nEach blow you land will %s you by %i%% of the damage you inflict. (If the ring is enchanted, this will %s to %i%%.)",
 								(theItem->enchant1 > 0 ? "heal" : "harm"),
 								abs(theItem->enchant1) * 10,
 								(theItem->enchant1 > 0 ? "increase" : "decrease"),
