@@ -1,6 +1,6 @@
 LIBTCODDIR=libtcod-1.5.1
 SDLDIR=SDL-1.2.14
-CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -I$(SDLDIR)/include -IBrogueCode -IPlatformCode -DBROGUE-TCOD -Wall
+CFLAGS=$(FLAGS) -I$(LIBTCODDIR)/include -I$(SDLDIR)/include -IBrogueCode -IPlatformCode -DBROGUE_TCOD -Wall
 
 %.o : %.c
 	gcc $(CFLAGS) -O2 -s -o $@ -c $< 
@@ -20,7 +20,7 @@ OBJS=BrogueCode/Architect.o \
 	BrogueCode/Random.o \
 	BrogueCode/Recordings.o \
 	PlatformCode/main.o \
-	PlatformCode/platformdependent.o 
+	PlatformCode/platformdependent.o \
 	PlatformCode/tcod-platform.o 
 
 all : brogue
@@ -29,4 +29,4 @@ brogue-icon.o : brogue-icon.ico icon.rc
 	windres icon.rc brogue-icon.o
 
 brogue : ${OBJS} brogue-icon.o 
-	g++ -o brogue.exe ${OBJS} brogue-icon.o -L. -ltcod-mingw -lSDL.dll -mwindows
+	g++ -o brogue.exe ${OBJS} brogue-icon.o -L. -ltcod-mingw -lSDL -L$(LIBTCODDIR)/ -static-libgcc -static-libstdc++ -mwindows

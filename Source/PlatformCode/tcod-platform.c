@@ -19,15 +19,23 @@ static TCOD_key_t bufferedKey = {TCODK_NONE};
 static struct mouseState brogueMouse = {0, 0, 0, 0};
 static struct mouseState missedMouse = {-1, -1, 0, 0};
 
+static int desktop_width, desktop_height;
+
 static void gameLoop()
 {
 	char font[60];
 	
-	int screenWidth, screenHeight;
 	int fontWidths[13] = {112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 272, 288, 304}; // widths of the font graphics (divide by 16 to get individual character width)
 	int fontHeights[13] = {176, 208, 240, 272, 304, 336, 368, 400, 432, 464, 496, 528, 528}; // heights of the font graphics (divide by 16 to get individual character height)
 
-	TCOD_sys_get_current_resolution(&screenWidth, &screenHeight);
+	if (SDL_Init(SDL_INIT_VIDEO)) {
+		printf ("Could not start SDL.\n");
+		return;
+	}
+
+	const SDL_VideoInfo* vInfo = SDL_GetVideoInfo();
+	int screenWidth = desktop_width = vInfo->current_w;
+	int screenHeight = desktop_height = vInfo->current_h;
 
 	// adjust for title bars and whatever -- very approximate, but better than the alternative
 	screenWidth -= 6;
@@ -39,6 +47,8 @@ static void gameLoop()
 
 	sprintf(font, "fonts/font-%i.png", brogueFontSize);
 	
+	SDL_WM_SetIcon(SDL_LoadBMP("icon.bmp"), NULL);
+
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
 	TCOD_console_init_root(COLS, ROWS, "Brogue", false, renderer);
 	TCOD_console_map_ascii_codes_to_font(0, 255, 0, 0);
@@ -92,7 +102,8 @@ static void tcod_plotChar(uchar inputChar,
 			case OMEGA_CHAR: inputChar = 144 + 6; break;
 			case THETA_CHAR: inputChar = 144 + 7; break;
 			case LAMDA_CHAR: inputChar = 144 + 8; break;
-			case KOPPA_CHAR: inputChar = 144 + 9; break;
+			case KOPPA_CHAR: inputChar = 144 + 9; break; // is this right?
+			case CHARM_CHAR: inputChar = 144 + 9; break;
 			case LOZENGE_CHAR: inputChar = 144 + 10; break;
 			case CROSS_PRODUCT_CHAR: inputChar = 144 + 11; break;
 #endif
@@ -106,12 +117,16 @@ static void initWithFont(int fontSize)
 {
 	char font[80];
 	
-	sprintf(font,"fonts/font-%i.png",fontSize);
-	
+	sprintf(font, "fonts/font-%i.png", fontSize);
+
 	TCOD_console_set_custom_font(font, (TCOD_FONT_TYPE_GREYSCALE | TCOD_FONT_LAYOUT_ASCII_INROW), 0, 0);
 	TCOD_console_init_root(COLS, ROWS, "Brogue", 0, renderer);
+
 	TCOD_console_map_ascii_codes_to_font(0, 255, 0, 0);
 	TCOD_console_set_keyboard_repeat(175, 30);
+
+	SDL_WM_SetIcon(SDL_LoadBMP("icon.bmp"), NULL);
+
 	refreshScreen();
 }
 
@@ -121,6 +136,16 @@ static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 		TCOD_sys_save_screenshot(NULL);
 		return true;
 	} else if ( (k.vk == TCODK_F12) || ((k.lalt || k.ralt) && (k.vk == TCODK_ENTER || k.vk == TCODK_KPENTER) )) {
+		if (!isFullScreen) {
+			int font_w, font_h;
+
+			TCOD_sys_get_char_size(&font_w, &font_h);
+			if (desktop_width < font_w * COLS || desktop_height < font_h * ROWS) {
+				// refuse to go full screen if the font is too big
+				return true;
+			}
+		}
+
 		isFullScreen = !isFullScreen;
 		TCOD_console_set_fullscreen(isFullScreen);
 		return true;
@@ -135,7 +160,7 @@ static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 
 		brogueFontSize++;
 		TCOD_console_delete(NULL);
-		//TCODConsole::root=NULL;
+
 		initWithFont(brogueFontSize);
 
 		TCOD_console_flush();
@@ -143,9 +168,15 @@ static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 	} else if ((k.vk == TCODK_PAGEDOWN
 				|| ((!text) && k.vk == TCODK_CHAR && k.c == '-'))
 			   && brogueFontSize > 1) {
+
+		if (isFullScreen) {
+			TCOD_console_set_fullscreen(0);
+			isFullScreen = 0;
+		}
+
 		brogueFontSize--;
 		TCOD_console_delete(NULL);
-		//TCODConsole::root=NULL;
+
 		initWithFont(brogueFontSize);
 		TCOD_console_flush();
 		return true;
@@ -284,9 +315,18 @@ static boolean tcod_pauseForMilliseconds(short milliseconds)
 	TCOD_console_flush();
 	TCOD_sys_sleep_milli((unsigned int) milliseconds);
 
+	
+	#ifdef TCOD_EVENT_MOUSE
+	if (bufferedKey.vk == TCODK_NONE) {
+		TCOD_sys_check_for_event(TCOD_EVENT_KEY_PRESS | TCOD_EVENT_MOUSE, &bufferedKey, &mouse);
+	} else {
+		TCOD_sys_check_for_event(TCOD_EVENT_MOUSE, &bufferedKey, &mouse);
+	}
+	#else
 	if (bufferedKey.vk == TCODK_NONE) {
 		bufferedKey = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
 	}
+	#endif
 	
 	if (missedMouse.lmb == 0 && missedMouse.rmb == 0) {
 		mouse = TCOD_mouse_get_status();
@@ -302,7 +342,7 @@ static boolean tcod_pauseForMilliseconds(short milliseconds)
 }
 
 
-#define PAUSE_BETWEEN_EVENT_POLLING		34//17
+#define PAUSE_BETWEEN_EVENT_POLLING		36//17
 
 static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput, boolean colorsDance)
 {
@@ -382,7 +422,12 @@ static void tcod_nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean textInput,
 		}
 
 		
+		#ifdef TCOD_EVENT_MOUSE
+		TCOD_sys_check_for_event(TCOD_EVENT_KEY_PRESS | TCOD_EVENT_MOUSE, &key, &mouse);
+		#else
 		key = TCOD_console_check_for_keypress(TCOD_KEY_PRESSED);
+		#endif
+
 		rewriteKey(&key, textInput);
 		if (processKeystroke(key, returnEvent, textInput)) {
 			return;

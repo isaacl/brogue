@@ -42,14 +42,23 @@
 #define MENU_FLAME_DENOMINATOR			(100 + MENU_FLAME_RISE_SPEED + MENU_FLAME_SPREAD_SPEED)
 
 void drawMenuFlames(signed short flames[COLS][(ROWS + MENU_FLAME_ROW_PADDING)][3], unsigned char mask[COLS][ROWS]) {
-	short i, j;
+	short i, j, versionStringLength;
 	color tempColor = {0};
 	const color *maskColor = &black;
+    char dchar;
+    
+    versionStringLength = strLenWithoutEscapes(BROGUE_VERSION_STRING);
 	
 	for (j=0; j<ROWS; j++) {
 		for (i=0; i<COLS; i++) {
+            if (j == ROWS - 1 && i >= COLS - versionStringLength) {
+                dchar = BROGUE_VERSION_STRING[i - (COLS - versionStringLength)];
+            } else {
+                dchar = ' ';
+            }
+            
 			if (mask[i][j] == 100) {
-				plotCharWithColor(' ', i, j, *maskColor, *maskColor);
+				plotCharWithColor(dchar, i, j, darkGray, *maskColor);
 			} else {
 				tempColor = black;
 				tempColor.red	= flames[i][j][0] / MENU_FLAME_PRECISION_FACTOR;
@@ -58,7 +67,7 @@ void drawMenuFlames(signed short flames[COLS][(ROWS + MENU_FLAME_ROW_PADDING)][3
 				if (mask[i][j] > 0) {
 					applyColorAverage(&tempColor, maskColor, mask[i][j]);
 				}
-				plotCharWithColor(' ', i, j, black, tempColor);
+				plotCharWithColor(dchar, i, j, darkGray, tempColor);
 			}
 		}
 	}
@@ -332,6 +341,7 @@ void titleMenu() {
 	drawButtonsInState(&state);
 
 	initializeMenuFlames(true, colors, colorSources, flames, mask);
+    rogue.creaturesWillFlashThisTurn = false; // total unconscionable hack
 	
 	do {
 		if (!controlKeyWasDown && controlKeyIsDown()) {
@@ -372,13 +382,16 @@ void titleMenu() {
 }
 
 void dialogAlert(char *message) {
+    cellDisplayBuffer rbuf[COLS][ROWS];
+    
 	brogueButton OKButton;
 	initializeButton(&OKButton);
 	strcpy(OKButton.text, "     OK     ");
 	OKButton.hotkey[0] = RETURN_KEY;
 	OKButton.hotkey[1] = ENTER_KEY;
 	OKButton.hotkey[2] = ACKNOWLEDGE_KEY;
-	printTextBox(message, COLS/3, ROWS/3, COLS/3, &white, &interfaceBoxColor, NULL, &OKButton, 1);
+	printTextBox(message, COLS/3, ROWS/3, COLS/3, &white, &interfaceBoxColor, rbuf, &OKButton, 1);
+    overlayDisplayBuffer(rbuf, NULL);
 }
 
 boolean stringsExactlyMatch(const char *string1, const char *string2) {
@@ -412,8 +425,7 @@ boolean dialogChooseFile(char *path, const char *suffix, const char *prompt) {
 	for (i=0, j=0; i<count; i++) {
 		pathLength = strlen(files[i].path);
 		//printf("\nString 1: %s", &(files[i].path[(max(0, pathLength - suffixLength))]));
-		if (stringsExactlyMatch(&(files[i].path[(max(0, pathLength - suffixLength))]), suffix)
-			&& !stringsExactlyMatch(files[i].path, LAST_GAME_PATH)) {
+		if (stringsExactlyMatch(&(files[i].path[(max(0, pathLength - suffixLength))]), suffix)) {
 			
 			// This file counts!
 			if (i > j) {
@@ -563,7 +575,7 @@ boolean dialogChooseFile(char *path, const char *suffix, const char *prompt) {
 // we'll do it. The path (rogue.nextGamePath) is essentially a parameter for this command, and
 // tells NG_VIEW_RECORDING and NG_OPEN_GAME which file to open. If there is a command but no
 // accompanying path, and it's a command that should take a path, then pop up a dialog to have
-// the player specify a path. If there is no command (i.e. if rogue.nextGame contains NG_NEW_GAME),
+// the player specify a path. If there is no command (i.e. if rogue.nextGame contains NG_NOTHING),
 // then we'll display the title screen so the player can choose.
 void mainBrogueJunction() {
 	rogueEvent theEvent;
@@ -602,8 +614,10 @@ void mainBrogueJunction() {
 				rogue.playbackMode = false;
 				rogue.playbackFastForward = false;
 				rogue.playbackBetweenTurns = false;
-				
-				strcpy(currentFilePath, LAST_GAME_PATH);
+                
+                getAvailableFilePath(path, LAST_GAME_NAME, GAME_SUFFIX);
+                strcat(path, GAME_SUFFIX);
+				strcpy(currentFilePath, path);
 				
 				if (rogue.nextGame == NG_NEW_GAME_WITH_SEED) {
 					if (rogue.nextGameSeed == 0) { // Prompt for seed; default is the previous game's seed.
