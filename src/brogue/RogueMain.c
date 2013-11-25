@@ -27,6 +27,7 @@
 #include <time.h>
 
 void rogueMain() {
+	previousGameSeed = 0;
 	initializeBrogueSaveLocation();
 	mainBrogueJunction();
 }
@@ -56,7 +57,13 @@ boolean fileExists(const char *pathname) {
 // Otherwise, return false.
 boolean chooseFile(char *path, char *prompt, char *defaultName, char *suffix) {
 	
-	if (getInputTextString(path, prompt, min(DCOLS-25, BROGUE_FILENAME_MAX - strlen(suffix)), defaultName, suffix, TEXT_INPUT_NORMAL)
+	if (getInputTextString(path,
+						   prompt,
+						   min(DCOLS-25, BROGUE_FILENAME_MAX - strlen(suffix)),
+						   defaultName,
+						   suffix,
+						   TEXT_INPUT_NORMAL,
+						   false)
 		&& path[0] != '\0') {
 		
 		strcat(path, suffix);
@@ -122,7 +129,10 @@ void welcome() {
 	flavorMessage("The doors to the dungeon slam shut behind you.");
 }
 
-void initializeRogue() {
+// Seed is used as the dungeon seed unless it's zero, in which case generate a new one.
+// Either way, previousGameSeed is set to the seed we use.
+// None of this seed stuff is applicable if we're playing a recording.
+void initializeRogue(unsigned long seed) {
 	short i, j;
 	item *theItem;
 	uchar k;
@@ -208,7 +218,8 @@ void initializeRogue() {
 	
 	rogue.RNG = RNG_SUBSTANTIVE;
 	if (!rogue.playbackMode) {
-		rogue.seed = seedRandomGenerator(DUNGEON_SEED);
+		rogue.seed = seedRandomGenerator(seed);
+		previousGameSeed = rogue.seed;
 	}
 	initRecording();
 	
@@ -327,6 +338,7 @@ void initializeRogue() {
 	rogue.howManyDepthChanges = 0;
 	rogue.foodSpawned = 0;
 	rogue.gold = 0;
+	rogue.goldGenerated = 0;
 	rogue.disturbed = false;
 	rogue.autoPlayingLevel = false;
 	rogue.automationActive = false;
@@ -505,15 +517,23 @@ void initializeRogue() {
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_DETECT_MAGIC);
-		theItem->quantity = 3;
+		theItem = generateItem(POTION, POTION_TELEPATHY);
+		theItem->quantity = 1;
+		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
 		
-		theItem = generateItem(POTION, POTION_FIRE_IMMUNITY);
-		theItem->quantity = 3;
+		theItem = generateItem(POTION, POTION_DESCENT);
+		theItem->enchant1 = 20;
+		theItem->flags &= ~ITEM_CURSED;
 		identify(theItem);
 		theItem = addItemToPack(theItem);
+		
+//		short i;
+//		for (i=0; i < NUMBER_SCROLL_KINDS; i++) {
+//			theItem = generateItem(SCROLL, i);
+//			theItem = addItemToPack(theItem);
+//		}
 	}
 	blackOutScreen();
 	welcome();
@@ -532,7 +552,7 @@ void updateColors() {
 void startLevel(short oldLevelNumber, short stairDirection) {
 	unsigned long oldSeed;
 	item *theItem;
-	short loc[2], i, j, newX, newY, x, y, px, py, flying;
+	short loc[2], i, j, x, y, px, py, flying;
 	boolean isAlreadyAmulet = false;
 	creature *monst;
 	enum dungeonLayers layer;
@@ -545,6 +565,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	
 	rogue.cursorLoc[0] = -1;
 	rogue.cursorLoc[1] = -1;
+	rogue.lastTarget = NULL;
 	
 	if (stairDirection == 0) { // fallen
 		connectingStairsDiscovered = (pmap[rogue.downLoc[0]][rogue.downLoc[1]].flags & (DISCOVERED | MAGIC_MAPPED) ? true : false);
@@ -775,9 +796,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 		
 		getQualifyingLocNear(loc, player.xLoc, player.yLoc, true, 0,
 							 (T_PATHING_BLOCKER),
-							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), false);
-		player.xLoc = loc[0];
-		player.yLoc = loc[1];
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), false, false);
 	} else {
 		if (stairDirection == 1) { // heading downward
 			player.xLoc = rogue.upLoc[0];
@@ -786,10 +805,14 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 			player.xLoc = rogue.downLoc[0];
 			player.yLoc = rogue.downLoc[1];
 		}
-		findAlternativeHomeFor(&player, &newX, &newY, false);
-		player.xLoc = newX;
-		player.yLoc = newY;
+		
+		getQualifyingLocNear(loc, player.xLoc, player.yLoc, true, 0,
+							 (T_PATHING_BLOCKER),
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), false, true);
 	}
+	player.xLoc = loc[0];
+	player.yLoc = loc[1];
+		
 	pmap[player.xLoc][player.yLoc].flags |= HAS_PLAYER;
 	
 	if (connectingStairsDiscovered) {
@@ -813,7 +836,7 @@ void startLevel(short oldLevelNumber, short stairDirection) {
 	
 	rogue.playbackBetweenTurns = true;
 	displayLevel();
-	refreshSideBar(NULL, false);
+	refreshSideBar(-1, -1, false);
 	
 	if (rogue.turnNumber) {
 		rogue.turnNumber++;
@@ -941,7 +964,7 @@ void gameOver(char *killedBy, boolean useCustomPhrasing) {
 		sprintf(buf, "%s on level %i%s.", killedBy, rogue.depthLevel,
 				(numberOfMatchingPackItems(AMULET, 0, 0, false) > 0 ? ", amulet in hand" : ""));
 	} else {
-		sprintf(buf, "Killed by a%s %s on level %i%s.", (isVowel(killedBy[0]) ? "n" : ""), killedBy,
+		sprintf(buf, "Killed by a%s %s on level %i%s.", (isVowel(killedBy) ? "n" : ""), killedBy,
 				rogue.depthLevel, (numberOfMatchingPackItems(AMULET, 0, 0, false) > 0 ? ", amulet in hand" : ""));
 	}
 	
@@ -1006,7 +1029,7 @@ void victory() {
 			gemCount += theItem->quantity;
 		}
 		identify(theItem);
-		itemName(theItem, buf, true, true, &gray);
+		itemName(theItem, buf, true, true, &white);
 		upperCase(buf);
 		printString(buf, mapToWindowX(2), min(ROWS-1, i + 1), &white, &black, dbuf);
 		sprintf(buf, "%li", max(0, itemValue(theItem)));
@@ -1064,7 +1087,7 @@ void enableEasyMode() {
 		player.info.displayChar = '&';
 		rogue.easyMode = true;
 		refreshDungeonCell(player.xLoc, player.yLoc);
-		refreshSideBar(NULL, false);
+		refreshSideBar(-1, -1, false);
 		message("Wracked by spasms, your body contorts into an ALL-POWERFUL AMPERSAND!!!", false);
 		message("You have a feeling that you will take 20% as much damage from now on.", false);
 		message("But great power comes at a great price -- specifically, a 90% income tax rate.", false);

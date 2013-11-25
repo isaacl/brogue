@@ -33,12 +33,13 @@ creature *generateMonster(short monsterID, boolean itemPossible) {
 	creature *monst;
 	
 	monst = (creature *) malloc(sizeof(creature));
-	memset(monst, '\0', sizeof(creature) );
+	memset(monst, '\0', sizeof(creature));
 	clearStatus(monst);
 	monst->info = monsterCatalog[monsterID];
 	monst->nextCreature = monsters->nextCreature;
 	monsters->nextCreature = monst;
 	monst->xLoc = monst->yLoc = 0;
+	monst->depth = rogue.depthLevel;
 	monst->bookkeepingFlags = 0;
 	monst->mapToMe = NULL;
 	monst->safetyMap = NULL;
@@ -88,13 +89,28 @@ creature *generateMonster(short monsterID, boolean itemPossible) {
 	return monst;
 }
 
+boolean monsterIsHidden(creature *monst) {
+	return (((monst->info.flags & MONST_INVISIBLE) && monst->creatureState != MONSTER_ALLY) // invisible and not ally
+			|| ((monst->bookkeepingFlags & MONST_SUBMERGED) && !rogue.inWater)				// or submerged and player is not underwater
+			|| (monst->bookkeepingFlags & MONST_IS_DORMANT)) ? true : false;				// or monster is dormant
+}
+
 boolean canSeeMonster(creature *monst) {
 	if (monst == &player) {
 		return true;
 	}
-	if (playerCanSee(monst->xLoc, monst->yLoc)
-		&& (!(monst->info.flags & MONST_INVISIBLE) || monst->creatureState == MONSTER_ALLY)
-		&& (!(monst->bookkeepingFlags & (MONST_SUBMERGED | MONST_IS_DORMANT)) || (rogue.inWater))) {
+	if (playerCanSee(monst->xLoc, monst->yLoc) && !monsterIsHidden(monst)) {
+		return true;
+	}
+	return false;
+}
+
+// This is different from canSeeMonster() in that it counts only physical sight -- not clairvoyance or telepathy.
+boolean canDirectlySeeMonster(creature *monst) {
+	if (monst == &player) {
+		return true;
+	}
+	if (playerCanDirectlySee(monst->xLoc, monst->yLoc) && !monsterIsHidden(monst)) {
 		return true;
 	}
 	return false;
@@ -247,7 +263,8 @@ void resolvePronounEscapes(char *text, creature *monst) {
 	*insert = '\0';
 }
 
-short pickHordeType(short depth, enum monsterTypes summonerType, unsigned long forbiddenFlags, unsigned long requiredFlags) { // pass 0 for summonerType for an ordinary selection
+// Pass 0 for summonerType for an ordinary selection.
+short pickHordeType(short depth, enum monsterTypes summonerType, unsigned long forbiddenFlags, unsigned long requiredFlags) {
 	short i, index, possCount = 0;
 	
 	if (depth <= 0) {
@@ -286,7 +303,7 @@ short pickHordeType(short depth, enum monsterTypes summonerType, unsigned long f
 // If placeClone is false, the clone won't get a location
 // and won't set any HAS_MONSTER flags or cause any refreshes; it's just generated and inserted into the chains.
 creature *cloneMonster(creature *monst, boolean announce, boolean placeClone) {
-	creature *newMonst, *nextMonst;
+	creature *newMonst, *nextMonst, *parentMonst;
 	short loc[2];
 	char buf[DCOLS], monstName[DCOLS];
 	
@@ -295,6 +312,14 @@ creature *cloneMonster(creature *monst, boolean announce, boolean placeClone) {
 	*newMonst = *monst; // boink!
 	newMonst->nextCreature = nextMonst;
 	
+	if (monst->carriedMonster) {
+		parentMonst = cloneMonster(monst->carriedMonster, false, false);
+		removeMonsterFromChain(parentMonst, monsters);
+		removeMonsterFromChain(parentMonst, dormantMonsters);
+	} else {
+		parentMonst = NULL;
+	}
+
 	initializeGender(newMonst);
 	newMonst->info.expForKilling = 0;
 	newMonst->bookkeepingFlags &= ~(MONST_LEADER | MONST_CAPTIVE);
@@ -302,7 +327,7 @@ creature *cloneMonster(creature *monst, boolean announce, boolean placeClone) {
 	newMonst->mapToMe = NULL;
 	newMonst->safetyMap = NULL;
 	newMonst->carriedItem = NULL;
-	newMonst->carriedMonster = NULL;
+	newMonst->carriedMonster = parentMonst;
 	newMonst->ticksUntilTurn = newMonst->attackSpeed;
 	if (monst->leader) {
 		newMonst->leader = monst->leader;
@@ -312,7 +337,7 @@ creature *cloneMonster(creature *monst, boolean announce, boolean placeClone) {
 	}
 	
 	if (placeClone) {
-		getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, forbiddenFlagsForMonster(&(monst->info)), (HAS_PLAYER | HAS_MONSTER), false);
+		getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, forbiddenFlagsForMonster(&(monst->info)), (HAS_PLAYER | HAS_MONSTER), false, false);
 		newMonst->xLoc = loc[0];
 		newMonst->yLoc = loc[1];
 		pmap[loc[0]][loc[1]].flags |= HAS_MONSTER;
@@ -403,11 +428,11 @@ boolean monsterCanSubmergeNow(creature *monst) {
 				|| !cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_LAVA_INSTA_DEATH)));
 }
 
-// returns true if at least one minion spawned
+// Returns true if at least one minion spawned.
 boolean spawnMinions(short hordeID, creature *leader, boolean summoned) {
 	short loc[2];
 	short iSpecies, iMember, count;
-	unsigned long forbiddenFlags;
+	unsigned long forbiddenTerrainFlags, forbiddenMapFlags;
 	hordeType *theHorde;
 	creature *monst;
 	short x, y, candidateCount;
@@ -418,22 +443,23 @@ boolean spawnMinions(short hordeID, creature *leader, boolean summoned) {
 	y = leader->yLoc;
 	
 	theHorde = &hordeCatalog[hordeID];
-	
 	candidateCount = 0;
 	
 	for (iSpecies = 0; iSpecies < theHorde->numberOfMemberTypes; iSpecies++) {
 		count = randClump(theHorde->memberCount[iSpecies]);
 		
-		forbiddenFlags = forbiddenFlagsForMonster(&(monsterCatalog[theHorde->memberType[iSpecies]]));
+		forbiddenTerrainFlags = forbiddenFlagsForMonster(&(monsterCatalog[theHorde->memberType[iSpecies]]));
 		if (hordeCatalog[hordeID].spawnsIn) {
-			forbiddenFlags &= ~(tileCatalog[hordeCatalog[hordeID].spawnsIn].flags);
+			forbiddenTerrainFlags &= ~(tileCatalog[hordeCatalog[hordeID].spawnsIn].flags);
 		}
+		forbiddenMapFlags = (HAS_PLAYER | HAS_MONSTER | IS_IN_MACHINE);
+		forbiddenMapFlags &= ~(pmap[x][y].flags & IS_IN_MACHINE); // Allowed to spawn in an area with the same machine flags as the leader's location.
 		
 		for (iMember = 0; iMember < count; iMember++) {
 			monst = generateMonster(theHorde->memberType[iSpecies], true);
 			failsafe = 0;
 			do {
-				getQualifyingLocNear(loc, x, y, summoned, 0, forbiddenFlags, (HAS_PLAYER | HAS_MONSTER), false);
+				getQualifyingLocNear(loc, x, y, summoned, 0, forbiddenTerrainFlags, forbiddenMapFlags, false, false);
 			} while (theHorde->spawnsIn && !cellHasTerrainType(theHorde->spawnsIn, loc[0], loc[1]) && failsafe++ < 20);
 			if (failsafe >= 20) {
 				// abort
@@ -454,11 +480,14 @@ boolean spawnMinions(short hordeID, creature *leader, boolean summoned) {
 			if (theHorde->flags & HORDE_DIES_ON_LEADER_DEATH) {
 				monst->bookkeepingFlags |= MONST_BOUND_TO_LEADER;
 			}
+			if (hordeCatalog[hordeID].flags & HORDE_ALLIED_WITH_PLAYER) {
+				becomeAllyWith(monst);
+			}
 			atLeastOneMinion = true;
 		}
 	}
 	
-	if (atLeastOneMinion) {
+	if (atLeastOneMinion && !(theHorde->flags & HORDE_DIES_ON_LEADER_DEATH)) {
 		leader->bookkeepingFlags |= MONST_LEADER;
 	}
 	
@@ -487,18 +516,28 @@ void drawManacles(short x, short y) {
 	}
 }
 
-// If hordeID is 0, it's randomly assigned based on the depth. If x is negative, location is random.
+// If hordeID is 0, it's randomly assigned based on the depth, with a 10% chance of an out-of-depth spawn from 1-5 levels deeper.
+// If x is negative, location is random.
 // Returns a pointer to the leader.
 creature *spawnHorde(short hordeID, short x, short y, unsigned long forbiddenFlags, unsigned long requiredFlags) {
 	short loc[2];
-	short i, failsafe;
+	short i, failsafe, depth;
 	hordeType *theHorde;
 	creature *leader;
+	
+	if (rogue.depthLevel > 1 && rand_percent(10)) {
+		depth = rogue.depthLevel + rand_range(1, 5);
+		if (depth > AMULET_LEVEL) {
+			depth = max(rogue.depthLevel, AMULET_LEVEL);
+		}
+	} else {
+		depth = rogue.depthLevel;
+	}
 	
 	if (hordeID <= 0) {
 		failsafe = 50;
 		do {
-			hordeID = pickHordeType(0, 0, forbiddenFlags, requiredFlags);
+			hordeID = pickHordeType(depth, 0, forbiddenFlags, requiredFlags);
 			if (hordeID < 0) {
 				return NULL;
 			}
@@ -524,7 +563,7 @@ creature *spawnHorde(short hordeID, short x, short y, unsigned long forbiddenFla
 				if (!--failsafe) {
 					return NULL;
 				}
-				hordeID = pickHordeType(0, 0, forbiddenFlags, 0);
+				hordeID = pickHordeType(depth, 0, forbiddenFlags, 0);
 				
 				if (hordeID < 0) {
 					return NULL;
@@ -566,6 +605,8 @@ creature *spawnHorde(short hordeID, short x, short y, unsigned long forbiddenFla
 		if (!hordeCatalog[hordeID].spawnsIn) {
 			drawManacles(x, y);
 		}
+	} else if (hordeCatalog[hordeID].flags & HORDE_ALLIED_WITH_PLAYER) {
+		becomeAllyWith(leader);
 	}
 	
 	pmap[x][y].flags |= HAS_MONSTER;
@@ -1243,6 +1284,13 @@ void updateMonsterState(creature *monst) {
 			   && !(monst->status[STATUS_MAGICAL_FEAR])
 			   && distanceBetween(x, y, player.xLoc, player.yLoc) >= 3) {
 		monst->creatureState = MONSTER_TRACKING_SCENT;
+	} else if (monst->creatureMode == MODE_PERM_FLEEING
+			   && monst->creatureState == MONSTER_FLEEING
+			   && (monst->info.abilityFlags & MA_HIT_STEAL_FLEE)
+			   && !(monst->status[STATUS_MAGICAL_FEAR])
+			   && !(monst->carriedItem)) {
+		monst->creatureState = MONSTER_TRACKING_SCENT;
+		monst->creatureMode = MODE_NORMAL;
 	} else if (monst->creatureMode == MODE_NORMAL
 			   && monst->creatureState == MONSTER_FLEEING
 			   && (monst->info.flags & MONST_FLEES_NEAR_DEATH)
@@ -1282,6 +1330,11 @@ void decrementMonsterStatus(creature *monst) {
 			if (monst->status[i] && !--monst->status[i]) {
 				monst->movementSpeed = monst->info.movementSpeed;
 				monst->attackSpeed = monst->info.attackSpeed;
+			}
+		} else if (i == STATUS_WEAKENED) {
+			if (monst->status[i] && !--monst->status[i]) {
+				monst->weaknessAmount = 0;
+				refreshMonsterWeaknessPenalties(monst);
 			}
 		} else if (i == STATUS_HASTED) {
 			if (monst->status[i]) {
@@ -1464,6 +1517,7 @@ void moveTowardLeader(creature *monst) {
 	
 	if ((monst->bookkeepingFlags & MONST_FOLLOWER)
 		&& traversiblePathBetween(monst, monst->leader->xLoc, monst->leader->yLoc)) {
+		
 		targetLoc[0] = monst->leader->xLoc;
 		targetLoc[1] = monst->leader->yLoc;
 		moveMonsterPassivelyTowards(monst, targetLoc, (monst->creatureState != MONSTER_ALLY));
@@ -1583,7 +1637,7 @@ boolean monsterBlinkToPreferenceMap(creature *monst, short **preferenceMap, bool
 	}
 	
 	if (gotOne) {
-		if (canSeeMonster(monst)) {
+		if (canDirectlySeeMonster(monst)) {
 			monsterName(monstName, monst, true);
 			sprintf(buf, "%s blinks", monstName);
 			combatMessage(buf, 0);
@@ -1706,7 +1760,7 @@ boolean monstUseMagic(creature *monst) {
 				// Discord.
 				if (monst->info.abilityFlags & (MA_CAST_DISCORD) && (!target->status[STATUS_DISCORDANT])
 					&& !(target->info.flags & MONST_INANIMATE) && (target != &player) && rand_percent(50)) {
-					if (canSeeMonster(monst)) {
+					if (canDirectlySeeMonster(monst)) {
 						monsterName(monstName, monst, true);
 						sprintf(buf, "%s casts a spell of discord", monstName);
 						combatMessage(buf, 0);
@@ -1721,8 +1775,10 @@ boolean monstUseMagic(creature *monst) {
 						|| (target->info.flags & (MONST_DIES_IF_NEGATED | MONST_IMMUNE_TO_WEAPONS))
 						|| ((target->status[STATUS_IMMUNE_TO_FIRE] || target->status[STATUS_LEVITATING])
 							&& cellHasTerrainFlag(target->xLoc, target->yLoc, (T_LAVA_INSTA_DEATH | DEEP_WATER | T_AUTO_DESCENT))))
+					&& !(target == &player && rogue.armor && (rogue.armor->flags & ITEM_RUNIC) && rogue.armor->enchant2 == A_REFLECTION && netEnchant(rogue.armor) > 0)
+					&& !(target->info.flags & MONST_REFLECT_4)
 					&& rand_percent(50)) {
-					if (canSeeMonster(monst)) {
+					if (canDirectlySeeMonster(monst)) {
 						monsterName(monstName, monst, true);
 						sprintf(buf, "%s casts a negation spell", monstName);
 						combatMessage(buf, 0);
@@ -1734,7 +1790,7 @@ boolean monstUseMagic(creature *monst) {
 				// Slow.
 				if (monst->info.abilityFlags & (MA_CAST_SLOW) && (!target->status[STATUS_SLOWED])
 					&& !(target->info.flags & MONST_INANIMATE) && rand_percent(50)) {
-					if (canSeeMonster(monst)) {
+					if (canDirectlySeeMonster(monst)) {
 						monsterName(monstName, monst, true);
 						sprintf(buf, "%s casts a spell of slowness", monstName);
 						combatMessage(buf, 0);
@@ -1758,7 +1814,7 @@ boolean monstUseMagic(creature *monst) {
 				&& !(monst->info.flags & MONST_DIES_IF_NEGATED)
 				&& openPathBetween(monst->xLoc, monst->yLoc, target->xLoc, target->yLoc)) {
 				
-				if (canSeeMonster(monst)) {
+				if (canDirectlySeeMonster(monst)) {
 					monsterName(monstName, monst, true);
 					sprintf(buf, "%s casts a negation spell", monstName);
 					combatMessage(buf, 0);
@@ -1801,7 +1857,7 @@ boolean monstUseMagic(creature *monst) {
 				&& !(target->info.flags & MONST_INANIMATE)
 				&& openPathBetween(monst->xLoc, monst->yLoc, target->xLoc, target->yLoc)) {
 				
-				if (canSeeMonster(monst)) {
+				if (canDirectlySeeMonster(monst)) {
 					monsterName(monstName, monst, true);
 					sprintf(buf, "%s casts a spell of speed", monstName);
 					combatMessage(buf, 0);
@@ -1844,7 +1900,7 @@ boolean monstUseMagic(creature *monst) {
 				&& !(target->info.flags & MONST_INANIMATE)
 				&& openPathBetween(monst->xLoc, monst->yLoc, target->xLoc, target->yLoc)) {
 				
-				if (canSeeMonster(monst)) {
+				if (canDirectlySeeMonster(monst)) {
 					monsterName(monstName, monst, true);
 					sprintf(buf, "%s casts a spell of protection", monstName);
 					combatMessage(buf, 0);
@@ -1880,7 +1936,7 @@ boolean monstUseMagic(creature *monst) {
 			targetLoc[0] = target->xLoc;
 			targetLoc[1] = target->yLoc;
 			
-			if (canSeeMonster(monst)) {
+			if (canDirectlySeeMonster(monst)) {
 				monsterName(monstName, monst, true);
 				sprintf(buf, "%s casts a healing spell", monstName);
 				combatMessage(buf, 0);
@@ -1922,7 +1978,7 @@ boolean monstUseMagic(creature *monst) {
 					if ((monst->info.abilityFlags & MA_CAST_SPARK)
 						&& rand_percent(50)) {
 						
-						if (canSeeMonster(monst)) {
+						if (canDirectlySeeMonster(monst)) {
 							monsterName(monstName, monst, true);
 							sprintf(buf, "%s casts a spark of lightning", monstName);
 							combatMessage(buf, 0);
@@ -2271,7 +2327,7 @@ void monstersTurn(creature *monst) {
 	if (monst->status[STATUS_PARALYZED] || monst->status[STATUS_ENTRANCED] || (monst->bookkeepingFlags & MONST_CAPTIVE)) {
 		monst->ticksUntilTurn = monst->movementSpeed;
 		if ((monst->bookkeepingFlags & MONST_CAPTIVE) && monst->carriedItem) {
-				makeMonsterDropItem(monst);
+			makeMonsterDropItem(monst);
 		}
 		return;
 	}
@@ -2673,23 +2729,21 @@ boolean moveMonster(creature *monst, short dx, short dy) {
 					defender = &player;
 				} else {
 					if (canPass(monst, defender)) {
-						
 						// swap places
-						
 						pmap[defender->xLoc][defender->yLoc].flags &= ~HAS_MONSTER;
 						refreshDungeonCell(defender->xLoc, defender->yLoc);
 						
 						pmap[monst->xLoc][monst->yLoc].flags &= ~HAS_MONSTER;
 						refreshDungeonCell(monst->xLoc, monst->yLoc);
+						
 						monst->xLoc = newX;
 						monst->yLoc = newY;
 						pmap[monst->xLoc][monst->yLoc].flags |= HAS_MONSTER;
-						refreshDungeonCell(monst->xLoc, monst->yLoc);
 						
 						if (monsterAvoids(defender, x, y)) { // don't want a flying monster to swap a non-flying monster into lava!
 							getQualifyingLocNear(newLoc, x, y, true, 0,
 												 forbiddenFlagsForMonster(&(defender->info)),
-												 (HAS_PLAYER | HAS_MONSTER), false);
+												 (HAS_PLAYER | HAS_MONSTER), false, false);
 							defender->xLoc = newLoc[0];
 							defender->yLoc = newLoc[1];
 						} else {
@@ -2697,6 +2751,8 @@ boolean moveMonster(creature *monst, short dx, short dy) {
 							defender->yLoc = y;
 						}
 						pmap[defender->xLoc][defender->yLoc].flags |= HAS_MONSTER;
+						
+						refreshDungeonCell(monst->xLoc, monst->yLoc);
 						refreshDungeonCell(defender->xLoc, defender->yLoc);
 						
 						monst->ticksUntilTurn = monst->movementSpeed;
@@ -2781,8 +2837,14 @@ void findAlternativeHomeFor(creature *monst, short *x, short *y, boolean chooseR
 	*x = *y = -1;
 }
 
-boolean getQualifyingLocNear(short loc[2], short x, short y, boolean hallwaysAllowed, char blockingMap[DCOLS][DROWS],
-							 unsigned long forbiddenTerrainFlags, unsigned long forbiddenMapFlags, boolean forbidLiquid) {
+boolean getQualifyingLocNear(short loc[2],
+							 short x, short y,
+							 boolean hallwaysAllowed,
+							 char blockingMap[DCOLS][DROWS],
+							 unsigned long forbiddenTerrainFlags,
+							 unsigned long forbiddenMapFlags,
+							 boolean forbidLiquid,
+							 boolean deterministic) {
 	short i, j, k, candidateLocs, randIndex;
 	
 	candidateLocs = 0;
@@ -2809,7 +2871,11 @@ boolean getQualifyingLocNear(short loc[2], short x, short y, boolean hallwaysAll
 	}
 	
 	// and pick one
-	randIndex = rand_range(1, candidateLocs);
+	if (deterministic) {
+		randIndex = 1 + candidateLocs / 2;
+	} else {
+		randIndex = rand_range(1, candidateLocs);
+	}
 	
 	for (k=0; k<max(DROWS, DCOLS); k++) {
 		for (i = x-k; i <= x+k; i++) {
@@ -2836,7 +2902,7 @@ boolean getQualifyingLocNear(short loc[2], short x, short y, boolean hallwaysAll
 
 void makeMonsterDropItem(creature *monst) {
 	short loc[2];
-	getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, (T_OBSTRUCTS_ITEMS), (HAS_ITEM), false);
+	getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, (T_OBSTRUCTS_ITEMS), (HAS_ITEM), false, false);
 	placeItem(monst->carriedItem, loc[0], loc[1]);
 	monst->carriedItem = NULL;
 	refreshDungeonCell(loc[0], loc[1]);
@@ -2883,24 +2949,26 @@ void demoteMonsterFromLeadership(creature *monst) {
 // Makes a monster dormant, or awakens it from that state
 void toggleMonsterDormancy(creature *monst) {
 	creature *prevMonst;
-	short loc[2];
+	short loc[2] = {0, 0};
 	
 	for (prevMonst = dormantMonsters; prevMonst != NULL; prevMonst = prevMonst->nextCreature) {
 		if (prevMonst->nextCreature == monst) {
-			// found it! It's dormant. Wake it up.
+			// Found it! It's dormant. Wake it up.
 			
 			// Remove it from the dormant chain.
 			prevMonst->nextCreature = monst->nextCreature;
 			
-			// add it to the normal chain
+			// Add it to the normal chain.
 			monst->nextCreature = monsters->nextCreature;
 			monsters->nextCreature = monst;
 			
-			// does it need a new location?
-			if (pmap[monst->xLoc][monst->yLoc].flags & (HAS_MONSTER | HAS_PLAYER)) { // occupied!
-				getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, T_PATHING_BLOCKER, (HAS_PLAYER | HAS_MONSTER), false);
+			pmap[monst->xLoc][monst->yLoc].flags &= ~HAS_DORMANT_MONSTER;
+			
+			// Does it need a new location?
+			if (pmap[monst->xLoc][monst->yLoc].flags & (HAS_MONSTER | HAS_PLAYER)) { // Occupied!
+				getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, T_PATHING_BLOCKER, (HAS_PLAYER | HAS_MONSTER), false, false);
 				monst->xLoc = loc[0];
-				monst->xLoc = loc[1];
+				monst->yLoc = loc[1];
 			}
 			
 			// Miscellaneous transitional tasks.
@@ -2908,7 +2976,6 @@ void toggleMonsterDormancy(creature *monst) {
 			monst->ticksUntilTurn = 200;
 			
 			pmap[monst->xLoc][monst->yLoc].flags |= HAS_MONSTER;
-			pmap[monst->xLoc][monst->yLoc].flags &= ~HAS_DORMANT_MONSTER;
 			monst->bookkeepingFlags &= ~MONST_IS_DORMANT;
 			fadeInMonster(monst);
 			return;
@@ -3129,7 +3196,7 @@ void monsterDetails(char buf[], creature *monst) {
 	if (monst->carriedItem && (monst->carriedItem->flags & ITEM_NAMED)) {
 		i = strlen(buf);
 		i = encodeMessageColor(buf, i, &itemMessageColor);
-		itemName(monst->carriedItem, theItemName, true, false, 0);
+		itemName(monst->carriedItem, theItemName, true, false, NULL);
 		sprintf(newText, "%s has a %s.", capMonstName, theItemName);
 		upperCase(newText);
 		strcat(buf, "\n     ");

@@ -1272,7 +1272,7 @@ boolean buildAMachine(enum machineTypes bp,
 								}
 								if (feature->flags & MF_MONSTERS_DORMANT) {
 									toggleMonsterDormancy(monst);
-									if (!(feature->flags & MF_MONSTER_SLEEPING)) {
+									if (!(feature->flags & MF_MONSTER_SLEEPING) && monst->creatureState != MONSTER_ALLY) {
 										monst->creatureState = MONSTER_TRACKING_SCENT;
 									}
 								}
@@ -1324,14 +1324,13 @@ void addMachines() {
 	
 	machineCount = 0;
 	
-	if (rogue.depthLevel < AMULET_LEVEL
+	if (rogue.depthLevel <= AMULET_LEVEL
 		&& (rogue.rewardRoomsGenerated + 1) * 2 < rogue.depthLevel) {
 		// try to build at least one every four levels on average
 		machineCount++;
-	}
-	
-	while (rand_percent(20)) {
-		machineCount++;
+		while (rand_percent(20)) {
+			machineCount++;
+		}
 	}
 	
 	for (failsafe = 50; machineCount && failsafe; failsafe--) {
@@ -3255,6 +3254,7 @@ void evacuateCreatures(char blockingMap[DCOLS][DROWS]) {
 									 blockingMap,
 									 forbiddenFlagsForMonster(&(monst->info)),
 									 (HAS_MONSTER | HAS_PLAYER),
+									 false,
 									 false);
 				monst->xLoc = newLoc[0];
 				monst->yLoc = newLoc[1];
@@ -3405,13 +3405,14 @@ void restoreMonster(creature *monst, short **mapToStairs, short **mapToPit) {
 	
 	if ((pmap[*x][*y].flags & (HAS_PLAYER | HAS_UP_STAIRS | HAS_DOWN_STAIRS))
 		|| (monst->bookkeepingFlags & MONST_PREPLACED)) {
+		
 		if (!(monst->bookkeepingFlags & MONST_PREPLACED)) {
 			// (If if it's preplaced, it won't have set the HAS_MONSTER flag in the first place,
 			// so clearing it might screw up an existing monster.)
 			pmap[*x][*y].flags &= ~HAS_MONSTER;
 		}
 		getQualifyingLocNear(loc, *x, *y, true, 0, (T_OBSTRUCTS_PASSABILITY | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH),
-							 (HAS_MONSTER | HAS_PLAYER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+							 (HAS_MONSTER | HAS_PLAYER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true, true);
 		*x = loc[0];
 		*y = loc[1];
 	}
@@ -3446,7 +3447,7 @@ void restoreItem(item *theItem) {
 	if (theItem->flags & ITEM_PREPLACED) {
 		theItem->flags &= ~ITEM_PREPLACED;
 		getQualifyingLocNear(loc, *x, *y, true, 0, (T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH),
-							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS), true);
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS), true, false);
 		*x = loc[0];
 		*y = loc[1];
 	}
@@ -3468,11 +3469,13 @@ void initializeLevel() {
 	
 	// Place the stairs.
 		getQualifyingLocNear(downLoc, levels[n].downStairsLoc[0], levels[n].downStairsLoc[1], false, 0,
-							 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING), // | IS_BRIDGE),
-							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+							 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_IS_DF_TRAP),
+							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true, false);
 	
 	if (rogue.depthLevel < 100) {
 		pmap[downLoc[0]][downLoc[1]].layers[DUNGEON] = DOWN_STAIRS;
+		pmap[downLoc[0]][downLoc[1]].layers[LIQUID] = NOTHING;
+		pmap[downLoc[0]][downLoc[1]].layers[SURFACE] = NOTHING;
 	}
 	if (!levels[n+1].visited) {
 		levels[n+1].upStairsLoc[0] = downLoc[0];
@@ -3482,17 +3485,21 @@ void initializeLevel() {
 	levels[n].downStairsLoc[0] = downLoc[0];
 	levels[n].downStairsLoc[1] = downLoc[1];
 	
-		getQualifyingLocNear(upLoc, levels[n].upStairsLoc[0], levels[n].upStairsLoc[1], false, 0,
-							 (T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING),
-							 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true);
+	getQualifyingLocNear(upLoc, levels[n].upStairsLoc[0], levels[n].upStairsLoc[1], false, 0,
+						 (T_OBSTRUCTS_PASSABILITY | T_OBSTRUCTS_ITEMS | T_AUTO_DESCENT | T_IS_DEEP_WATER | T_LAVA_INSTA_DEATH | T_ALLOWS_SUBMERGING | T_IS_DF_TRAP),
+						 (HAS_MONSTER | HAS_ITEM | HAS_UP_STAIRS | HAS_DOWN_STAIRS | IS_IN_MACHINE), true, false);
 	
 	levels[n].upStairsLoc[0] = upLoc[0];
 	levels[n].upStairsLoc[1] = upLoc[1];
 	
 	if (rogue.depthLevel == 1) {
 		pmap[upLoc[0]][upLoc[1]].layers[DUNGEON] = DUNGEON_EXIT;
+		pmap[upLoc[0]][upLoc[1]].layers[LIQUID] = NOTHING;
+		pmap[upLoc[0]][upLoc[1]].layers[SURFACE] = NOTHING;
 	} else {
 		pmap[upLoc[0]][upLoc[1]].layers[DUNGEON] = UP_STAIRS;
+		pmap[upLoc[0]][upLoc[1]].layers[LIQUID] = NOTHING;
+		pmap[upLoc[0]][upLoc[1]].layers[SURFACE] = NOTHING;
 	}
 //	monsters->nextCreature = levels[rogue.depthLevel-1].monsters;
 //	floorItems->nextItem = levels[rogue.depthLevel-1].items; //moved to startLevel().

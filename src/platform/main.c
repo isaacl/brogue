@@ -3,7 +3,7 @@
 #ifdef BROGUE_TCOD
 #include "libtcod.h"
 TCOD_renderer_t renderer=TCOD_RENDERER_SDL; // the sdl renderer is more reliable
-short brogueFontSize = 3;
+short brogueFontSize = -1;
 #endif
 
 extern playerCharacter rogue;
@@ -11,6 +11,7 @@ struct brogueConsole currentConsole;
 
 boolean serverMode = false;
 boolean noMenu = false;
+unsigned long int firstSeed = 0;
 
 void dumpScores();
 
@@ -37,6 +38,7 @@ int main(int argc, char *argv[])
 
 	rogue.nextGame = NG_NOTHING;
 	rogue.nextGamePath[0] = '\0';
+	rogue.nextGameSeed = 0;
 
 	int i;
 	for (i = 1; i < argc; i++) {
@@ -46,23 +48,29 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		if (strcmp(argv[i], "--seed") == 0) {
+		if (strcmp(argv[i], "--seed") == 0 || strcmp(argv[i], "-s") == 0) {
 			// pick a seed!
 			if (i + 1 < argc) {
 				int seed = atoi(argv[i + 1]);
 				if (seed != 0) {
 					i++;
+					rogue.nextGameSeed = seed;
+					rogue.nextGame = NG_NEW_GAME_WITH_SEED;
 					continue;
 				}
 			}
 		}
 
 		if(strcmp(argv[i], "-n") == 0) {
-			rogue.nextGame = NG_NEW_GAME;
+			if (rogue.nextGameSeed == 0) {
+				rogue.nextGame = NG_NEW_GAME;
+			} else {
+				rogue.nextGame = NG_NEW_GAME_WITH_SEED;
+			}
 			continue;
 		}
 
-		if(strcmp(argv[i], "--no-menu") == 0) {
+		if(strcmp(argv[i], "--no-menu") == 0 || strcmp(argv[i], "-M") == 0) {
 			rogue.nextGame = NG_NEW_GAME;
 			noMenu = true;
 			continue;
@@ -104,18 +112,30 @@ int main(int argc, char *argv[])
 		}
 
 #ifdef BROGUE_TCOD
-		if (strcmp(argv[i], "--SDL") == 0 || strcmp(argv[i], "-s") == 0) {
+		if (strcmp(argv[i], "--SDL") == 0) {
 			renderer = TCOD_RENDERER_SDL;
 			currentConsole = tcodConsole;
+			continue;
 		}
 		if (strcmp(argv[i], "--opengl") == 0 || strcmp(argv[i], "-gl") == 0) {
 			renderer = TCOD_RENDERER_OPENGL;
 			currentConsole = tcodConsole;
+			continue;
+		}
+		if (strcmp(argv[i], "--size") == 0) {
+			// pick a font size
+			int size = atoi(argv[i + 1]);
+			if (size != 0) {
+				i++;
+				brogueFontSize = size;
+				continue;
+			}
 		}
 #endif
 #ifdef BROGUE_CURSES
 		if (strcmp(argv[i], "--term") == 0 || strcmp(argv[i], "-t") == 0) {
 			currentConsole = cursesConsole;
+			continue;
 		}
 #endif
 

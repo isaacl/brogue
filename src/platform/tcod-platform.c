@@ -24,10 +24,18 @@ static void gameLoop()
 	char font[60];
 	
 	int screenWidth, screenHeight;
-	int fontWidths[13] = {112, 128, 144, 160, 186, 192, 208, 224, 240, 256, 272, 288, 304}; // widths of the font graphics (divide by 16 to get individual character width)
+	int fontWidths[13] = {112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 272, 288, 304}; // widths of the font graphics (divide by 16 to get individual character width)
+	int fontHeights[13] = {176, 208, 240, 272, 304, 336, 368, 400, 432, 464, 496, 528, 528}; // heights of the font graphics (divide by 16 to get individual character height)
 
 	TCOD_sys_get_current_resolution(&screenWidth, &screenHeight);
-	for (brogueFontSize = 13; fontWidths[brogueFontSize - 1] * COLS / 16 >= screenWidth && brogueFontSize > 1; brogueFontSize--);
+
+	// adjust for title bars and whatever -- very approximate, but better than the alternative
+	screenWidth -= 6;
+	screenHeight -= 48;
+
+	if (brogueFontSize < 1 || brogueFontSize > 13) {
+		for (brogueFontSize = 13; brogueFontSize > 1 && (fontWidths[brogueFontSize - 1] * COLS / 16 >= screenWidth || fontHeights[brogueFontSize - 1] * ROWS / 16 >= screenHeight); brogueFontSize--);
+	}
 
 	sprintf(font, "fonts/font-%i.png", brogueFontSize);
 	
@@ -117,34 +125,30 @@ static boolean processSpecialKeystrokes(TCOD_key_t k, boolean text) {
 		TCOD_console_set_fullscreen(isFullScreen);
 		return true;
 	} else if ((k.vk == TCODK_PAGEUP
-				|| (k.vk == TCODK_CHAR && (k.c == '=' || k.c == '+')))
+				|| ((!text) && k.vk == TCODK_CHAR && (k.c == '=' || k.c == '+')))
 			   && brogueFontSize < 13) {
 		
-		if (!text) {
-			if (isFullScreen) {
-				TCOD_console_set_fullscreen(0);
-				isFullScreen = 0;
-			}
-
-			brogueFontSize++;
-			TCOD_console_delete(NULL);
-			//TCODConsole::root=NULL;
-			initWithFont(brogueFontSize);
-
-			TCOD_console_flush();
-			return true;
+		if (isFullScreen) {
+			TCOD_console_set_fullscreen(0);
+			isFullScreen = 0;
 		}
+
+		brogueFontSize++;
+		TCOD_console_delete(NULL);
+		//TCODConsole::root=NULL;
+		initWithFont(brogueFontSize);
+
+		TCOD_console_flush();
+		return true;
 	} else if ((k.vk == TCODK_PAGEDOWN
-				|| (k.vk == TCODK_CHAR && k.c == '-'))
+				|| ((!text) && k.vk == TCODK_CHAR && k.c == '-'))
 			   && brogueFontSize > 1) {
-		if (!text) {
-			brogueFontSize--;
-			TCOD_console_delete(NULL);
-			//TCODConsole::root=NULL;
-			initWithFont(brogueFontSize);
-			TCOD_console_flush();
-			return true;
-		}
+		brogueFontSize--;
+		TCOD_console_delete(NULL);
+		//TCODConsole::root=NULL;
+		initWithFont(brogueFontSize);
+		TCOD_console_flush();
+		return true;
 	}
 	return false;
 }
@@ -564,13 +568,23 @@ static void tcod_remap(const char *input_name, const char *output_name) {
 	keymap = sym;
 }
 
+static boolean modifier_held(int modifier) {
+	rogueEvent tempEvent;
+
+	getModifiers(&tempEvent);
+	if (modifier == 0) return tempEvent.shiftKey;
+	if (modifier == 1) return tempEvent.controlKey;
+
+	return 0;
+}
 
 struct brogueConsole tcodConsole = {
 	gameLoop,
 	tcod_pauseForMilliseconds,
 	tcod_nextKeyOrMouseEvent,
 	tcod_plotChar,
-	tcod_remap
+	tcod_remap,
+	modifier_held
 };
 
 #endif
