@@ -1,0 +1,27 @@
+COMPILING BROGUE
+----------------
+
+You need libtcod-1.5.1b2 to compile Brogue yourself.
+
+Find the appropriate version at:
+http://doryen.eptalys.net/libtcod/download/
+
+Or download directly:
+ * for mingw: http://doryen.eptalys.net/?file_id=27
+ * for Visual Studio: http://doryen.eptalys.net/?file_id=29
+
+
+
+USING THE PROJECT FILE (brogue.cbp)
+-----------------------------------
+
+Get the mingw version of libtcod-1.5.1b2.
+
+If you do not have Code::Blocks, go to
+ * http://www.codeblocks.org/downloads/26#windows
+and get the version that includes mingw.
+
+You must unzip and put libtcod-1.5.1 in "Brogue Source" (alongside
+"BrogueCode" and "PlatformCode") for the project to work unchanged.
+
+Happy hacking.

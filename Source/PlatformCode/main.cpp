@@ -71,8 +71,6 @@ int main(int argc, char *argv[])
 		rogueMain();
 		
 		if (!TCODConsole::isWindowClosed()) {
-			rogue.gameHasEnded = false; // so that the printString command works
-			printString((char *) "                       Press space to play again.                       ", (COLS - 72 + 1) / 2, ROWS - 1, &gray, &black, 0);
 			rogue.gameHasEnded = true;
 			waitForAcknowledgment();
 		}

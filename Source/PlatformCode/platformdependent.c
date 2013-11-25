@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "Rogue.h"
 #include "libtcod.h"
 
@@ -174,6 +175,16 @@ boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 	returnEvent->shiftKey = key.shift;
 	switch (key.vk) {
 		case TCODK_CHAR:
+		case TCODK_0:
+		case TCODK_1:
+		case TCODK_2:
+		case TCODK_3:
+		case TCODK_4:
+		case TCODK_5:
+		case TCODK_6:
+		case TCODK_7:
+		case TCODK_8:
+		case TCODK_9:
 			returnEvent->param1 = (unsigned short) key.c;
 			if (returnEvent->shiftKey && returnEvent->param1 >= 'a' && returnEvent->param1 <= 'z') {
 				returnEvent->param1 += 'A' - 'a';
@@ -209,6 +220,9 @@ boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 		case TCODK_TAB:
 			returnEvent->param1 = TAB_KEY;
 			break;
+		case TCODK_KP0:
+            returnEvent->param1 = NUMPAD_0;
+            break;
 		case TCODK_KP1:
             returnEvent->param1 = NUMPAD_1;
             break;
@@ -341,23 +355,6 @@ boolean pauseForMilliseconds(short milliseconds) {
 	}
 	
 	return (bufferedKey.vk != TCODK_NONE || bufferedMouseClick[0] >= 0);
-}
-
-int rand_range(int lowerBound, int upperBound) {
-	if (lowerBound >= upperBound) {
-		return lowerBound;
-	}
-	return (long) TCOD_random_get_int(randomNumberGenerator, (int) lowerBound, (int) upperBound);
-	//return lowerBound + random() % (upperBound - lowerBound);
-}
-
-long seedRandomGenerator(long seed) {
-	if (seed == 0) {
-		seed = time(NULL);
-	}
-	randomNumberGenerator = TCOD_random_new_from_seed(TCOD_RNG_CMWC, (uint32) seed);
-	//srand(seed);
-	return seed;
 }
 
 // creates an empty high scores file

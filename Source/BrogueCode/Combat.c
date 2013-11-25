@@ -56,6 +56,23 @@
  * Players have a base accuracy value of 75. This goes up by 10 with each experience level gained past 1.
  */
 
+float strengthModifier(item *theItem) {
+	short difference = rogue.strength - theItem->strengthRequired;
+	if (difference > 0) {
+		return (float) 0.25 * difference;
+	} else {
+		return (float) 2.5 * difference;
+	}
+}
+
+float netEnchant(item *theItem) {
+	if (rogue.armor == theItem || rogue.weapon == theItem) {
+		return theItem->enchant1 + strengthModifier(theItem);
+	} else {
+		return theItem->enchant1;
+	}
+}
+
 // does NOT account for auto-hit from sleeping or unaware defenders; does account for auto-hit from
 // stuck or captive defenders.
 short hitProbability(creature *attacker, creature *defender) {
@@ -67,17 +84,15 @@ short hitProbability(creature *attacker, creature *defender) {
 		return 100;
 	}
 	
-	if (attacker == &player) {
-		if (rogue.weapon) {
-			accuracy -= 15 * max(0, (rogue.weapon->strengthRequired - rogue.currentStrength));
-			accuracy += 5 * rogue.weapon->enchant1;
-		}
-		if (rogue.armor) {
-			//accuracy -= 15 * max(0, (rogue.armor->strengthRequired - rogue.currentStrength));
-		}
+	if (attacker == &player && rogue.weapon) {
+		accuracy += 5 * netEnchant(rogue.weapon);
 	}
 	
-	hitProbability = accuracy * pow(0.986, defense);
+	if (defender == &player && rogue.armor) {
+		defense += 10 * strengthModifier(rogue.armor);
+	}
+	
+	hitProbability = accuracy * pow(DEFENSE_RADICAND, defense);
 	
 	if (hitProbability > 100) {
 		hitProbability = 100;
@@ -143,7 +158,7 @@ void monsterShoots(creature *attacker, short targetLoc[2], uchar projChar, color
 			break;
 		}
 		
-		if (pmap[x][y].flags & (VISIBLE | CLAIRVOYANT_VISIBLE)) {
+		if (playerCanSee(x, y)) {
 			getCellAppearance(x, y, &displayChar, &foreColor, &backColor);
 			foreColor = gray;
 			colorMultiplierFromDungeonLight(x, y, &multColor);
@@ -233,19 +248,6 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 			player.maxStatus.hallucinating = max(player.maxStatus.hallucinating, player.status.hallucinating);
 		}
 		
-		if (attacker->info.abilityFlags & MA_HIT_SAP_STRENGTH
-			&& rogue.currentStrength > 0
-			&& damage > 0
-			&& attackHit(attacker, defender)
-			&& (!rogue.easyMode || rand_percent(50))) {
-			
-			rogue.currentStrength--;
-			// updateStatBar(STR_CURRENT_STAT);
-			message("you feel weaker.", true, false);
-			strengthCheck(rogue.weapon);
-			strengthCheck(rogue.armor);
-		}
-		
 		if (attacker->info.abilityFlags & MA_HIT_STEAL_FLEE
 			&& !(attacker->carriedItem)
 			&& (packItems->nextItem)
@@ -307,15 +309,18 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 		&yellow, &pink, &green, &confusionGasColor, &white, &darkRed, &rainbow};
 	//	W_POISON, W_QUIETUS, W_PARALYSIS, W_NEGATION, W_SLOWING, W_CONFUSION, W_SLAYING, W_MERCY, W_PLENTY
 	short chance;
+	float enchant;
 	enum weaponEnchants enchantType = theItem->enchant2;
 	creature *newMonst;
+	
+	enchant = netEnchant(theItem);
 	
 	if (theItem->enchant2 == W_SLAYING) {
 		chance = (theItem->vorpalEnemy == defender->info.monsterID ? 100 : 0);
 	} else {
 		chance = max(effectChances[enchantType][0],
 					 effectChances[enchantType][0] + (effectChances[enchantType][1]
-													  - effectChances[enchantType][0]) * theItem->enchant1 / 10);
+													  - effectChances[enchantType][0]) * enchant / 10);
 		// high-damage weapons have much less likelihood of runic effects actuating
 		chance = chance * (100 - 100 * ((theItem->damage.lowerBound + theItem->damage.upperBound) / 2 - 3) / (20 - 3)) / 100;
 		if (backstabbed) {
@@ -335,7 +340,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 		
 		switch (enchantType) {
 			case W_POISON:
-				defender->status.poisoned = max(defender->status.poisoned, max(5, 15 * theItem->enchant1));
+				defender->status.poisoned = max(defender->status.poisoned, max(5, (int) 10 * pow(1.53, enchant - 2)));
 				defender->maxStatus.poisoned = defender->status.poisoned;
 				sprintf(buf, "%s is poisoned", monstName);
 				buf[DCOLS] = '\0';
@@ -349,7 +354,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				combatMessage(buf);
 				break;
 			case W_PARALYSIS:
-				defender->status.paralyzed = max(defender->status.paralyzed, max(2, 2 + theItem->enchant1));
+				defender->status.paralyzed = max(defender->status.paralyzed, max(2, 2 + enchant));
 				defender->maxStatus.paralyzed = defender->status.paralyzed;
 				sprintf(buf, "%s is frozen in place", monstName);
 				buf[DCOLS] = '\0';
@@ -362,13 +367,13 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 				cancelMagic(defender);
 				break;
 			case W_SLOWING:
-				slow(defender, theItem->enchant1 * 3);
+				slow(defender, enchant * 3);
 				sprintf(buf, "%s slows down", monstName);
 				buf[DCOLS] = '\0';
 				combatMessage(buf);
 				break;
 			case W_CONFUSION:
-				defender->status.confused = max(defender->status.confused, max(3, 2 * theItem->enchant1));
+				defender->status.confused = max(defender->status.confused, max(3, 2 * enchant));
 				defender->maxStatus.confused = defender->status.confused;
 				sprintf(buf, "%s looks very confused", monstName);
 				buf[DCOLS] = '\0';
@@ -408,12 +413,15 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 	boolean runicKnown;
 	boolean runicDiscovered;
 	short newDamage;
+	float enchant;
 	
 	returnString[0] = '\0';
 	
 	if (!(rogue.armor && rogue.armor->flags & ITEM_RUNIC)) {
 		return; // just in case
 	}
+	
+	enchant = netEnchant(rogue.armor);
 	
 	runicKnown = rogue.armor->flags & ITEM_RUNIC_IDENTIFIED;
 	runicDiscovered = false;
@@ -422,7 +430,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 	
 	switch (rogue.armor->enchant2) {
 		case A_ABSORPTION:
-			*damage -= randClumpedRange(0, rogue.armor->enchant1, rogue.armor->enchant1 / 2);
+			*damage -= randClumpedRange(0, (short) enchant, (short) enchant / 2);
 			if (*damage <= 0) {
 				*damage = 0;
 				if (!runicKnown) {
@@ -434,7 +442,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 		case A_REPRISAL:
 			if (melee && !(attacker->info.flags & MONST_INANIMATE)) {
 				monsterName(attackerName, attacker, true);
-				newDamage = max(1, rogue.armor->enchant1 * (*damage) / 10); // 10% reprisal per armor level
+				newDamage = max(1, enchant * (*damage) / 10); // 10% reprisal per armor level
 				if (inflictDamage(&player, attacker, newDamage, &blue)) {
 					sprintf(returnString, "your %s pulses and %s drops dead!", armorName, attackerName);
 				} else if (!runicKnown) {
@@ -636,7 +644,7 @@ boolean attack(creature *attacker, creature *defender) {
 					strengthCheck(rogue.armor);
 				}
 			}
-			if (defender->info.abilityFlags & MA_CLONE_SELF_ON_DEFEND) {
+			if (defender->currentHP > 0 && defender->info.abilityFlags & MA_CLONE_SELF_ON_DEFEND) {
 				fadeInMonster(cloneMonster(defender));
 				if (canSeeMonster(defender)) {
 					sprintf(buf, "%s splits in two!", defenderName);
@@ -647,6 +655,7 @@ boolean attack(creature *attacker, creature *defender) {
 		
 		if (degradesAttackerWeapon && attacker == &player && rogue.weapon && !(rogue.weapon->flags & ITEM_PROTECTED)) {
 			rogue.weapon->enchant1--;
+			equipItem(rogue.weapon, true);
 			itemName(rogue.weapon, buf2, false, false);
 			sprintf(buf, "your %s weakens!", buf2);
 			message(buf, true, false);
@@ -678,10 +687,6 @@ void addExperience(unsigned long exp) {
 			player.currentHP += (5 * player.currentHP / (player.info.maxHP - 5));
 			updatePlayerRegenerationDelay();
 			player.info.accuracy += 10;
-			//if (rogue.experienceLevel % 2 == 1) {
-			//	rogue.maxStrength++;
-			//	rogue.currentStrength++;
-			//}
 		}
 		rogue.gainedLevel = true;
 	}
@@ -720,6 +725,89 @@ void flashMonster(creature *monst, color *theColor, short strength) {
 	}
 }
 
+boolean canAbsorb(creature *ally, creature *prey, short **grid) {
+	return (ally->creatureState == MONSTER_ALLY
+			&& ally->absorbsAllowed >= 2000
+			&& (ally->targetCorpseLoc[0] <= 0)
+			&& monstersAreEnemies(ally, prey)
+			&& ((~(ally->info.abilityFlags) & prey->info.abilityFlags & LEARNABLE_ABILITIES)
+				|| (~(ally->info.flags) & prey->info.flags & LEARNABLE_BEHAVIORS))
+			&& !((ally->info.flags | prey->info.flags) & (MONST_INANIMATE | MONST_IMMOBILE))
+			&& !monsterAvoids(ally, prey->xLoc, prey->yLoc)
+			&& grid[ally->xLoc][ally->yLoc] <= 10);
+}
+
+boolean anyoneWantABite(creature *decedent) {
+	short candidates, randIndex, i;
+	short **grid;
+	creature *ally;
+	
+	candidates = 0;
+	if ((!(decedent->info.abilityFlags & LEARNABLE_ABILITIES)
+		 && !(decedent->info.flags & LEARNABLE_BEHAVIORS))
+		|| (cellHasTerrainFlag(decedent->xLoc, decedent->yLoc, PATHING_BLOCKER))
+		|| (decedent->info.flags & (MONST_INANIMATE | MONST_IMMOBILE))) {
+		return false;
+	}
+	grid = allocDynamicGrid();
+	calculateDistances(grid, decedent->xLoc, decedent->yLoc, PATHING_BLOCKER, 0);
+	for (ally = monsters->nextCreature; ally != NULL; ally = ally->nextCreature) {
+		if (canAbsorb(ally, decedent, grid)) {
+			candidates++;
+		}
+	}
+	if (candidates > 0) {
+		randIndex = rand_range(1, candidates);
+		for (ally = monsters->nextCreature; ally != NULL; ally = ally->nextCreature) {
+			if (canAbsorb(ally, decedent, grid) && !--randIndex) {
+				break;
+			}
+		}
+		if (ally) {
+			ally->targetCorpseLoc[0] = decedent->xLoc;
+			ally->targetCorpseLoc[1] = decedent->yLoc;
+			strcpy(ally->targetCorpseName, decedent->info.monsterName);
+			ally->corpseAbsorptionCounter = 20; // 20 turns to get there and start eating before he loses interest
+			
+			// choose a superpower
+			candidates = 0;
+			for (i=0; i<32; i++) {
+				if (Fl(i) & ~(ally->info.abilityFlags) & decedent->info.abilityFlags & LEARNABLE_ABILITIES) {
+					candidates++;
+				}
+			}
+			for (i=0; i<32; i++) {
+				if (Fl(i) & ~(ally->info.flags) & decedent->info.flags & LEARNABLE_BEHAVIORS) {
+					candidates++;
+				}
+			}
+			if (candidates > 0) {
+				randIndex = rand_range(1, candidates);
+				for (i=0; i<32; i++) {
+					if ((Fl(i) & ~(ally->info.abilityFlags) & decedent->info.abilityFlags & LEARNABLE_ABILITIES)
+						&& !--randIndex) {
+						ally->absorptionFlags = Fl(i);
+						ally->absorbBehavior = false;
+						freeDynamicGrid(grid);
+						return true;
+					}
+				}
+				for (i=0; i<32; i++) {
+					if ((Fl(i) & ~(ally->info.flags) & decedent->info.flags & LEARNABLE_BEHAVIORS)
+						&& !--randIndex) {
+						ally->absorptionFlags = Fl(i);
+						ally->absorbBehavior = true;
+						freeDynamicGrid(grid);
+						return true;
+					}
+				}
+			}
+		}
+	}
+	freeDynamicGrid(grid);
+	return false;
+}
+
 #define MIN_FLASH_STRENGTH	30
 
 // returns true if this was a killing stroke; does NOT free the pointer, but DOES remove it from the monster chain
@@ -752,13 +840,14 @@ boolean inflictDamage(creature *attacker, creature *defender, short damage, colo
 	}
 	
 	if (defender == &player && rogue.easyMode) {
-		damage = max(1, damage/2);
+		damage = max(1, damage/5);
 	}
 	
 	if (defender->currentHP <= damage) {
 		if (defender->carriedItem) {
 			makeMonsterDropItem(defender);
 		}
+		anyoneWantABite(defender);
 		killCreature(defender);
 		addExperience(defender->info.expForKilling);
 		return true;
@@ -802,7 +891,7 @@ void killCreature(creature *decedent) {
 	if (decedent == &player) { // the player died
 		// game over handled elsewhere
 	} else {
-		if (decedent->creatureState == MONSTER_ALLY && !canSeeMonster(decedent)) {
+		if (decedent->creatureState == MONSTER_ALLY && !canSeeMonster(decedent) && !(decedent->info.flags & MONST_INANIMATE)) {
 			message("you feel a sense of loss.", true, false);
 		}
 		x = decedent->xLoc;
@@ -826,4 +915,41 @@ void killCreature(creature *decedent) {
 	if (decedent->bookkeepingFlags & MONST_LEADER) {
 		demoteMonsterFromLeadership(decedent);
 	}
+}
+
+// basically runs a simplified deterministic combat simulation against a hypothetical
+// monster with infinite HP (the dummy) and returns the amount of damage the tested
+// monster deals before succumbing.
+short monsterPower(creature *theMonst) {
+	short damageDealt[2] = {0, 0};
+	short turnsParalyzed[2] = {theMonst->status.paralyzed, 0};
+	short turnsPoisoned[2] = {theMonst->status.poisoned, 0};
+	short k;
+	double damagePerHit[2];
+	double hitChance[2];
+	
+	damagePerHit[0] = (theMonst->info.damage.lowerBound + theMonst->info.damage.upperBound) / 2 * 100 / (theMonst->info.attackSpeed);
+	damagePerHit[1] = 10;
+	hitChance[0] = theMonst->info.accuracy * pow(DEFENSE_RADICAND, 100); // assumes the dummy has 100 armor
+	hitChance[1] = theMonst->info.accuracy * pow(DEFENSE_RADICAND, theMonst->info.defense);
+	turnsParalyzed[1] += theMonst->status.hasted / 2;
+
+	
+	while (damageDealt[1] < theMonst->currentHP) {
+		for (k=0; k<=1; k++) { // k is whose turn it is
+			if (turnsPoisoned[!k]) {
+				damageDealt[k]++;
+				turnsPoisoned[!k]--;
+			}
+			
+			if (turnsParalyzed[k]) {
+				turnsParalyzed[k]--;
+			} else {
+				damageDealt[k] += damagePerHit[k] * hitChance[k];
+			}
+			
+		}
+	}
+	
+	return damageDealt[0];
 }
