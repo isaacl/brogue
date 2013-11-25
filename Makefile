@@ -34,6 +34,7 @@ BROGUEFILES=src/brogue/Architect.o \
 	src/brogue/Random.o \
 	src/brogue/MainMenu.o \
 	src/brogue/Grid.o \
+	src/brogue/Time.o \
 	src/platform/main.o \
 	src/platform/platformdependent.o \
 	src/platform/curses-platform.o \
