@@ -167,6 +167,13 @@ boolean processSpecialKeystrokes(TCOD_key_t k) {
 	return false;
 }
 
+
+void getModifiers(rogueEvent *returnEvent) {
+	Uint8 *keystate = SDL_GetKeyState(NULL);
+	returnEvent->controlKey = keystate[SDLK_LCTRL] || keystate[SDLK_RCTRL];
+	returnEvent->shiftKey = keystate[SDLK_LSHIFT] || keystate[SDLK_RSHIFT];
+}
+
 // returns true if input is acceptable
 boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 
@@ -175,8 +182,8 @@ boolean processKeystroke(TCOD_key_t key, rogueEvent *returnEvent) {
 	}
 
 	returnEvent->eventType = KEYSTROKE;
-	returnEvent->controlKey = (key.rctrl || key.lctrl);
-	returnEvent->shiftKey = key.shift;
+	getModifiers(returnEvent);
+	
 	switch (key.vk) {
 		case TCODK_CHAR:
 		case TCODK_0:
@@ -316,32 +323,35 @@ void nextKeyOrMouseEvent(rogueEvent *returnEvent, boolean colorsDance) {
 		}
 
 		mouse = TCOD_mouse_get_status();
-		x = mouse.cx;
-		y = mouse.cy;
-		if (x > 0 && y > 0 && x < COLS && y < ROWS
-			&& mouse.lbutton_pressed || mouseX !=x || mouseY != y) {
+
+		if ((SDL_GetAppState() & SDL_APPMOUSEFOCUS)) {
+			x = mouse.cx;
+			y = mouse.cy;
+		} else {
+			x = 0;
+			y = 0;
+		}
+
+		if (mouse.lbutton_pressed || mouseX !=x || mouseY != y) {
 			returnEvent->param1 = x;
 			returnEvent->param2 = y;
 			mouseX = x;
 			mouseY = y;
-			if (TCOD_console_is_key_pressed(TCODK_CONTROL)) {
-				returnEvent->controlKey = true;
-			}
-			if (TCOD_console_is_key_pressed(TCODK_SHIFT)) {
-				returnEvent->shiftKey = true;
-			}
+
+			getModifiers(returnEvent);
+
 			if (mouse.lbutton_pressed) {
 				returnEvent->eventType = MOUSE_UP;
 			} else {
 				returnEvent->eventType = MOUSE_ENTERED_CELL;
 			}
-
 			if (returnEvent->eventType == MOUSE_ENTERED_CELL && !hasMouseMoved) {
-                hasMouseMoved = 1;
+				hasMouseMoved = true;
 			} else {
-                return;
+				return;
 			}
 		}
+
 		waitTime = PAUSE_BETWEEN_EVENT_POLLING + theTime - TCOD_sys_elapsed_milli();
 
 		if (waitTime > 0 && waitTime <= PAUSE_BETWEEN_EVENT_POLLING) {

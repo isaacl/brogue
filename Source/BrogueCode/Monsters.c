@@ -83,6 +83,8 @@ creature *generateMonster(short monsterID, boolean itemPossible) {
 	monst->carriedItem = ((ITEMS_ENABLED && itemPossible && (rogue.depthLevel <= AMULET_LEVEL) && rand_percent(itemChance))
 						  ? generateItem(ALL_ITEMS, -1) : NULL);
 	
+	initializeGender(monst);
+	
 	return monst;
 }
 
@@ -159,6 +161,70 @@ boolean monstersAreEnemies(creature *monst1, creature *monst2) {
 			!= (monst2->creatureState == MONSTER_ALLY || monst2 == &player));
 }
 
+void initializeGender(creature *monst) {
+	if ((monst->info.flags & MONST_MALE) && (monst->info.flags & MONST_FEMALE)) {	// If it's male and female,
+		monst->info.flags &= ~(rand_percent(50) ? MONST_MALE : MONST_FEMALE);		// identify as one or the other.
+	}
+}
+
+// Returns true if either string has a null terminator before they otherwise disagree.
+boolean stringsMatch(const char *str1, const char *str2) {
+	short i;
+	
+	for (i=0; str1[i] && str2[i]; i++) {
+		if (str1[i] != str2[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// Genders:
+//	0 = [character escape sequence]
+//	1 = you
+//	2 = male
+//	3 = female
+//	4 = neuter
+void resolvePronounEscapes(char *text, creature *monst) {
+	short pronounType, gender, i;
+	char *insert, *scan;
+	const char pronouns[4][5][20] = {
+		{"$HESHE", "you", "he", "she", "it"},
+		{"$HIMHER", "you", "him", "her", "it"},
+		{"$HISHER", "your", "his", "her", "its"},
+		{"$HIMSELFHERSELF", "yourself", "himself", "herserlf", "itself"}};
+	
+	if (monst == &player) {
+		gender = 1;
+	} else if (monst->info.flags & MONST_MALE) {
+		gender = 2;
+	} else if (monst->info.flags & MONST_FEMALE) {
+		gender = 3;
+	} else {
+		gender = 4;
+	}
+	
+	for (insert = scan = text; *scan;) {
+		if (scan[0] == '$') {
+			for (pronounType=0; pronounType<4; pronounType++) {
+				if (stringsMatch(pronouns[pronounType][0], scan)) {
+					strcpy(insert, pronouns[pronounType][gender]);
+					scan += strlen(pronouns[pronounType][0]);
+					insert += strlen(pronouns[pronounType][gender]);
+					break;
+				}
+			}
+		} else if (scan[0] == COLOR_ESCAPE) {
+			for (i=0; i<4; i++) {
+				*(insert++) = *(scan++);
+			}
+		} else { // Didn't match any of the escape sequences; copy the character instead.
+			*(insert++) = *(scan++);
+		}
+	}
+	*insert = '\0';
+}
+
 short pickHordeType(short depth, enum monsterTypes summonerType, unsigned long forbiddenFlags, unsigned long requiredFlags) { // pass 0 for summonerType for an ordinary selection
 	short i, index, possCount = 0;
 	
@@ -205,6 +271,7 @@ creature *cloneMonster(creature *monst, boolean announce) {
 	*newMonst = *monst; // boink!
 	newMonst->nextCreature = nextMonst;
 	
+	initializeGender(newMonst);
 	newMonst->info.expForKilling = 0;
 	newMonst->bookkeepingFlags &= ~(MONST_LEADER | MONST_CAPTIVE);
 	newMonst->bookkeepingFlags |= MONST_FOLLOWER;
@@ -219,7 +286,7 @@ creature *cloneMonster(creature *monst, boolean announce) {
 		newMonst->leader = monst;
 		monst->bookkeepingFlags |= MONST_LEADER;
 	}
-	getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, forbiddenFlagsForMonster(monst), (HAS_PLAYER | HAS_MONSTER), false);
+	getQualifyingLocNear(loc, monst->xLoc, monst->yLoc, true, 0, forbiddenFlagsForMonster(&(monst->info)), (HAS_PLAYER | HAS_MONSTER), false);
 	newMonst->xLoc = loc[0];
 	newMonst->yLoc = loc[1];
 	pmap[loc[0]][loc[1]].flags |= HAS_MONSTER;
@@ -278,23 +345,23 @@ void fillDynamicGrid(short **grid, short fillValue) {
 	}
 }
 
-unsigned long forbiddenFlagsForMonster(creature *monst) {
+unsigned long forbiddenFlagsForMonster(creatureType *monsterType) {
 	unsigned long forbiddenFlags;
 	
 	forbiddenFlags = T_PATHING_BLOCKER;
-	if (monst->info.flags & (MONST_IMMUNE_TO_FIRE | MONST_FLIES)) {
+	if (monsterType->flags & (MONST_IMMUNE_TO_FIRE | MONST_FLIES)) {
 		forbiddenFlags &= ~T_LAVA_INSTA_DEATH;
 	}
-	if (monst->info.flags & MONST_IMMUNE_TO_FIRE) {
+	if (monsterType->flags & MONST_IMMUNE_TO_FIRE) {
 		forbiddenFlags &= ~(T_SPONTANEOUSLY_IGNITES | T_IS_FIRE);
 	}
-	if (monst->info.flags & (MONST_IMMUNE_TO_WATER | MONST_FLIES)) {
+	if (monsterType->flags & (MONST_IMMUNE_TO_WATER | MONST_FLIES)) {
 		forbiddenFlags &= ~T_IS_DEEP_WATER;
 	}
-	if (monst->info.flags & (MONST_FLIES)) {
+	if (monsterType->flags & (MONST_FLIES)) {
 		forbiddenFlags &= ~(T_AUTO_DESCENT | T_IS_DF_TRAP);
 	}
-	if (monst->info.flags & MONST_INANIMATE) {
+	if (monsterType->flags & MONST_INANIMATE) {
 		forbiddenFlags &= ~T_CAUSES_DAMAGE;
 	}
 	return forbiddenFlags;
@@ -316,31 +383,121 @@ boolean spawnMinions(short hordeID, creature *leader, boolean summoned) {
 	unsigned long forbiddenFlags;
 	hordeType *theHorde;
 	creature *monst;
-	short x, y;
+	short x, y, i, j, randIndex, candidateCount;
 	short failsafe;
 	boolean atLeastOneMinion = false;
+	char grid[DCOLS][DROWS];
 	
 	x = leader->xLoc;
 	y = leader->yLoc;
 	
 	theHorde = &hordeCatalog[hordeID];
 	
+	candidateCount = 0;
+	
 	for (iSpecies = 0; iSpecies < theHorde->numberOfMemberTypes; iSpecies++) {
 		count = randClump(theHorde->memberCount[iSpecies]);
+		
+		forbiddenFlags = forbiddenFlagsForMonster(&(monsterCatalog[theHorde->memberType[iSpecies]]));
+		if (hordeCatalog[hordeID].spawnsIn) {
+			forbiddenFlags &= ~(tileCatalog[hordeCatalog[hordeID].spawnsIn].flags);
+		}
+		
+		if (theHorde->flags & HORDE_SPREAD_OUT) {
+			zeroOutGrid(grid);
+			getFOVMask(grid, x, y, 15, (T_PATHING_BLOCKER | T_OBSTRUCTS_VISION), 0, false);
+			for (i = x - 2; i <= x + 2; i++) {
+				for (j = y - 2; j <= y + 2; j++) {
+					if (coordinatesAreInMap(i, j)
+						&& grid[i][j]) {
+						grid[i][j] = false;
+						candidateCount--;
+					}
+				}
+			}
+			
+			candidateCount = 0;
+			
+//			DEBUG {
+//				dumpLevelToScreen();
+//				hiliteGrid(grid, &blue, 80);
+//				temporaryMessage("FOV mask for pending monster placement:", false);
+//				displayMoreSign();
+//			}
+			
+			for (i=0; i<DCOLS; i++) {
+				for (j=0; j<DROWS; j++) {
+					if (grid[i][j]
+						&& (cellHasTerrainFlag(i, j, forbiddenFlags)
+							|| (pmap[i][j].flags & (HAS_PLAYER | HAS_MONSTER))
+							|| (theHorde->spawnsIn && !cellHasTerrainType(i, j, theHorde->spawnsIn))
+							|| passableArcCount(i, j) > 1)) {
+							grid[i][j] = false;
+							//printf("   DQ'ed (%i, %i).", i, j);
+						}
+					if (grid[i][j]) {
+						candidateCount++;
+						//printf("   Counted (%i, %i).", i, j);
+					}
+				}
+			}
+			
+//			DEBUG {
+//				dumpLevelToScreen();
+//				hiliteGrid(grid, &green, 80);
+//				temporaryMessage("Candidate cells:", false);
+//				printf("\n\n%i candidate cells.", candidateCount);
+//				displayMoreSign();
+//			}
+			
+		}
+		
 		for (iMember = 0; iMember < count; iMember++) {
 			monst = generateMonster(theHorde->memberType[iSpecies], true);
-			forbiddenFlags = forbiddenFlagsForMonster(monst);
-			if (hordeCatalog[hordeID].spawnsIn) {
-				forbiddenFlags &= ~(tileCatalog[hordeCatalog[hordeID].spawnsIn].flags);
-			}
-			failsafe = 0;
-			do {
-				getQualifyingLocNear(loc, x, y, summoned, 0, forbiddenFlags, (HAS_PLAYER | HAS_MONSTER), false);
-			} while (theHorde->spawnsIn && !cellHasTerrainType(theHorde->spawnsIn, loc[0], loc[1]) && failsafe++ < 20);
-			if (failsafe >= 20) {
-				// abort
-				killCreature(monst, true);
-				break;
+			if (theHorde->flags & HORDE_SPREAD_OUT) {
+				if (candidateCount == 0) {
+					killCreature(monst, true);
+					break;
+				}
+				randIndex = rand_range(0, candidateCount);
+				for (i=0; i<DCOLS && randIndex; i++) {
+					for (j=0; j<DROWS && randIndex; j++) {
+						if (grid[i][j] && !--randIndex) {
+							loc[0] = i;
+							loc[1] = j;
+						}
+					}
+				}
+#ifdef BROGUE_ASSERTS
+				assert(!randIndex);
+#endif
+				for (i=loc[0] - 2; i <= loc[0] + 2; i++) {
+					for (j=loc[1] - 2; j <= loc[1] + 2; j++) {
+						if (coordinatesAreInMap(i, j)
+							&& grid[i][j]) {
+							grid[i][j] = false;
+							candidateCount--;
+						}
+					}
+				}
+				
+//				DEBUG {
+//					dumpLevelToScreen();
+//					hiliteGrid(grid, &green, 80);
+//					temporaryMessage("Candidate cells:", false);
+//					printf("\n\n%i candidate cells.", candidateCount);
+//					displayMoreSign();
+//				}
+			} else {
+				failsafe = 0;
+				do {
+					getQualifyingLocNear(loc, x, y, summoned, 0, forbiddenFlags, (HAS_PLAYER | HAS_MONSTER), false);
+				} while (theHorde->spawnsIn && !cellHasTerrainType(theHorde->spawnsIn, loc[0], loc[1]) && failsafe++ < 20);
+				if (failsafe >= 20) {
+					// abort
+					killCreature(monst, true);
+					break;
+				}
 			}
 			monst->xLoc = loc[0];
 			monst->yLoc = loc[1];
@@ -436,11 +593,6 @@ creature *spawnHorde(short hordeID, short x, short y, unsigned long forbiddenFla
 			y = loc[1];
 			i++;
 		} while (i < 25 && (pmap[x][y].flags & (IN_FIELD_OF_VIEW | CLAIRVOYANT_VISIBLE)));
-//		printf("\nGenerating a monster at (%i, %i),\t...which %s in FOV and %s clairvoyantly illuminated.",
-//			   x,
-//			   y,
-//			   (pmap[x][y].flags & (IN_FIELD_OF_VIEW) ? "IS" : "is NOT"),
-//			   (pmap[x][y].flags & (CLAIRVOYANT_VISIBLE) ? "IS" : "is NOT"));
 	}
 	
 	if (hordeCatalog[hordeID].spawnsIn == DEEP_WATER && pmap[x][y].layers[LIQUID] != DEEP_WATER) {
@@ -587,7 +739,7 @@ void spawnPeriodicHorde() {
 		randomMatchingLocation(loc, FLOOR, NOTHING, -1);
 	} while ((pmap[loc[0]][loc[1]].flags & (IN_FIELD_OF_VIEW | CLAIRVOYANT_VISIBLE | IS_IN_MACHINE)) ||
 			 distanceBetween(player.xLoc, player.yLoc, loc[0], loc[1]) < 15);
-	monst = spawnHorde(0, loc[0], loc[1], (HORDE_IS_SUMMONED | HORDE_LEADER_CAPTIVE | NO_PERIODIC_SPAWN | HORDE_MACHINE_ONLY), 0);
+	monst = spawnHorde(0, loc[0], loc[1], (HORDE_IS_SUMMONED | HORDE_LEADER_CAPTIVE | HORDE_NO_PERIODIC_SPAWN | HORDE_MACHINE_ONLY), 0);
 	if (monst) {
 		wakeUp(monst);
 	}
@@ -807,14 +959,6 @@ void chooseNewWanderDestination(creature *monst) {
 	}
 }
 
-void getRoomCenter(short returnLoc[2], room *theRoom) {
-	if (!theRoom) {
-		return;
-	}
-	returnLoc[0] = theRoom->roomX + (theRoom->width - 1) / 2;
-	returnLoc[1] = theRoom->roomY + (theRoom->height - 1) / 2;
-}
-
 boolean monsterAvoids(creature *monst, short x, short y) {
 	creature *defender;
 	
@@ -991,34 +1135,26 @@ boolean moveMonsterPassivelyTowards(creature *monst, short targetLoc[2], boolean
 }
 
 short distanceBetween(short x1, short y1, short x2, short y2) {
-	short dx, dy;
-	
-	dx = x1 - x2;
-	if (dx < 0) {
-		dx *= -1;
-	}
-	
-	dy = y1 - y2;
-	if (dy < 0) {
-		dy *= -1;
-	}
-	
-	return max(dx, dy);
+	return max(abs(x1 - x2), abs(y1 - y2));
 }
 
 void wakeUp(creature *monst) {
 	creature *teammate;
 	
-	monst->creatureState =
-	(monst->creatureMode == MODE_PERM_FLEEING ? MONSTER_FLEEING : MONSTER_TRACKING_SCENT);
-	chooseNewWanderDestination(monst);
+	if (monst->creatureState != MONSTER_ALLY) {
+		monst->creatureState =
+		(monst->creatureMode == MODE_PERM_FLEEING ? MONSTER_FLEEING : MONSTER_TRACKING_SCENT);
+		chooseNewWanderDestination(monst);
+	}
 	monst->ticksUntilTurn = 100;
 	
 	for (teammate = monsters->nextCreature; teammate != NULL; teammate = teammate->nextCreature) {
-		if (monstersAreTeammates(monst, teammate) && teammate->creatureMode == MODE_NORMAL) {
-			teammate->creatureState =
-			(teammate->creatureMode == MODE_PERM_FLEEING ? MONSTER_FLEEING : MONSTER_TRACKING_SCENT);
-			chooseNewWanderDestination(teammate);
+		if (monst != teammate && monstersAreTeammates(monst, teammate) && teammate->creatureMode == MODE_NORMAL) {
+			if (monst->creatureState != MONSTER_ALLY) {
+				teammate->creatureState =
+				(teammate->creatureMode == MODE_PERM_FLEEING ? MONSTER_FLEEING : MONSTER_TRACKING_SCENT);
+				chooseNewWanderDestination(teammate);
+			}
 			teammate->ticksUntilTurn = 100;
 		}
 	}
@@ -1289,7 +1425,7 @@ void decrementMonsterStatus(creature *monst) {
 	if (monst->status.magicalFear) {
 		if (!--monst->status.magicalFear
 			&& monst->creatureState == MONSTER_FLEEING) {
-			monst->creatureState = MONSTER_TRACKING_SCENT;
+			monst->creatureState = (monst->leader == &player ? MONSTER_ALLY : MONSTER_TRACKING_SCENT);
 		}
 	}
 	if (monst->status.hallucinating) {
@@ -1535,6 +1671,9 @@ boolean monsterBlinkToSafety(creature *monst) {
 		blinkSafetyMap = safetyMap;
 	} else {
 		if (!monst->safetyMap) {
+			if (!rogue.updatedSafetyMapThisTurn) {
+				updateSafetyMap();
+			}
 			monst->safetyMap = allocDynamicGrid();
 			copyDynamicGrid(monst->safetyMap, safetyMap);
 		}
@@ -1563,7 +1702,7 @@ boolean monstUseMagic(creature *monst) {
 			}
 		}
 		if ((monst->creatureState != MONSTER_ALLY || minionCount < 5)
-			&& !rand_range(0, minionCount * minionCount * 3 + 1)) {
+			&& !rand_range(0, minionCount * minionCount * 3 + (monst->info.abilityFlags & MA_ENTER_SUMMONS ? 5 : 1))) {
 			summonMinions(monst);
 			return true;
 		}
@@ -1634,7 +1773,7 @@ boolean monstUseMagic(creature *monst) {
 				
 				// Opportunity to cast negation cleverly?
 				if (monst->info.abilityFlags & (MA_CAST_NEGATION)
-					&& (target->status.hasted || target->status.telepathic || (target->info.flags & MONST_DIES_IF_NEGATED)
+					&& (target->status.hasted || target->status.telepathic || (target->info.flags & (MONST_DIES_IF_NEGATED | MONST_IMMUNE_TO_WEAPONS))
 						|| ((target->status.immuneToFire || target->status.levitating)
 							&& cellHasTerrainFlag(target->xLoc, target->yLoc, (T_LAVA_INSTA_DEATH | DEEP_WATER | T_AUTO_DESCENT))))
 					&& rand_percent(50)) {
@@ -1780,7 +1919,7 @@ boolean monstUseMagic(creature *monst) {
 							sprintf(buf, "%s casts a firebolt", monstName);
 							combatMessage(buf, 0);
 						}
-						zap(originLoc, targetLoc, BOLT_FIRE, 2, false);
+						zap(originLoc, targetLoc, BOLT_FIRE, 4, false);
 						if (player.currentHP <= 0) {
 							monsterName(monstName, monst, false);
 							gameOver(monsterCatalog[monst->info.monsterID].monsterName, false);
@@ -2104,6 +2243,7 @@ void monstersTurn(creature *monst) {
 					sprintf(buf, "%s now %s!", buf2,
 							(monst->absorbBehavior ? monsterBehaviorFlagDescriptions[unflag(monst->absorptionFlags)] :
 							 monsterAbilityFlagDescriptions[unflag(monst->absorptionFlags)]));
+					resolvePronounEscapes(buf, monst);
 					messageWithColor(buf, &goodMessageColor, false);
 				}
 				monst->absorptionFlags = 0;
@@ -2470,9 +2610,11 @@ boolean moveMonster(creature *monst, short dx, short dy) {
 	} else {
 		if (monst->bookkeepingFlags & MONST_SEIZED) {
 			for (defender = monsters->nextCreature; defender != NULL; defender = defender->nextCreature) {
-				if (defender->bookkeepingFlags & MONST_SEIZING
+				if ((defender->bookkeepingFlags & MONST_SEIZING)
+					&& monstersAreEnemies(monst, defender)
 					&& distanceBetween(monst->xLoc, monst->yLoc, defender->xLoc, defender->yLoc) == 1
 					&& !monst->status.levitating) {
+					
 					monst->ticksUntilTurn = monst->movementSpeed;
 					return true;
 				}
@@ -2512,7 +2654,7 @@ boolean moveMonster(creature *monst, short dx, short dy) {
 						
 						if (monsterAvoids(defender, x, y)) { // don't want a flying monster to swap a non-flying monster into lava!
 							getQualifyingLocNear(newLoc, x, y, true, 0,
-												 forbiddenFlagsForMonster(defender),
+												 forbiddenFlagsForMonster(&(defender->info)),
 												 (HAS_PLAYER | HAS_MONSTER), false);
 							defender->xLoc = newLoc[0];
 							defender->yLoc = newLoc[1];
@@ -2721,9 +2863,13 @@ void monsterDetails(char buf[], creature *monst) {
 	
 	monsterName(monstName, monst, true);
 	
-	sprintf(newText, "     %s\n     ", monsterText[monst->info.monsterID].flavorText);
-	upperCase(newText);
-	strcat(buf, newText);
+	if (!(monst->info.flags & MONST_RESTRICTED_TO_LIQUID)
+		 || cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_ALLOWS_SUBMERGING)) {
+		
+		// If the monster is not a beached whale, print the ordinary flavor text.
+		sprintf(newText, "     %s\n     ", monsterText[monst->info.monsterID].flavorText);
+		strcat(buf, newText);
+	}
 	
 	if (!rogue.armor || (rogue.armor->flags & ITEM_IDENTIFIED)) {
 		combatMath2 = hitProbability(monst, &player);
@@ -2734,11 +2880,16 @@ void monsterDetails(char buf[], creature *monst) {
 		player.info.defense = realArmorValue;
 	}
 	
-	if (rogue.armor
-		&& (rogue.armor->flags & ITEM_RUNIC)
-		&& (rogue.armor->flags & ITEM_RUNIC_IDENTIFIED)
-		&& rogue.armor->enchant2 == A_IMMUNITY
-		&& rogue.armor->vorpalEnemy == monst->info.monsterID) {
+	if ((monst->info.flags & MONST_RESTRICTED_TO_LIQUID) && !cellHasTerrainFlag(monst->xLoc, monst->yLoc, T_ALLOWS_SUBMERGING)) {
+		upperCase(monstName);
+		sprintf(newText, "     %s writhes helplessly on dry land.\n     ", monstName);
+		monsterName(monstName, monst, true);
+	} else if (rogue.armor
+			   && (rogue.armor->flags & ITEM_RUNIC)
+			   && (rogue.armor->flags & ITEM_RUNIC_IDENTIFIED)
+			   && rogue.armor->enchant2 == A_IMMUNITY
+			   && rogue.armor->vorpalEnemy == monst->info.monsterID) {
+		
 		sprintf(newText, "Your armor renders you immune to %s.\n     ", monstName);
 	} else if (monst->info.damage.upperBound == 0) {
 		sprintf(newText, "%s deals no direct damage.\n     ", monstName);
@@ -2794,7 +2945,7 @@ void monsterDetails(char buf[], creature *monst) {
 			} else {
 				combatMath2 = hitProbability(&player, monst);
 			}
-			sprintf(newText, "You have a %i%% chance to hit %s, typically hit for %i%% of its maximum HP, and at best, could defeat it in %i hit%s.",
+			sprintf(newText, "You have a %i%% chance to hit %s, typically hit for %i%% of $HISHER maximum HP, and at best, could defeat $HIMHER in %i hit%s.",
 					combatMath2,
 					monstName,
 					100 * playerKnownAverageDamage / monst->info.maxHP,
@@ -2825,7 +2976,7 @@ void monsterDetails(char buf[], creature *monst) {
 					}
 					// otherwise continue to the STAFF_LIGHTNING template
 				case STAFF_LIGHTNING:
-					sprintf(newText, "\n     Your %s (%c) will hit %s for between %i%% and %i%% of its maximum HP.",
+					sprintf(newText, "\n     Your %s (%c) will hit %s for between %i%% and %i%% of $HISHER maximum HP.",
 							theItemName,
 							theItem->inventoryLetter,
 							monstName,
@@ -2840,7 +2991,7 @@ void monsterDetails(char buf[], creature *monst) {
 								theItem->inventoryLetter,
 								monstName);
 					} else {
-						sprintf(newText, "\n     Your %s (%c) will poison %s for %i%% of its maximum HP.",
+						sprintf(newText, "\n     Your %s (%c) will poison %s for %i%% of $HISHER maximum HP.",
 								theItemName,
 								theItem->inventoryLetter,
 								monstName,
@@ -2987,4 +3138,5 @@ void monsterDetails(char buf[], creature *monst) {
 		}
 		buf[j] = '\0';
 	}
+	resolvePronounEscapes(buf, monst);
 }

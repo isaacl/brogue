@@ -71,6 +71,7 @@ void recordNumber(unsigned long number, short numberOfBytes) {
 // Events are recorded as follows:
 // Keystrokes: Event type, keystroke value, modifier flags. (3 bytes.)
 // All other events: Event type, x-coordinate of the event, y-coordinate of the event, modifier flags. (4 bytes.)
+// Note: these must be sanitized, because user input may contain more than one byte per parameter.
 void recordEvent(rogueEvent *event) {
 	unsigned char c;
 	
@@ -281,7 +282,9 @@ void playbackPanic() {
 		rogue.playbackPaused = true;
 		rogue.playbackOOS = true;
 		displayLevel();
+		refreshSideBar(NULL);
 		
+		confirmMessages();
 		message("Playback is out of sync. The file is corrupted.", false);
 		
 		printTextBox(OOS_APOLOGY, 0, 0, 0, &white, &black, rbuf);
@@ -533,29 +536,38 @@ boolean unpause() {
 void printPlaybackHelpScreen() {
 	short i, j;
 	cellDisplayBuffer dbuf[COLS][ROWS], rbuf[COLS][ROWS];
-	const char helpText[16][80] = {
+	char helpText[16][80] = {
 		"Commands:",
 		"",
-		"         <space>: pause or unpause playback",
-		"   k or up arrow: play back faster",
-		" j or down arrow: play back slower",
-		"               >: skip to next level",
-		"             0-9: skip to specified turn number",
-		"l or right arrow: advance one turn",
+		"         <space>: ****pause or unpause playback",
+		"   k or up arrow: ****play back faster",
+		" j or down arrow: ****play back slower",
+		"               >: ****skip to next level",
+		"             0-9: ****skip to specified turn number",
+		"l or right arrow: ****advance one turn",
 		"",
-		"           <tab>: enable or disable omniscience",
-		"               x: examine surroundings",
-		"               i: display inventory",
-		"               D: display discovered items",
-		"               V: view saved recording",
+		"           <tab>: ****enable or disable omniscience",
+		"          return: ****examine surroundings",
+		"               i: ****display inventory",
+		"               D: ****display discovered items",
+		"               V: ****view saved recording",
 		" ",
 		"        -- press space to continue --"
 	};
 	
+	// Replace the "****"s with color escapes.
+	for (i=0; i<16; i++) {
+		for (j=0; helpText[i][j]; j++) {
+			if (helpText[i][j] == '*') {
+				j = encodeMessageColor(helpText[i], j, &white);
+			}
+		}
+	}
+	
 	clearDisplayBuffer(dbuf);
 	
 	for (i=0; i<16; i++) {
-		printString(helpText[i], mapToWindowX(5), mapToWindowY(i), &white, &black, dbuf);
+		printString(helpText[i], mapToWindowX(5), mapToWindowY(i), &itemMessageColor, &black, dbuf);
 	}
 	
 	for (i=0; i<COLS; i++) {
@@ -594,15 +606,22 @@ void advanceToLocation(short keystroke) {
 		
 		if (enteredText) {
 			sscanf(entryText, "%lu", &destinationFrame);
-			if (destinationFrame < rogue.turnNumber) {
-				flashTemporaryAlert(" Rewinding not supported ", 3000);
-			} else if (destinationFrame >= rogue.howManyTurns) {
+			
+			if (destinationFrame >= rogue.howManyTurns) {
 				flashTemporaryAlert(" Past end of recording ", 3000);
 			} else if (destinationFrame == rogue.turnNumber) {
 				sprintf(buf, " Already at turn %li ", destinationFrame);
 				flashTemporaryAlert(buf, 1000);
 			} else {
-				//blackOutScreen();
+				if (destinationFrame < rogue.turnNumber) {
+					// Start the recording over, and fast-forward to chosen frame.
+					freeEverything();
+					randomNumbersGenerated = 0;
+					rogue.playbackMode = true;
+					initializeRogue();
+					startLevel(rogue.depthLevel, 1);
+					blackOutScreen();
+				}
 				
 				clearDisplayBuffer(dbuf);
 				rectangularShading((COLS - 20) / 2, ROWS / 2, (COLS + 20) / 2, ROWS / 2, &black, dbuf);
@@ -645,7 +664,7 @@ void advanceToLocation(short keystroke) {
 // used to interact with playback -- e.g. changing speed, pausing
 void executePlaybackInput(rogueEvent *recordingInput) {
 	uchar key;
-	short newDelay, frameCount;
+	short newDelay, frameCount, x, y;
 	unsigned long initialState, destinationFrame;
 	boolean pauseState;
 	rogueEvent theEvent;
@@ -678,12 +697,22 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				if (rogue.playbackOOS && rogue.playbackPaused) {
 					flashTemporaryAlert(" Out of sync ", 2000);
 				} else {
-					rogue.playbackPaused = !rogue.playbackPaused;
-					if (rogue.playbackPaused) {
-						flashTemporaryAlert(" Recording paused ", 1000);
-					} else {
-						flashTemporaryAlert(" Recording unpaused ", 200);
+					//rogue.playbackPaused = !rogue.playbackPaused;
+//					if (rogue.playbackPaused) {
+//						flashTemporaryAlert(" Recording paused ", 1000);
+//					} else {
+					//						flashTemporaryAlert(" Recording unpaused ", 200);
+					//					}
+					if (!rogue.playbackPaused) {
+						rogue.playbackPaused = true;
+						messageWithColor("recording paused", &teal, false);
+						refreshSideBar(NULL);
+						inputLoop();
 					}
+					messageWithColor("recording unpaused", &teal, false);
+					rogue.playbackPaused = false;
+					refreshSideBar(NULL);
+					rogue.playbackDelayThisTurn = DEFAULT_PLAYBACK_DELAY;
 				}
 				break;
 			case TAB_KEY:
@@ -691,9 +720,9 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				displayLevel();
 				refreshSideBar(NULL);
 				if (rogue.playbackOmniscience) {
-					flashTemporaryAlert(" Omniscience enabled ", 1000);
+					messageWithColor("Omniscience enabled.", &teal, false);
 				} else {
-					flashTemporaryAlert(" Omniscience disabled ", 1000);
+					messageWithColor("Omniscience disabled.", &teal, false);
 				}
 				break;
 			case ASCEND_KEY:
@@ -721,7 +750,8 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				}
 				rogue.playbackPaused = pauseState;
 				break;
-			case EXAMINE_KEY:
+			case RETURN_KEY:
+			case ENTER_KEY:
 				inputLoop();
 				break;
 			case INVENTORY_KEY:
@@ -771,6 +801,11 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				printDiscoveriesScreen();
 				rogue.playbackMode = true;
 				break;
+			case MESSAGE_ARCHIVE_KEY:
+				rogue.playbackMode = false;
+				displayMessageArchive();
+				rogue.playbackMode = true;
+				break;
 			case VIEW_RECORDING_KEY:
 				confirmMessages();
 				rogue.playbackMode = false;
@@ -803,6 +838,15 @@ void executePlaybackInput(rogueEvent *recordingInput) {
 				}
 				break;
 		}
+	} else if (recordingInput->eventType == MOUSE_UP) {
+		x = recordingInput->param1;
+		y = recordingInput->param2;
+		if (windowToMapX(x) >= 0 && windowToMapX(x) < DCOLS && y >= 0 && y < MESSAGE_LINES) {
+			// If the click location is in the message block, display the message archive.
+			rogue.playbackMode = false;
+			displayMessageArchive();
+			rogue.playbackMode = true;
+		}
 	}
 }
 
@@ -824,7 +868,7 @@ void saveGame() {
 	boolean askAgain;
 	
 	if (rogue.playbackMode) {
-		return; // call me paranoid, but I'd rather it be impossible to embed malware in a recording
+		return; // Call me paranoid, but I'd rather it be impossible to embed malware in a recording.
 	}
 	
 	getAvailableFilePath(defaultPath, "Saved game", GAME_SUFFIX);
@@ -945,7 +989,11 @@ void loadSavedGame() {
 		rectangularShading((COLS - 20) / 2, ROWS / 2, (COLS + 20) / 2, ROWS / 2, &black, dbuf);
 		overlayDisplayBuffer(dbuf, 0);
 		
-		while (recordingLocation < lengthOfPlaybackFile && !rogue.gameHasEnded && !rogue.playbackOOS) {
+		while (recordingLocation < lengthOfPlaybackFile
+			   && rogue.turnNumber < rogue.howManyTurns
+			   && !rogue.gameHasEnded
+			   && !rogue.playbackOOS) {
+			
 			rogue.RNG = RNG_COSMETIC;
 			nextBrogueEvent(&theEvent, true, false);
 			rogue.RNG = RNG_SUBSTANTIVE;
@@ -974,23 +1022,23 @@ void loadSavedGame() {
 void describeKeystroke(unsigned char key, char *description) {
 	short i;
 	uchar c;
-	const uchar ucharList[53] =	{UP_KEY, DOWN_KEY, LEFT_KEY, RIGHT_KEY, UP_ARROW, LEFT_ARROW,
+	const uchar ucharList[52] =	{UP_KEY, DOWN_KEY, LEFT_KEY, RIGHT_KEY, UP_ARROW, LEFT_ARROW,
 		DOWN_ARROW, RIGHT_ARROW, UPLEFT_KEY, UPRIGHT_KEY, DOWNLEFT_KEY, DOWNRIGHT_KEY,
 		DESCEND_KEY, ASCEND_KEY, REST_KEY, AUTO_REST_KEY, SEARCH_KEY, INVENTORY_KEY,
 		ACKNOWLEDGE_KEY, EQUIP_KEY, UNEQUIP_KEY, APPLY_KEY, THROW_KEY, DROP_KEY, CALL_KEY,
 		FIGHT_KEY, FIGHT_TO_DEATH_KEY, HELP_KEY, DISCOVERIES_KEY, REPEAT_TRAVEL_KEY,
-		EXAMINE_KEY, EXPLORE_KEY, AUTOPLAY_KEY, SEED_KEY, EASY_MODE_KEY, ESCAPE_KEY,
+		EXPLORE_KEY, AUTOPLAY_KEY, SEED_KEY, EASY_MODE_KEY, ESCAPE_KEY,
 		RETURN_KEY, ENTER_KEY, DELETE_KEY, TAB_KEY, PERIOD_KEY, VIEW_RECORDING_KEY, NUMPAD_0,
 		NUMPAD_1, NUMPAD_2, NUMPAD_3, NUMPAD_4, NUMPAD_5, NUMPAD_6, NUMPAD_7, NUMPAD_8,
 		NUMPAD_9, UNKNOWN_KEY};
-	const char descList[54][30] = {"up", "down", "left", "right", "up arrow", "left arrow",
+	const char descList[53][30] = {"up", "down", "left", "right", "up arrow", "left arrow",
 		"down arrow", "right arrow", "upleft", "upright", "downleft", "downright",
 		"descend", "ascend", "rest", "auto rest", "search", "inventory", "acknowledge",
 		"equip", "unequip", "apply", "throw", "drop", "call", "fight", "fight to death",
-		"help", "discoveries", "repeat travel", "examine", "explore", "autoplay", "seed",
+		"help", "discoveries", "repeat travel", "explore", "autoplay", "seed",
 		"easy mode", "escape", "return", "enter", "delete", "tab", "period", "open file",
 		"numpad 0", "numpad 1", "numpad 2", "numpad 3", "numpad 4", "numpad 5", "numpad 6",
-		"numpad 7", "numpad 8", "numpad 9", "unknown", "ERROR!!!"};	
+		"numpad 7", "numpad 8", "numpad 9", "unknown", "ERROR"};	
 	c = uncompressKeystroke(key);
 	for (i=0; ucharList[i] != c && i < 53; i++);
 	if (key >= 32 && key <= 126) {

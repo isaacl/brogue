@@ -16,10 +16,12 @@
 					<Add directory="BrogueCode" />
 					<Add directory="PlatformCode" />
 					<Add directory="libtcod-1.5.1\include" />
+					<Add directory="SDL-1.2.14\include" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
 					<Add library="libtcod-1.5.1\lib\libtcod-mingw.a" />
+					<Add library="SDL-1.2.14\lib\libSDL.dll.a" />
 				</Linker>
 			</Target>
 		</Build>

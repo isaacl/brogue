@@ -146,6 +146,7 @@ short floodFillCount(char results[DCOLS][DROWS], char passMap[DCOLS][DROWS], sho
 //		Two means it is in a hallway or something similar.
 //		Three means it is the center of a T-intersection, or something analogous.
 //		Four means it is in the intersection of two hallways.
+//		Five or more means there is a bug.
 #define isGenerallyPassable(x, y) (coordinatesAreInMap((x), (y)) && (!cellHasTerrainFlag((x), (y), T_PATHING_BLOCKER) || cellHasTerrainFlag((x), (y), T_IS_SECRET)))
 short passableArcCount(short x, short y) {
 	short arcCount, dir, oldX, oldY, newX, newY;
@@ -932,9 +933,9 @@ boolean buildAMachine(item *adoptiveItem, item *parentSpawnedItems[50], creature
 					
 					// Generate an item as necessary.
 					if ((feature->flags & MF_GENERATE_ITEM)
-						|| (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY))) {
+						|| (adoptiveItem && (feature->flags & MF_ADOPT_ITEM) && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY))) {
 						// Are we adopting an item instead of generating one?
-						if (adoptiveItem && feat == 0 && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY)) {
+						if (adoptiveItem && (feature->flags & MF_ADOPT_ITEM) && (blueprintCatalog[bp].flags & BF_ADOPT_ITEM_MANDATORY)) {
 							theItem = adoptiveItem;
 							adoptiveItem = NULL; // can be adopted only once
 						} else {
@@ -1169,6 +1170,7 @@ void cleanUpLakeBoundaries() {
 	} while (madeChange);
 }
 
+// This is the master function for digging out a dungeon level. Finishing touches -- items, monsters, staircases, etc. -- are handled elsewhere.
 void digDungeon() {
 	short i, j, k, l;
 	short x1, x2, y1, y2;
@@ -1180,7 +1182,7 @@ void digDungeon() {
 	short surfaceEffectOrigin[2];
 	short depthRoomSizeScaleFactor;
 	short deepLiquid, shallowLiquid, shallowLiquidWidth;
-	char wreathMap[DCOLS][DROWS];
+	char wreathMap[DCOLS][DROWS], unfilledLakeMap[DCOLS][DROWS];
 	boolean isCorridor = false;
 	boolean isCross = false;
 	boolean roomWasPlaced = true;
@@ -1272,6 +1274,11 @@ void digDungeon() {
 	
 	numberOfRooms = 1;
 	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("First room placed.", true);
+	}
+	
 	// Now start placing random rooms branching off of preexisting rooms; make 600 attempts
 	
 	for(k=0; k<600 && numberOfRooms <= thisLevelProfile->maxNumberOfRooms; k++) {
@@ -1305,6 +1312,10 @@ void digDungeon() {
 										  doorCandidateY + nbDirs[oppositeDirection(dir)][1]);
 			connectRooms(fromRoom, builtRoom, doorCandidateX, doorCandidateY, dir);
 		}
+		if (D_INSPECT_LEVELGEN && builtRoom) {
+			dumpLevelToScreen();
+			message("Room placed", true);
+		}
 	}
 	//DEBUG printf("%i non-corridor rooms placed.", numberOfRooms);
 	
@@ -1334,6 +1345,11 @@ void digDungeon() {
 			numLoops++;
 		}
 	}
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Loops added.", true);
+	}
 	//DEBUG printf("\n%i loops created.", numLoops);
 	//DEBUG logLevel();
 	
@@ -1345,6 +1361,7 @@ void digDungeon() {
 	
 	// DEBUG logLevel();
 	
+	zeroOutGrid(unfilledLakeMap);
 	for (lakeMaxHeight = 15, lakeMaxWidth = 30; lakeMaxHeight >=10; lakeMaxHeight--, lakeMaxWidth -= 2) { // lake generations
 		
 		cellularAutomata(4, 4, lakeMaxWidth, lakeMaxHeight, 55, "ffffftttt", "ffffttttt");
@@ -1362,19 +1379,26 @@ void digDungeon() {
 				for (i = roomX; i < roomX + blobWidth; i++) {
 					for (j = roomY; j < roomY + blobHeight; j++) {
 						if (tmap[i][j].connected == -1) {
-							pmap[i][j].layers[LIQUID] = UNFILLED_LAKE;
+							unfilledLakeMap[i][j] = true;
+							pmap[i][j].layers[LIQUID] = FLOOR; // Just need a non-NOTHING value so createWreath() works.
 							pmap[i][j].layers[DUNGEON] = FLOOR;
 							if (pmap[i][j].flags & DOORWAY) {
 								pmap[i][j].flags &= ~DOORWAY; // so that waypoint selection is not blocked by former doorways
 							}
-							for (l=0; l<8; l++) {
-								if (coordinatesAreInMap(i+nbDirs[l][0], j+nbDirs[l][1]) &&
-									pmap[i+nbDirs[l][0]][j+nbDirs[l][1]].layers[DUNGEON] == GRANITE) {
-									pmap[i+nbDirs[l][0]][j+nbDirs[l][1]].layers[DUNGEON] = PERM_WALL;
-								}
-							}
+//							for (l=0; l<8; l++) {
+//								if (coordinatesAreInMap(i+nbDirs[l][0], j+nbDirs[l][1]) &&
+//									pmap[i+nbDirs[l][0]][j+nbDirs[l][1]].layers[DUNGEON] == GRANITE) {
+//									pmap[i+nbDirs[l][0]][j+nbDirs[l][1]].layers[DUNGEON] = PERM_WALL;
+//								}
+//							}
 						}
 					}
+				}
+				
+				if (D_INSPECT_LEVELGEN) {
+					dumpLevelToScreen();
+					hiliteGrid(unfilledLakeMap, &white, 75);
+					message("Added a lake location.", true);
 				}
 				
 				// DEBUG logLevel();
@@ -1386,11 +1410,17 @@ void digDungeon() {
 	// Now fill all the lakes with various liquids
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
-			if (pmap[i][j].layers[LIQUID] == UNFILLED_LAKE) {
+			if (unfilledLakeMap[i][j]) {
 				liquidType(&deepLiquid, &shallowLiquid, &shallowLiquidWidth);
 				zeroOutGrid(wreathMap);
-				fillLake(i, j, deepLiquid, 4, wreathMap);
+				fillLake(i, j, deepLiquid, 4, wreathMap, unfilledLakeMap);
 				createWreath(shallowLiquid, shallowLiquidWidth, wreathMap);
+				
+				if (D_INSPECT_LEVELGEN) {
+					dumpLevelToScreen();
+					hiliteGrid(unfilledLakeMap, &white, 75);
+					message("Lake filled.", true);
+				}
 			}
 		}
 	}
@@ -1415,7 +1445,13 @@ void digDungeon() {
 				dungeonFeatureCatalog[k].maxNumber);
 		for (i = 0; i < l || rand_percent(dungeonFeatureCatalog[k].frequency); i++) {
 			if (randomMatchingLocation(surfaceEffectOrigin, dungeonFeatureCatalog[k].requiredDungeonFoundationType, NOTHING, -1)) {
-				spawnDungeonFeature(surfaceEffectOrigin[0], surfaceEffectOrigin[1], &dungeonFeatureCatalog[k], false, true);				
+				spawnDungeonFeature(surfaceEffectOrigin[0], surfaceEffectOrigin[1], &dungeonFeatureCatalog[k], false, true);
+				
+				if (D_INSPECT_LEVELGEN) {
+					dumpLevelToScreen();
+					hiliteCell(surfaceEffectOrigin[0], surfaceEffectOrigin[1], &yellow, 50, true);
+					message("Dungeon feature added.", true);
+				}
 			}
 		}
 	}
@@ -1451,12 +1487,27 @@ void digDungeon() {
 		}
 	} while (diagonalCornerRemoved == true);
 	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Diagonal openings removed.", true);
+	}
+	
 	// Now add some bridges.
 	while (buildABridge());
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Bridges added.", true);
+	}
 	
 	// Now add some machines.
 	analyzeMap(true);
 	addMachines();
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Machines added.", true);
+	}
 	
 	// Now knock down the boundaries between similar lakes where possible.
 	cleanUpLakeBoundaries();
@@ -1495,7 +1546,7 @@ void digDungeon() {
 					y1 = j + nbDirs[dir][1];
 					if (coordinatesAreInMap(x1, y1)
 						&& (!cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_VISION) || !cellHasTerrainFlag(x1, y1, T_OBSTRUCTS_PASSABILITY))) {
-						pmap[i][j].layers[DUNGEON] = TOP_WALL;
+						pmap[i][j].layers[DUNGEON] = PERM_WALL;
 						foundExposure = true;
 					}
 				}
@@ -1514,6 +1565,11 @@ void digDungeon() {
 				}
 			}
 		}
+	}
+	
+	if (D_INSPECT_LEVELGEN) {
+		dumpLevelToScreen();
+		message("Finishing touches added. Level has been generated.", true);
 	}
 }
 
@@ -1545,12 +1601,13 @@ boolean buildABridge() {
 				// try a horizontal bridge
 				foundExposure = false;
 				for (k = i + 1;
-					 k < DCOLS // Iterate down the prospective length of the bridge.
+					 k < DCOLS // Iterate across the prospective length of the bridge.
 					 && cellHasTerrainFlag(k, j, T_CAN_BE_BRIDGED)	// Candidate tile must be chasm.
 					 && !cellHasTerrainFlag(k, j, T_OBSTRUCTS_PASSABILITY)	// Candidate tile cannot be a wall.
 					 && cellHasTerrainFlag(k, j-1, (T_CAN_BE_BRIDGED | T_OBSTRUCTS_PASSABILITY))	// Only chasms or walls are permitted next to the length of the bridge.
 					 && cellHasTerrainFlag(k, j+1, (T_CAN_BE_BRIDGED | T_OBSTRUCTS_PASSABILITY));
 					 k++) {
+					
 					if (!cellHasTerrainFlag(k, j-1, T_OBSTRUCTS_PASSABILITY) // Can't run against a wall the whole way.
 						&& !cellHasTerrainFlag(k, j+1, T_OBSTRUCTS_PASSABILITY)) {
 						foundExposure = true;
@@ -1561,6 +1618,7 @@ boolean buildABridge() {
 					&& foundExposure
 					&& !cellHasTerrainFlag(k, j, T_OBSTRUCTS_PASSABILITY | T_CAN_BE_BRIDGED) // Must end on a land tile.
 					&& 100 * pathingDistance(i, j, k, j, T_PATHING_BLOCKER) / (k - i) > bridgeRatioX) { // Must shorten the pathing distance enough.
+					
 					for (l=i+1; l < k; l++) {
 						pmap[l][j].layers[LIQUID] = BRIDGE;
 					}
@@ -1578,6 +1636,7 @@ boolean buildABridge() {
 					 && cellHasTerrainFlag(i-1, k, (T_CAN_BE_BRIDGED | T_OBSTRUCTS_PASSABILITY))
 					 && cellHasTerrainFlag(i+1, k, (T_CAN_BE_BRIDGED | T_OBSTRUCTS_PASSABILITY));
 					 k++) {
+					
 					if (!cellHasTerrainFlag(i-1, k, T_OBSTRUCTS_PASSABILITY)
 						&& !cellHasTerrainFlag(i+1, k, T_OBSTRUCTS_PASSABILITY)) {
 						foundExposure = true;
@@ -1588,6 +1647,7 @@ boolean buildABridge() {
 					&& foundExposure
 					&& !cellHasTerrainFlag(i, k, T_OBSTRUCTS_PASSABILITY | T_CAN_BE_BRIDGED)
 					&& 100 * pathingDistance(i, j, i, k, T_PATHING_BLOCKER) / (k - j) > bridgeRatioY) {
+					
 					for (l=j+1; l < k; l++) {
 						pmap[i][l].layers[LIQUID] = BRIDGE;
 					}
@@ -1898,8 +1958,8 @@ void createWreath(short shallowLiquid, short wreathWidth, char wreathMap[DCOLS][
 			if (wreathMap[i][j]) {
 				for (k = i-wreathWidth; k<= i+wreathWidth; k++) {
 					for (l = j-wreathWidth; l <= j+wreathWidth; l++) {
-						if (coordinatesAreInMap(k, l) && pmap[k][l].layers[LIQUID] == NOTHING &&
-							(i-k)*(i-k) + (j-l)*(j-l) <= wreathWidth*wreathWidth) {
+						if (coordinatesAreInMap(k, l) && pmap[k][l].layers[LIQUID] == NOTHING
+							&& (i-k)*(i-k) + (j-l)*(j-l) <= wreathWidth*wreathWidth) {
 							pmap[k][l].layers[LIQUID] = shallowLiquid;
 							if (pmap[k][l].layers[DUNGEON] == DOOR) {
 								pmap[k][l].layers[DUNGEON] = FLOOR;
@@ -2708,17 +2768,18 @@ void liquidType(short *deep, short *shallow, short *shallowWidth) {
 	}
 }
 
-// Fills a lake of UNFILLED_LAKE with the specified liquid type, scanning outward to reach other lakes within scanWidth.
+// Fills a lake marked in unfilledLakeMap with the specified liquid type, scanning outward to reach other lakes within scanWidth.
 // Any wreath of shallow liquid must be done elsewhere.
-void fillLake(short x, short y, short liquid, short scanWidth, char wreathMap[DCOLS][DROWS]) {
+void fillLake(short x, short y, short liquid, short scanWidth, char wreathMap[DCOLS][DROWS], char unfilledLakeMap[DCOLS][DROWS]) {
 	short i, j;
 	
 	for (i = x - scanWidth; i <= x + scanWidth; i++) {
 		for (j = y - scanWidth; j <= y + scanWidth; j++) {
-			if (coordinatesAreInMap(i, j) && pmap[i][j].layers[LIQUID] == UNFILLED_LAKE) {
+			if (coordinatesAreInMap(i, j) && unfilledLakeMap[i][j]) {
+				unfilledLakeMap[i][j] = false;
 				pmap[i][j].layers[LIQUID] = liquid;
 				wreathMap[i][j] = 1;
-				fillLake(i, j, liquid, scanWidth, wreathMap);	// recursive
+				fillLake(i, j, liquid, scanWidth, wreathMap, unfilledLakeMap);	// recursive
 			}
 		}
 	}
@@ -2739,11 +2800,17 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 	
 	for (i=0; i<DCOLS; i++) {
 		for (j=0; j<DROWS; j++) {
-			if (spawnMap[i][j]
+			if (	// If it's flagged for building in the spawn map,
+				spawnMap[i][j]
+					// and the new cell doesn't already contain the fill terrain,
 				&& pmap[i][j].layers[layer] != surfaceTileType
-				&& (duringGame || !(tileCatalog[pmap[i][j].layers[LIQUID]].flags & T_PATHING_BLOCKER)) //pmap[i][j].layers[LIQUID] == NOTHING)
+					// and we won't be spilling onto harmful liquids during gameplay (as opposed to level generation),
+				&& (duringGame || !(tileCatalog[pmap[i][j].layers[LIQUID]].flags & T_PATHING_BLOCKER))
+					// and the terrain in the layer to be overwritten has a higher priority number,
 				&& tileCatalog[pmap[i][j].layers[layer]].drawPriority >= tileCatalog[surfaceTileType].drawPriority
+					// and we won't be painting into the surface layer when that cell forbids it,
 				&& (layer != SURFACE || (!cellHasTerrainFlag(i, j, T_OBSTRUCTS_SURFACE_EFFECTS)))
+					// and a surface layer fill won't violate the priority of the most important terrain in this cell:
 				&& (layer != SURFACE || tileCatalog[pmap[i][j].layers[highestPriorityLayer(i, j, true)]].drawPriority >= tileCatalog[surfaceTileType].drawPriority)) {
 				
 				if ((tileCatalog[surfaceTileType].flags & T_IS_FIRE)
@@ -2771,7 +2838,6 @@ void fillSpawnMap(enum dungeonLayers layer, enum tileType surfaceTileType, char 
 							return;
 						}
 					}
-					
 					if (tileCatalog[surfaceTileType].flags & T_IS_FIRE) {
 						if (pmap[i][j].flags & HAS_ITEM) {
 							theItem = itemAtLoc(i, j);
@@ -2855,7 +2921,7 @@ boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refr
 		} else {
 			spawnMapDF(x, y,
 					   feat->propagationTerrain,
-					   false,
+					   (feat->propagationTerrain ? true : false),
 					   feat->startProbability,
 					   feat->probabilityDecrement,
 					   blockingMap);
@@ -2868,7 +2934,7 @@ boolean spawnDungeonFeature(short x, short y, dungeonFeature *feat, boolean refr
 								&& (pmap[i][j].flags & (HAS_MONSTER | HAS_PLAYER))) {
 								
 								monst = monsterAtLoc(i, j);
-								getQualifyingLocNear(newLoc, i, j, true, blockingMap, forbiddenFlagsForMonster(monst), 0, false);
+								getQualifyingLocNear(newLoc, i, j, true, blockingMap, forbiddenFlagsForMonster(&(monst->info)), 0, false);
 								monst->xLoc = newLoc[0];
 								monst->yLoc = newLoc[1];
 								pmap[i][j].flags &= ~(HAS_MONSTER | HAS_PLAYER);

@@ -51,6 +51,7 @@ void pdsUpdate(pdsMap *map) {
 	while (head != NULL) {
 		for (dir = 0; dir < dirs; dir++) {
 			link = head + (nbDirs[dir][0] + DCOLS * nbDirs[dir][1]);
+			if (link < map->links || link >= map->links + DCOLS * DROWS) continue;
 
 			// verify passability
 			if (link->cost < 0) continue;
