@@ -221,5 +221,5 @@ void updateLighting() {
 boolean playerInDarkness() {
 	return (tmap[player.xLoc][player.yLoc].light[0] + 10 < minersLightColor.red
 			&& tmap[player.xLoc][player.yLoc].light[1] + 10 < minersLightColor.green
-			&& tmap[player.xLoc][player.yLoc].light[0] + 10 < minersLightColor.blue);
+			&& tmap[player.xLoc][player.yLoc].light[2] + 10 < minersLightColor.blue);
 }
