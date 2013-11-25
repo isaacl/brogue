@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 2/8/09.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -30,6 +30,7 @@ extern char buffer[DCOLS][DROWS];						// used in cave generation
 extern short **safetyMap;										// used to help monsters flee
 extern short **allySafetyMap;
 extern short **chokeMap;
+extern short **playerPathingMap;
 
 extern short listOfWallsX[4][DROWS*DCOLS];
 extern short listOfWallsY[4][DROWS*DCOLS];
@@ -52,9 +53,11 @@ extern char displayedMessage[MESSAGE_LINES][COLS];
 extern boolean messageConfirmed[3];
 extern char combatText[COLS];
 extern long levelPoints[MAX_EXP_LEVEL];
-extern short brogueCursorX, brogueCursorY;
 extern char currentFilePath[FILENAME_MAX];
 extern unsigned long randomNumbersGenerated;
+
+extern char displayDetail[DCOLS][DROWS];
+boolean isInterface[DCOLS][DROWS];
 
 #ifdef AUDIT_RNG
 extern FILE *RNGLogFile;
@@ -149,10 +152,11 @@ extern color confusionGasColor;
 extern color lightningColor;
 extern color spectralImageColor;
 
-extern color goodCombatMessageColor;
-extern color badCombatMessageColor;
+extern color goodMessageColor;
+extern color badMessageColor;
 extern color advancementMessageColor;
 extern color itemMessageColor;
+extern color backgroundMessageColor;
 
 extern color flavorTextColor;
 
@@ -197,8 +201,6 @@ extern itemTable ringTable[NUMBER_RING_KINDS];
 extern const char weaponRunicNames[NUMBER_WEAPON_RUNIC_KINDS][30];
 
 extern const char armorRunicNames[NUMBER_ARMOR_ENCHANT_KINDS][30];
-
-extern short goodItems[NUMBER_GOOD_ITEMS][2];
 
 extern char monsterBehaviorFlagDescriptions[32][COLS];
 extern char monsterAbilityFlagDescriptions[32][COLS];

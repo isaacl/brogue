@@ -1,0 +1,33 @@
+./brogue is a shell script that will detect terminal and invoke bin/brogue
+with the appropriate switches and in the correct working folder.  It therefore
+serves as an acceptable target for a desktop shortcut (see 
+make-link-for-desktop.sh for an easy way to make one.)  It will pass command
+line arguments along to bin/brogue.  The following are accepted:
+
+-t	force terminal mode
+-s	force libtcod mode with an SDL renderer
+-gl	force libtcod mode with an OpenGL renderer (default)
+
+The switch that you pass to ./brogue will override the -t it appends in
+terminal mode, so ./brogue -gl will start brogue in the traditional libtcod
+window.
+
+Regrettably, SDL is initialized automatically at present no matter what switch
+you supply, unless bin/brogue has been built without libtcod support.
+
+
+The Makefile accepts these targets:
+	make tcod
+	make curses
+	make both
+
+If you build for curses only, libtcod is not required and SDL will not be linked
+or initialized at runtime.  If you build for tcod only, you do not need ncurses-dev.
+If you make either 'tcod' or 'both', the Makefile will automatically download the
+32-bit version of libtcod for you and untar it in the right place (in src).
+
+To produce a distributable tar file, make tar.  To clean (as you must after changing
+headers or before switching targets -- sorry about that), make clean.
+
+make both is the default.
+

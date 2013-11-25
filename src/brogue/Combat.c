@@ -3,7 +3,7 @@
  *  Brogue
  *
  *  Created by Brian Walker on 6/11/09.
- *  Copyright 2010. All rights reserved.
+ *  Copyright 2011. All rights reserved.
  *  
  *  This file is part of Brogue.
  *
@@ -32,7 +32,7 @@
  *
  * Each combatant also has a defense rating. The "hit probability" is calculated as given by this formula:
  * 
- * 							hit probability = (accuracy) * 0.986 ^ (defense)
+ * 			hit probability = (accuracy) * 0.986 ^ (defense)
  * 
  * when hit determinations are made. Negative numbers and numbers over 100 are permitted.
  * The hit is then randomly determined according to this final percentage.
@@ -191,7 +191,7 @@ void shootWeb(creature *breather, short targetLoc[2], short kindOfWeb) {
 	if (pmap[originLoc[0]][originLoc[1]].flags & IN_FIELD_OF_VIEW) {
 		monsterName(buf2, breather, true);
 		sprintf(buf, "%s launches a sticky web.", buf2);
-		message(buf, true, false);
+		message(buf, false);
 	}
 	
 	for (i=0; i<numCells; i++) {
@@ -301,14 +301,14 @@ void specialHit(creature *attacker, creature *defender, short damage) {
 					monsterName(buf2, attacker, true);
 					itemName(theItem, buf3, false, true, NULL);
 					sprintf(buf, "%s stole %s!", buf2, buf3);
-					messageWithColor(buf, &badCombatMessageColor, false);
+					messageWithColor(buf, &badMessageColor, false);
 				}
 			}
 		}
 	}
 	if (attacker->info.abilityFlags & MA_POISONS && damage > 0) {
 		if (defender == &player && !player.status.poisoned) {
-			combatMessage("scalding poison fills your veins", &badCombatMessageColor);
+			combatMessage("scalding poison fills your veins", &badMessageColor);
 		}
 		if (!defender->status.poisoned) {
 			defender->maxStatus.poisoned = 0;
@@ -482,7 +482,7 @@ void magicWeaponHit(creature *defender, item *theItem, boolean backstabbed) {
 					fadeInMonster(newMonst);
 				}
 				
-				message(buf, true, false);
+				message(buf, false);
 				break;
 			case W_SLOWING:
 				slow(defender, weaponSlowDuration(enchant));
@@ -561,7 +561,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 					monst->bookkeepingFlags |= (MONST_FOLLOWER | MONST_BOUND_TO_LEADER | MONST_DOES_NOT_TRACK_LEADER);
 					monst->info.flags |= MONST_DIES_IF_NEGATED;
 					monst->bookkeepingFlags &= ~MONST_JUST_SUMMONED;
-					monst->info.abilityFlags &= ~MA_CAST_SUMMON; // No summoning spectral duplicates.
+					monst->info.abilityFlags &= ~MA_CAST_SUMMON; // No summoning by spectral images. Gotta draw the line!
 					monst->leader = &player;
 					monst->creatureState = MONSTER_ALLY;
 					monst->ticksUntilTurn = 100;
@@ -586,7 +586,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 				}
 				
 				runicDiscovered = true;
-				sprintf(returnString, "Your %s flashes, and spectral duplicates of %s appear!", armorName, attackerName);
+				sprintf(returnString, "Your %s flashes, and spectral images of %s appear!", armorName, attackerName);
 			}
 			break;
 		case A_MUTUALITY:
@@ -631,7 +631,7 @@ void applyArmorRunicEffect(char returnString[DCOLS], creature *attacker, short *
 			}
 			break;
 		case A_ABSORPTION:
-			*damage -= rand_range(0, (short) enchant);
+			*damage -= rand_range(0, armorAbsorptionMax(enchant));
 			if (*damage <= 0) {
 				*damage = 0;
 				runicDiscovered = true;
@@ -806,9 +806,16 @@ boolean attack(creature *attacker, creature *defender) {
 		
 		if (inflictDamage(attacker, defender, damage, &red)) { // if the attack killed the defender
 			if (defenderWasAsleep || sneakAttack) {
-				sprintf(buf, "%s dispatched %s%s", attackerName, defenderName, explicationClause);
+				sprintf(buf, "%s %s %s%s", attackerName,
+						((defender->info.flags & MONST_INANIMATE) ? "destroyed" : "dispatched"),
+						defenderName,
+						explicationClause);
 			} else {
-				sprintf(buf, "%s defeated %s%s", attackerName, defenderName, explicationClause);
+				sprintf(buf, "%s %s %s%s",
+						attackerName,
+						((defender->info.flags & MONST_INANIMATE) ? "destroyed" : "defeated"),
+						defenderName,
+						explicationClause);
 			}
 			if (sightUnseen) {
 				if (defender->info.flags & MONST_INANIMATE) {
@@ -857,7 +864,7 @@ boolean attack(creature *attacker, creature *defender) {
 			}
 			// moved from here
 			if (armorRunicString[0]) {
-				message(armorRunicString, true, false);
+				message(armorRunicString, false);
 				if (rogue.armor && (rogue.armor->flags & ITEM_RUNIC) && rogue.armor->enchant2 == A_BURDEN) {
 					strengthCheck(rogue.armor);
 				}
@@ -961,7 +968,7 @@ void displayCombatText() {
 	if (combatText[0]) {
 		sprintf(buf, "%s.", combatText);
 		combatText[0] = '\0';
-		message(buf, true, rogue.cautiousMode);
+		message(buf, rogue.cautiousMode);
 		rogue.cautiousMode = false;
 	}
 }
@@ -977,7 +984,7 @@ void flashMonster(creature *monst, const color *theColor, short strength) {
 
 boolean canAbsorb(creature *ally, creature *prey, short **grid) {
 	return (ally->creatureState == MONSTER_ALLY
-			&& ally->absorbsAllowed >= 2000
+			&& ally->absorbsAllowed >= XPXP_NEEDED_FOR_ABSORB
 			&& (ally->targetCorpseLoc[0] <= 0)
 			&& monstersAreEnemies(ally, prey)
 			&& ((~(ally->info.abilityFlags) & prey->info.abilityFlags & LEARNABLE_ABILITIES)
@@ -1001,7 +1008,7 @@ boolean anyoneWantABite(creature *decedent) {
 	}
 	grid = allocDynamicGrid();
 	fillDynamicGrid(grid, 0);
-	calculateDistances(grid, decedent->xLoc, decedent->yLoc, T_PATHING_BLOCKER, NULL, true);
+	calculateDistances(grid, decedent->xLoc, decedent->yLoc, T_PATHING_BLOCKER, NULL, true, true);
 	for (ally = monsters->nextCreature; ally != NULL; ally = ally->nextCreature) {
 		if (canAbsorb(ally, decedent, grid)) {
 			candidates++;
@@ -1151,7 +1158,7 @@ void killCreature(creature *decedent, boolean administrativeDeath) {
 		if (monsterText[decedent->info.monsterID].DFMessage && canSeeMonster(decedent)) {
 			monsterName(monstName, decedent, true);
 			sprintf(buf, "%s %s", monstName, monsterText[decedent->info.monsterID].DFMessage);
-			message(buf, true, false);
+			message(buf, false);
 		}
 	}
 	
@@ -1163,7 +1170,7 @@ void killCreature(creature *decedent, boolean administrativeDeath) {
 			&& !canSeeMonster(decedent)
 			&& !(decedent->info.flags & MONST_INANIMATE)
 			&& !(decedent->bookkeepingFlags & MONST_BOUND_TO_LEADER)) {
-			messageWithColor("you feel a sense of loss.", &badCombatMessageColor, false);
+			messageWithColor("you feel a sense of loss.", &badMessageColor, false);
 		}
 		x = decedent->xLoc;
 		y = decedent->yLoc;
@@ -1186,7 +1193,7 @@ void killCreature(creature *decedent, boolean administrativeDeath) {
 				
 				if (canSeeMonster(decedent->carriedMonster)) {
 					monsterName(monstName, decedent->carriedMonster, true);
-					sprintf(buf, "%s reappears", monstName);
+					sprintf(buf, "%s appears", monstName);
 					combatMessage(buf, NULL);
 				}
 				

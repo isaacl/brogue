@@ -1,3 +1,9 @@
 #!/usr/bin/env bash
-(cd `dirname $0`/bin && ./brogue)
+cd `dirname $0`/bin
+
+if [ -t 0 ]; then
+	./brogue -t $*
+else
+	./brogue $*
+fi
 
